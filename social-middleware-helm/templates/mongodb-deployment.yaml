@@ -2,11 +2,11 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: {{ .Values.mongodb.podlabel }}
-  app: {{ .Values.mongodb.podlabel }}
   namespace: f6e00d-dev
   labels:
     app: {{ .Values.mongodb.podlabel }}
     name: {{ .Values.mongodb.podlabel }}
+    app.openshift.io/runtime: mongodb
 spec:
   replicas: 1
   selector:
@@ -15,6 +15,7 @@ spec:
   template:
     metadata:
       labels:
+        app: {{ .Values.mongodb.podlabel }}
         app: {{ .Values.mongodb.podlabel }}
     spec:
       containers:

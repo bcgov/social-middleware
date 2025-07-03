@@ -5,6 +5,7 @@ metadata:
   namespace: {{ .Release.Namespace }}
   labels:
     app: {{ .Values.nextjs.podlabel | default "nextjs-app" }}
+    app.openshift.io/runtime: nodejs
 spec:
   replicas: 1
   selector:
