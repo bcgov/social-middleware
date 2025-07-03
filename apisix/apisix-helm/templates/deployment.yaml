@@ -3,6 +3,8 @@ kind: Deployment
 metadata:
   name: apisix
   namespace: {{ .Release.Namespace }}
+  labels:
+    app.openshift.io/runtime: load-balancer
 spec:
   replicas: 1
   selector:
