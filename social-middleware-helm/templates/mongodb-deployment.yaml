@@ -1,0 +1,68 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.mongodb.podlabel }}
+  namespace: f6e00d-dev
+  labels:
+    app: {{ .Values.mongodb.podlabel }}
+    name: {{ .Values.mongodb.podlabel }}
+    app.openshift.io/runtime: mongodb
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ .Values.mongodb.podlabel }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.mongodb.podlabel }}
+        app: {{ .Values.mongodb.podlabel }}
+    spec:
+      containers:
+        - name: {{ .Values.mongodb.podlabel }}
+          image: {{ .Values.mongodb.image }}
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: {{ .Values.mongodb.port }}
+              protocol: TCP
+          env:
+            - name: MONGODB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: mongodb
+                  key: database-user
+            - name: MONGODB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mongodb
+                  key: database-password
+            - name: MONGODB_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mongodb
+                  key: database-admin-password
+            - name: MONGODB_DATABASE
+              valueFrom:
+                secretKeyRef:
+                  name: mongodb
+                  key: database-name
+          volumeMounts:
+            - name: mongodb-data
+              mountPath: /var/lib/mongodb/data
+          resources:
+            limits:
+              memory: 512Mi
+          securityContext:
+            capabilities: {}
+            privileged: false
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+      restartPolicy: Always
+      terminationGracePeriodSeconds: 30
+      dnsPolicy: ClusterFirst
+      securityContext: {}
+      schedulerName: default-scheduler
+      volumes:
+        - name: mongodb-data
+          persistentVolumeClaim:
+            claimName: mongodb
