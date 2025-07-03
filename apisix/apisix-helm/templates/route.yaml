@@ -1,0 +1,13 @@
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: apisix
+  namespace: {{ .Release.Namespace }}
+spec:
+  to:
+    kind: Service
+    name: apisix
+  port:
+    targetPort: 80
+  tls:
+    termination: edge
