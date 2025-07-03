@@ -1,0 +1,55 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.nextjs.podlabel | default "nextjs-app" }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: {{ .Values.nextjs.podlabel | default "nextjs-app" }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ .Values.nextjs.podlabel | default "nextjs-app" }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.nextjs.podlabel | default "nextjs-app" }}
+    spec:
+      containers:
+        - name: nextjs
+          image: {{ .Values.nextjs.image }}
+          imagePullPolicy: Always
+          ports:
+            - containerPort: {{ .Values.nextjsservice.port }}
+              protocol: TCP
+          env:
+            - name: MONGO_USER
+              valueFrom:
+                secretKeyRef:
+                  name: mongodb
+                  key: database-user
+            - name: MONGO_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: mongodb
+                  key: database-password
+            - name: MONGO_DB
+              valueFrom:
+                secretKeyRef:
+                  name: mongodb
+                  key: database-name
+          resources: {}
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+      restartPolicy: Always
+      terminationGracePeriodSeconds: 30
+      dnsPolicy: ClusterFirst
+      securityContext: {}
+      schedulerName: default-scheduler
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 25%
+      maxSurge: 25%
+  revisionHistoryLimit: 10
+  progressDeadlineSeconds: 600
