@@ -1,0 +1,13 @@
+nextjs:
+  podlabel: nextjs-app
+  image: image-registry.openshift-image-registry.svc:5000/f6e00d-tools/nextjs:latest
+
+mongodb: 
+  podlabel: mongodb
+  port: 27017
+  targetport: 27017
+  image: image-registry.openshift-image-registry.svc:5000/openshift/mongodb:3.6
+
+nextjsservice:
+  port: 80
+  targetPort: 3000
