@@ -1,1 +1,1 @@
-apisix helm chart deployed
+apisix helm chart deployed.

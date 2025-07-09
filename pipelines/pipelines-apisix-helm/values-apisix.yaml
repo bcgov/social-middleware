@@ -5,6 +5,6 @@ general:
   contextpath: ./apisix/
   imageurl: apisix
   helmrelease: apisix
-  helmdir: ./apisix-helm
+  helmdir: ./apisix/apisix-helm
 
  
