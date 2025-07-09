@@ -10,6 +10,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
     MongooseModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
+      // eslint-disable-next-line @typescript-eslint/require-await
       useFactory: async (configService: ConfigService) => {
         const user = configService.get<string>('MONGO_USER');
         const pass = configService.get<string>('MONGO_PASS');
@@ -21,9 +22,9 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
           throw new Error('Missing required MongoDB environment variables');
         }
 
-        const uri = `mongodb://${user}:${pass}@${host}:${port}/${db}`;
-
-
+        //const uri = `mongodb://${user}:${pass}@${host}:${port}/${db}`;
+        const uri = `mongodb://${user}:${pass}@${host}:${port}/${db}?authSource=socialdb`;
+        console.log('uri', uri);
 
         return {
           uri,

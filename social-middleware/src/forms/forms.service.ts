@@ -1,8 +1,19 @@
+import { randomUUID } from 'crypto';
 import { Injectable } from '@nestjs/common';
 import { ValidateTokenDto } from './dto/validate-token.dto';
+import { ConfigService } from '@nestjs/config';
 
 @Injectable()
 export class FormsService {
+  constructor(private readonly configService: ConfigService) {}
+  generateOneTimeToken(formId: string) {
+    const token = randomUUID();
+    //may be pass application id here too. Depends on how this is called from application module.
+    console.log('formId', formId);
+    //save the form parameters agianst the token and user Id for later use.The same will be retrived in the following function
+    //form-parameters insert goes here
+    return token;
+  }
   validateTokenAndGetParameters(dto: ValidateTokenDto) {
     const { token, userId } = dto;
     console.log('token ', token);
