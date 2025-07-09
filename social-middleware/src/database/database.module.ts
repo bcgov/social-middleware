@@ -22,14 +22,14 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
           throw new Error('Missing required MongoDB environment variables');
         }
 
-        //const uri = `mongodb://${user}:${pass}@${host}:${port}/${db}`;
-        const uri = `mongodb://${user}:${pass}@${host}:${port}/${db}?authSource=socialdb`;
-        console.log('uri', uri);
+        const uri = `mongodb://${user}:${pass}@${host}:${port}/${db}?authSource=admin`;
+
+
 
         return {
           uri,
-          useNewUrlParser: true,
-          useUnifiedTopology: true,
+          // useNewUrlParser: true,
+          // useUnifiedTopology: true,
         };
       },
     }),
