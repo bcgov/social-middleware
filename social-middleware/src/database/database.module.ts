@@ -24,15 +24,15 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
         let uri = '';
         
         if (user && pass) {
-          uri = `mongodb://${user}:${pass}@${host}:${port}/${db}`;
+          uri = `mongodb://${user}:${pass}@${host}:${port}/${db}?authSource=admin`;
         } else {
-          uri = `mongodb://${host}:${port}/${db}`;
+          uri = `mongodb://${host}:${port}/${db}?authSource=admin`;
         }
 
         return {
           uri,
-          useNewUrlParser: true,
-          useUnifiedTopology: true,
+          // useNewUrlParser: true,
+          // useUnifiedTopology: true,
         };
       },
     }),
