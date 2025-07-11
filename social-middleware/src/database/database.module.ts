@@ -17,13 +17,17 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
         const port = configService.get<string>('MONGO_PORT', '27017');
         const db = configService.get<string>('MONGO_DB');
 
-        if (!user || !pass || !host || !db) {
+        if (!host || !port || !db) {
           throw new Error('Missing required MongoDB environment variables');
         }
-
-        const uri = `mongodb://${user}:${pass}@${host}:${port}/${db}?authSource=admin`;
-
-
+        
+        let uri = '';
+        
+        if (user && pass) {
+          uri = `mongodb://${user}:${pass}@${host}:${port}/${db}?authSource=admin`;
+        } else {
+          uri = `mongodb://${host}:${port}/${db}?authSource=admin`;
+        }
 
         return {
           uri,

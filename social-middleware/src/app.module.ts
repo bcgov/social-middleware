@@ -1,4 +1,6 @@
 import { Module } from '@nestjs/common';
+import { HttpModule } from '@nestjs/axios';
+import { AuthModule } from './auth/auth.module';
 import { LoggerModule } from 'nestjs-pino';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { HealthModule } from './health/health.module';
@@ -9,6 +11,8 @@ import { DatabaseModule } from './database/database.module';
     ConfigModule.forRoot({
       isGlobal: true,
     }),
+    HttpModule,
+    AuthModule,
     LoggerModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
