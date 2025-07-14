@@ -1,5 +1,6 @@
 //AuthController
 import { Controller, Post, Get, Body, Res, Req, HttpException, HttpStatus, BadRequestException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { Request, Response } from 'express';
 import { HttpService } from '@nestjs/axios';
 import { firstValueFrom } from 'rxjs';
@@ -27,13 +28,24 @@ interface JwtPayload {
 
 @Controller('auth')
 export class AuthController {
-  private readonly BCSC_CLIENT_ID = process.env.BCSC_CLIENT_ID!;
-  private readonly BCSC_CLIENT_SECRET = process.env.BCSC_CLIENT_SECRET!;
-  private readonly BCSC_AUTHORITY = process.env.BCSC_AUTHORITY!;
-  private readonly JWT_SECRET = process.env.JWT_SECRET!;
-  private readonly NODE_ENV = process.env.NODE_ENV!;
+  private readonly bcscClientId: string;
+  private readonly bcscClientSecret: string;
+  private readonly bcscAuthority: string;
+  private readonly jwtSecret: string;
+  private readonly nodeEnv: string;
+  private readonly frontendURL: string;
 
-  constructor(private readonly httpService: HttpService) {}
+  constructor(
+    private readonly httpService: HttpService,
+    private readonly configService: ConfigService
+  ) {
+      this.bcscClientId = this.configService.get<string>('BCSC_CLIENT_ID')!;
+      this.bcscClientSecret = this.configService.get<string>('BCSC_CLIENT_SECRET')!;
+      this.bcscAuthority = this.configService.get<string>('BCSC_AUTHORITY')!;
+      this.jwtSecret = this.configService.get<string>('JWT_SECRET')!;
+      this.nodeEnv = this.configService.get<string>('NODE_ENV', 'development');
+      this.frontendURL = this.configService.get<string>('FRONTEND_URL')!;
+  }
 
   @Post('callback')
   async authCallback(@Body() body: AuthCallbackRequest, @Res({ passthrough: true }) res: Response) {
@@ -57,8 +69,8 @@ export class AuthController {
       // Prepare token exchange request
       const tokenParams = new URLSearchParams({
         grant_type: 'authorization_code',
-        client_id: this.BCSC_CLIENT_ID,
-        client_secret: this.BCSC_CLIENT_SECRET,
+        client_id: this.bcscClientId,
+        client_secret: this.bcscClientSecret,
         code: code,
         redirect_uri: redirect_uri,
       });
@@ -66,7 +78,7 @@ export class AuthController {
       // Exchange authorization code for tokens with BC Services Card
       const tokenResponse = await firstValueFrom(
         this.httpService.post(
-          `${this.BCSC_AUTHORITY}/protocol/openid-connect/token`,
+          `${this.bcscAuthority}/protocol/openid-connect/token`,
           tokenParams,
           {
             headers: {
@@ -84,7 +96,7 @@ export class AuthController {
       console.log('Fetching user info...');
       const userInfoResponse = await firstValueFrom(
         this.httpService.get(
-          `${this.BCSC_AUTHORITY}/protocol/openid-connect/userinfo`,
+          `${this.bcscAuthority}/protocol/openid-connect/userinfo`,
           {
             headers: {
               Authorization: `Bearer ${access_token}`,
@@ -105,7 +117,7 @@ export class AuthController {
           name: userInfo.name || `${userInfo.given_name} ${userInfo.family_name}`,
           iat: Math.floor(Date.now() / 1000),
         },
-        this.JWT_SECRET,
+        this.jwtSecret,
         {
           expiresIn: '24h',
         }
@@ -117,7 +129,7 @@ export class AuthController {
       // TO DO: Offload these to OpenShift config
       res.cookie('session_token', sessionToken, {
         httpOnly: true,
-        secure: this.NODE_ENV === 'production',
+        secure: this.nodeEnv === 'production',
         sameSite: 'lax',
         maxAge: 24 * 60 * 60 * 1000, // 24 hours
       });
@@ -127,7 +139,7 @@ export class AuthController {
       if (refresh_token) {
         res.cookie('refresh_token', refresh_token, {
           httpOnly: true,
-          secure: this.NODE_ENV === 'production',
+          secure: this.nodeEnv === 'production',
           sameSite: 'lax',
           maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
         });
@@ -138,7 +150,7 @@ export class AuthController {
       if (id_token) {
         res.cookie('id_token', id_token, {
           httpOnly: true,
-          secure: this.NODE_ENV === 'production',
+          secure: this.nodeEnv === 'production',
           sameSite: 'lax',
           maxAge: 24 * 60 * 60 * 1000, // 24 hours
         });
@@ -171,7 +183,7 @@ export class AuthController {
       throw new HttpException(
         {
           error: 'Authentication failed',
-          details: this.NODE_ENV === 'development' ? error.message : undefined,
+          details: this.nodeEnv === 'development' ? error.message : undefined,
         },
         HttpStatus.BAD_REQUEST
       );
@@ -191,7 +203,7 @@ export class AuthController {
         throw new HttpException({ error: 'Not authenticated' }, HttpStatus.UNAUTHORIZED);
       }
 
-      const decoded = jwt.verify(sessionToken, this.JWT_SECRET) as JwtPayload;
+      const decoded = jwt.verify(sessionToken, this.jwtSecret) as JwtPayload;
       
       return {
         user: {
@@ -221,29 +233,28 @@ export class AuthController {
     // Clear all auth cookies
     res.clearCookie('session_token', { 
       httpOnly: true, 
-      secure: this.NODE_ENV === 'production', 
+      secure: this.nodeEnv === 'production', 
       sameSite: 'lax' 
     });
     res.clearCookie('id_token', { 
       httpOnly: true, 
-      secure: this.NODE_ENV === 'production', 
+      secure: this.nodeEnv === 'production', 
       sameSite: 'lax' 
     });
     res.clearCookie('refresh_token', { 
       httpOnly: true, 
-      secure: this.NODE_ENV === 'production', 
+      secure: this.nodeEnv === 'production', 
       sameSite: 'lax' 
     });
 
     if (idToken) {
-      const logoutUrl = new URL(`${this.BCSC_AUTHORITY}/protocol/openid-connect/logout`);
+      const logoutUrl = new URL(`${this.bcscAuthority}/protocol/openid-connect/logout`);
       logoutUrl.searchParams.set('id_token_hint', idToken);
       logoutUrl.searchParams.set('post_logout_redirect_uri', 'http://localhost:5173/login');
       logoutUrl.searchParams.set('prompt', 'login');
       return res.redirect(logoutUrl.toString());
     }
 
-    // TO DO: this should not be hardcoded..
-    return res.redirect('http://localhost:5173/login');
+    return res.redirect(`${this.frontendURL}/login`);
   }
 }
