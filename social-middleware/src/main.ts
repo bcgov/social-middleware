@@ -13,7 +13,7 @@ async function bootstrap() {
   
    // Enable CORS to handle preflight OPTIONS requests
 
-   const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+   const frontendUrl = config.get<string>('FRONTEND_URL') || 'http://localhost:5173';
    const allowedOrigins = [frontendUrl];
 
    app.enableCors({
