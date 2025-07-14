@@ -10,10 +10,14 @@ async function bootstrap() {
   });
   const config = app.get(ConfigService);
   const port = config.get<number>('PORT') || 3001;
-
+  
    // Enable CORS to handle preflight OPTIONS requests
+
+   const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+   const allowedOrigins = [frontendUrl];
+
    app.enableCors({
-    origin: true, // Allow all origins in development, or specify your frontend URL
+    origin: allowedOrigins, 
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
     credentials: true,
