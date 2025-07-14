@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, InternalServerErrorException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
 import { v4 as uuidv4 } from 'uuid';
@@ -22,31 +22,43 @@ export class ApplicationService {
         const applicationId = uuidv4();
         const formAccessToken = uuidv4();
 
-        this.logger.info('Creating new application');
-        this.logger.debug({ applicationId, userId: dto.user.id, formId: dto.formId }, 'Generated UUIDs');
+        try {
+            this.logger.info('Creating new application');
+            this.logger.debug({ applicationId, userId: dto.user.id, formId: dto.formId }, 'Generated UUIDs');
 
-        const application = new this.applicationModel({
-            applicationId,
-            userId: dto.user.id,
-            type: dto.type,
-            status: 'Pending',
-            formData: null,
-        });
+            const application = new this.applicationModel({
+                applicationId,
+                userId: dto.user.id,
+                type: dto.type,
+                status: 'Pending',
+                formData: null,
+            });
 
-        await application.save();
-        this.logger.info({ applicationId }, 'Saved application to DB');
+            await application.save();
+            this.logger.info({ applicationId }, 'Saved application to DB');
 
-        const formParameters = new this.formParametersModel({
-            applicationId,
-            type: 'Create',
-            formId: dto.formId,
-            formAccessToken,
-            formParameters: dto.formParameters,
-        });
+            const formParameters = new this.formParametersModel({
+                applicationId,
+                type: 'Create',
+                formId: dto.formId,
+                formAccessToken,
+                formParameters: dto.formParameters,
+            });
 
-        await formParameters.save();
-        this.logger.info({ formAccessToken }, 'Saved form parameters to DB');
+            await formParameters.save();
+            this.logger.info({ formAccessToken }, 'Saved form parameters to DB');
 
-        return { formAccessToken };
+            return { formAccessToken };
+        } catch (error) {
+            if (error instanceof Error) {
+                this.logger.error(
+                    { error: error.message, stack: error.stack },
+                    'Error creating application',
+                );
+            } else {
+                this.logger.error({ error }, 'Unknown error during application creation');
+            }
+            throw new InternalServerErrorException('Failed to create application');
+        }
     }
 }
