@@ -49,11 +49,12 @@ spec:
       image: $(params.BUILDAH_IMAGE)
       script: |
         #!/usr/bin/env bash
+        set -x
         buildah login -u $IMAGE_REGISTRY_USER -p $IMAGE_REGISTRY_PASS $(params.IMAGE_REGISTRY) 
         buildah --storage-driver=$(params.STORAGE_DRIVER) bud \
-          --no-cache -f ./caregiver-portal/Dockerfile -t $(params.IMAGE_REGISTRY)/$(params.IMAGE):latest --isolation chroot ./caregiver-portal/ 
+          --no-cache -f $(params.CONTEXT)/Dockerfile -t $(params.IMAGE_REGISTRY)/$(params.IMAGE):latest --isolation chroot $(params.CONTEXT) 
         buildah --storage-driver=$(params.STORAGE_DRIVER) push $(params.IMAGE_REGISTRY)/$(params.IMAGE):latest 
-        set -x
+        
       workingDir: $(workspaces.source.path)
       securityContext:
         capabilities:
@@ -95,12 +96,12 @@ spec:
       image: $(params.BUILDAH_IMAGE)
       script: |
         #!/usr/bin/env bash
+        set -x
         buildah login \
           -u $IMAGE_REGISTRY_USER \
           -p $IMAGE_REGISTRY_PASS $(params.IMAGE_REGISTRY) > /dev/null
-        buildah --storage-driver=$(params.STORAGE_DRIVER) tag $(params.IMAGE_REGISTRY)/$(params.IMAGE):latest $(params.IMAGE_REGISTRY)/$(params.IMAGE):latest
         buildah --storage-driver=$(params.STORAGE_DRIVER) push $(params.IMAGE_REGISTRY)/$(params.IMAGE):latest 
-        set -x
+        
       workingDir: $(workspaces.source.path)
       securityContext:
         capabilities:

@@ -1,27 +1,33 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ .Values.nextjs.podlabel | default "nextjs-app" }}
+  name: {{ .Values.nextjs.podlabel }}
   namespace: {{ .Release.Namespace }}
   labels:
-    app: {{ .Values.nextjs.podlabel | default "nextjs-app" }}
-    app.openshift.io/runtime: nodejs
+    app: {{ .Values.nextjs.podlabel }}
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: {{ .Values.nextjs.podlabel | default "nextjs-app" }}
+      app: {{ .Values.nextjs.podlabel }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 25%
+      maxSurge: 25%
+  revisionHistoryLimit: 10
+  progressDeadlineSeconds: 600
   template:
     metadata:
       labels:
-        app: {{ .Values.nextjs.podlabel | default "nextjs-app" }}
+        app: {{ .Values.nextjs.podlabel }}
     spec:
       containers:
         - name: nextjs
           image: {{ .Values.nextjs.image }}
           imagePullPolicy: Always
           ports:
-            - containerPort: {{ .Values.nextjsservice.port }}
+            - containerPort: {{ .Values.nextjs.port }}
               protocol: TCP
           env:
             - name: MONGO_USER
@@ -39,6 +45,11 @@ spec:
                 secretKeyRef:
                   name: mongodb
                   key: database-name
+          envFrom:
+            - secretRef:
+                name: frontend
+            - secretRef:
+                name: bcsc
           resources: {}
           terminationMessagePath: /dev/termination-log
           terminationMessagePolicy: File
@@ -47,10 +58,3 @@ spec:
       dnsPolicy: ClusterFirst
       securityContext: {}
       schedulerName: default-scheduler
-  strategy:
-    type: RollingUpdate
-    rollingUpdate:
-      maxUnavailable: 25%
-      maxSurge: 25%
-  revisionHistoryLimit: 10
-  progressDeadlineSeconds: 600
