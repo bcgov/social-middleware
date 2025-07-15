@@ -1,7 +1,7 @@
 apiVersion: tekton.dev/v1
 kind: Pipeline
 metadata:
-  name: apisix  # note must match name prefix of tasks/ trigger
+  name: social-middleware  # note must match name prefix of tasks/ trigger
   namespace: f6e00d-tools
 spec:
   params:

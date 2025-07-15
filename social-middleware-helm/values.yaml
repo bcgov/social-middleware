@@ -1,6 +1,7 @@
 nextjs:
   podlabel: nextjs-app
   image: image-registry.openshift-image-registry.svc:5000/f6e00d-tools/nextjs:latest
+  port: 3001
 
 mongodb: 
   podlabel: mongodb
@@ -10,4 +11,4 @@ mongodb:
 
 nextjsservice:
   port: 80
-  targetPort: 3000
+  targetPort: 3001
