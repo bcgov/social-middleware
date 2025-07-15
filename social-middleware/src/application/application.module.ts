@@ -15,5 +15,5 @@ import { ApplicationController } from './application.controller'
   controllers: [ApplicationController],
   providers: [ApplicationService],
 })
-export class ApplicationModule {}
+export class ApplicationModule { }
 
