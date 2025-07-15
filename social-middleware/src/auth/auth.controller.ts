@@ -49,22 +49,31 @@ export class AuthController {
 
   @Post('callback')
   async authCallback(@Body() body: AuthCallbackRequest, @Res({ passthrough: true }) res: Response) {
-    console.log('Auth callback received:', { body });
+    console.log('=== AUTH CALLBACK DEBUG ===');
+    console.log('Raw body:', JSON.stringify(body, null, 2));
+    console.log('Body type:', typeof body);
+    console.log('Code:', body.code);
+    console.log('Redirect URI:', body.redirect_uri);
+    console.log('Code exists:', !!body.code);
+    console.log('Redirect URI exists:', !!body.redirect_uri);
     
     try {
       const { code, redirect_uri } = body;
       
       if (!code) {
         console.error('No authorization code provided');
+        console.error('Body was:', body);
         throw new BadRequestException('Authorization code required');
       }
 
       if (!redirect_uri) {
+        
         console.error('No redirect uri provided');
+        console.error('Body was:', body);
         throw new BadRequestException('Redirect uri required');
       }
 
-      console.log('Exchanging code for tokens...');
+      console.log('Validation passed.. Exchanging code for tokens...');
 
       // Prepare token exchange request
       const tokenParams = new URLSearchParams({
@@ -129,7 +138,7 @@ export class AuthController {
       // TO DO: Offload these to OpenShift config
       res.cookie('session_token', sessionToken, {
         httpOnly: true,
-        secure: this.nodeEnv === 'production',
+        secure: this.nodeEnv === 'production' || this.frontendURL?.startsWith("https://"),
         sameSite: 'lax',
         maxAge: 24 * 60 * 60 * 1000, // 24 hours
       });
@@ -139,7 +148,7 @@ export class AuthController {
       if (refresh_token) {
         res.cookie('refresh_token', refresh_token, {
           httpOnly: true,
-          secure: this.nodeEnv === 'production',
+          secure: this.nodeEnv === 'production' || this.frontendURL?.startsWith("https://"),
           sameSite: 'lax',
           maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
         });
@@ -150,7 +159,7 @@ export class AuthController {
       if (id_token) {
         res.cookie('id_token', id_token, {
           httpOnly: true,
-          secure: this.nodeEnv === 'production',
+          secure: this.nodeEnv === 'production' || this.frontendURL?.startsWith("https://"),
           sameSite: 'lax',
           maxAge: 24 * 60 * 60 * 1000, // 24 hours
         });
