@@ -242,24 +242,24 @@ export class AuthController {
     // Clear all auth cookies
     res.clearCookie('session_token', { 
       httpOnly: true, 
-      secure: this.nodeEnv === 'production', 
+      secure: this.nodeEnv === 'production' || this.frontendURL?.startsWith("https://"), 
       sameSite: 'lax' 
     });
     res.clearCookie('id_token', { 
       httpOnly: true, 
-      secure: this.nodeEnv === 'production', 
+      secure: this.nodeEnv === 'production' || this.frontendURL?.startsWith("https://"),
       sameSite: 'lax' 
     });
     res.clearCookie('refresh_token', { 
       httpOnly: true, 
-      secure: this.nodeEnv === 'production', 
+      secure: this.nodeEnv === 'production'  || this.frontendURL?.startsWith("https://"),
       sameSite: 'lax' 
     });
 
     if (idToken) {
       const logoutUrl = new URL(`${this.bcscAuthority}/protocol/openid-connect/logout`);
       logoutUrl.searchParams.set('id_token_hint', idToken);
-      logoutUrl.searchParams.set('post_logout_redirect_uri', 'http://localhost:5173/login');
+      logoutUrl.searchParams.set('post_logout_redirect_uri', `${this.configService.get('FRONTEND_URL')}/login`);
       logoutUrl.searchParams.set('prompt', 'login');
       return res.redirect(logoutUrl.toString());
     }
