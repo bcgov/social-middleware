@@ -6,6 +6,7 @@ import { Model } from 'mongoose';
 import { Application, ApplicationDocument } from './schemas/application.schema';
 import { FormParameters, FormParametersDocument } from './schemas/form-parameters.schema';
 import { CreateApplicationDto } from './dto/create-application.dto';
+import { FormType } from './enums/form-type.enum';
 
 @Injectable()
 export class ApplicationService {
@@ -30,7 +31,6 @@ export class ApplicationService {
                 applicationId,
                 userId: dto.user.id,
                 type: dto.type,
-                status: 'Pending',
                 formData: null,
             });
 
@@ -39,7 +39,7 @@ export class ApplicationService {
 
             const formParameters = new this.formParametersModel({
                 applicationId,
-                type: 'Create',
+                type: FormType.New,
                 formId: dto.formId,
                 formAccessToken,
                 formParameters: dto.formParameters,

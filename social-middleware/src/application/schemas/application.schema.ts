@@ -1,5 +1,6 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document } from 'mongoose';
+import { ApplicationStatus } from '../enums/application-status.enum';
 
 export type ApplicationDocument = Application & Document;
 
@@ -14,8 +15,8 @@ export class Application {
   @Prop({ required: true })
   type!: string;
 
-  @Prop({ required: true })
-  status!: string; // e.g., 'Pending', 'Submitted', etc.
+  @Prop({ required: true, enum: ApplicationStatus, default: ApplicationStatus.Pending })
+  status!: ApplicationStatus;
 
   @Prop({ type: Object, default: null }) // Allows storing raw JSON
   formData!: Record<string, any> | null;
