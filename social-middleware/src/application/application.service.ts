@@ -30,7 +30,6 @@ export class ApplicationService {
             const application = new this.applicationModel({
                 applicationId,
                 userId: dto.user.id,
-                type: dto.type,
                 formData: null,
             });
 
