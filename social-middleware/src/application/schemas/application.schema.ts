@@ -12,7 +12,7 @@ export class Application {
     @Prop({ required: true })
     userId!: string;
 
-    @Prop({ required: true })
+    @Prop({ default: null })
     type!: string;
 
     @Prop({ required: true, enum: ApplicationStatus, default: ApplicationStatus.Pending })

@@ -1,8 +1,8 @@
 // src/application/dto/create-application.dto.ts
-import { IsUUID, IsNotEmpty, IsObject, IsString } from 'class-validator';
+import { IsNotEmpty, IsObject, IsString } from 'class-validator';
 
 export class CreateApplicationDto {
-    @IsUUID()
+    @IsString()
     formId!: string;
 
     @IsObject()
