@@ -10,9 +10,4 @@ export class FormsController {
   validateTokenAndGetParameters(@Body() dto: ValidateTokenDto) {
     return this.formsService.validateTokenAndGetParameters(dto);
   }
-
-  @Post('expireToken')
-  expireToken(@Body() dto: ValidateTokenDto) {
-    return this.formsService.expireToken(dto);
-  }
 }
