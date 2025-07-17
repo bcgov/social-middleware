@@ -1,6 +1,7 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document } from 'mongoose';
 import { ApplicationStatus } from '../enums/application-status.enum';
+import { ApplicationTypes } from '../enums/application-types.enum';
 
 export type ApplicationDocument = Application & Document;
 
@@ -12,8 +13,8 @@ export class Application {
     @Prop({ required: true })
     primary_applicantId!: string;
 
-    @Prop({ default: null })
-    type!: string;
+    @Prop({ enum: ApplicationTypes, default: ApplicationTypes.Sample })
+    type!: ApplicationTypes;
 
     @Prop({ required: true, enum: ApplicationStatus, default: ApplicationStatus.Pending })
     status!: ApplicationStatus;
