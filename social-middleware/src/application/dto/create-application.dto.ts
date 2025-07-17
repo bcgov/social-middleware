@@ -1,5 +1,6 @@
-import { IsNotEmpty, IsObject, IsString } from 'class-validator';
+import { IsNotEmpty, IsObject, IsString, IsEnum, IsOptional } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
+import { ApplicationTypes } from '../enums/application-types.enum';
 
 export class CreateApplicationDto {
     @ApiProperty({
@@ -25,11 +26,12 @@ export class CreateApplicationDto {
 
     @ApiProperty({
         description: 'The type of application being created',
-        example: 'Foster Parents',
+        enum: ApplicationTypes,
+        example: ApplicationTypes.FosterCaregiver,
         required: false,
     })
-    @IsString()
-    type!: string;
+    @IsEnum(ApplicationTypes)
+    type!: ApplicationTypes;
 
     @ApiProperty({
         description: 'Form parameters to configure form. It can be empty initially',
@@ -41,4 +43,16 @@ export class CreateApplicationDto {
     })
     @IsObject()
     formParameters!: Record<string, any>;
+
+    @ApiProperty({
+        description: 'Optional initial form data',
+        example: {
+            name: 'Jane Doe',
+            age: 34,
+        },
+        required: false,
+    })
+    @IsOptional()
+    @IsObject()
+    formData?: Record<string, any>;
 }
