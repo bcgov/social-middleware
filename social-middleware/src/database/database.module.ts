@@ -10,7 +10,6 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
     MongooseModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
-      // eslint-disable-next-line @typescript-eslint/require-await
       useFactory: async (configService: ConfigService) => {
         const user = configService.get<string>('MONGO_USER');
         const pass = configService.get<string>('MONGO_PASS');

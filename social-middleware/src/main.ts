@@ -55,7 +55,7 @@ async function bootstrap() {
     credentials: true,
     preflightContinue: false,
     optionsSuccessStatus: 204
-  }); 
+  });
 
   app.use(cookieParser());
   
