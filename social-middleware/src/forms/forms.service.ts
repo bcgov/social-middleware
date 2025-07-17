@@ -40,7 +40,7 @@ export class FormsService {
       expiryOfTokenInMs = minutes * 60 * 1000;
       // Fetch the form params for this token
       record = await this.formParametersModel
-        .findOne({ formAccessToken: token })
+        .findOne({ formAccessToken: { $eq: token } })
         .select('formParameters createdAt -_id')
         .lean()
         .exec();
