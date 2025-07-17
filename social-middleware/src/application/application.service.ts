@@ -30,7 +30,7 @@ export class ApplicationService {
             const application = new this.applicationModel({
                 applicationId,
                 primary_applicantId: dto.user.id,
-                formData: null,
+                formData: dto.formData ?? null,
             });
 
             await application.save();
