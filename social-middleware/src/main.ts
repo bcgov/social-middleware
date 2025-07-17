@@ -55,9 +55,7 @@ async function bootstrap() {
     credentials: true,
     preflightContinue: false,
     optionsSuccessStatus: 204
-  });
-  const config = app.get(ConfigService);
-  const port = config.get<number>('PORT') || 3001;
+  }); 
 
   app.use(cookieParser());
   
