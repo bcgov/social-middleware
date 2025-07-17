@@ -10,7 +10,7 @@ export class Application {
     applicationId!: string;
 
     @Prop({ required: true })
-    userId!: string;
+    primary_applicantId!: string;
 
     @Prop({ default: null })
     type!: string;
@@ -20,6 +20,9 @@ export class Application {
 
     @Prop({ type: Object, default: null }) // Allows storing raw JSON
     formData!: Record<string, any> | null;
+
+    @Prop({ default: Date.now })
+    submittedAt!: Date;
 }
 
 export const ApplicationSchema = SchemaFactory.createForClass(Application);
