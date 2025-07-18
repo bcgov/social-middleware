@@ -1,11 +1,15 @@
 // auth/schemas/user.schema.ts
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document } from 'mongoose';
+import { UserStatus } from '../enums/user-status.enum';
 
 export type UserDocument = User & Document;
 
 @Schema({ timestamps: true })
 export class User {
+
+  id!: string;
+
   @Prop({ required: true, unique: true })
   bc_services_card_id!: string;
 
@@ -21,7 +25,7 @@ export class User {
   @Prop({ default: Date.now })
   last_login!: Date;
 
-  @Prop({ default: 'active' })
+  @Prop({ default: UserStatus.ACTIVE })
   status!: string;
 }
 
