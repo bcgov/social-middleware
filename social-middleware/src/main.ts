@@ -55,6 +55,24 @@ async function bootstrap() {
       .setTitle('Caregiver Middleware API')
       .setDescription('APIs used in the middleware of Caregiver Portal are documented here')
       .setVersion('1.0')
+      .addCookieAuth('session_token', {
+        type: 'apiKey',
+        in: 'cookie',
+        name: 'session_token',
+        description: 'Session token for authenticated requests'
+      })
+      .addCookieAuth('refresh_token', {
+        type: 'apiKey',
+        in: 'cookie',
+        name: 'refresh_token',
+        description: 'Refresh token for session renewal'
+      })
+      .addCookieAuth('id_token', {
+        type: 'apiKey',
+        in: 'cookie',
+        name: 'id_token',
+        description: 'OpenID Connect ID token'
+      })
       .build();
 
     const document = SwaggerModule.createDocument(app, swaggerConfig);
