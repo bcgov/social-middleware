@@ -1,9 +1,12 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { Application, ApplicationSchema } from './schemas/application.schema';
-import { FormParameters, FormParametersSchema } from './schemas/form-parameters.schema';
+import {
+  FormParameters,
+  FormParametersSchema,
+} from './schemas/form-parameters.schema';
 import { ApplicationService } from './application.service';
-import { ApplicationController } from './application.controller'
+import { ApplicationController } from './application.controller';
 
 @Module({
   imports: [
@@ -12,8 +15,8 @@ import { ApplicationController } from './application.controller'
       { name: FormParameters.name, schema: FormParametersSchema },
     ]),
   ],
+  exports: [MongooseModule],
   controllers: [ApplicationController],
   providers: [ApplicationService],
 })
-export class ApplicationModule { }
-
+export class ApplicationModule {}

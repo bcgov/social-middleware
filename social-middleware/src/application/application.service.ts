@@ -25,12 +25,12 @@ export class ApplicationService {
 
         try {
             this.logger.info('Creating new application');
-            this.logger.debug({ applicationId, userId: dto.user.id, formId: dto.formId }, 'Generated UUIDs');
+            this.logger.debug({ applicationId, primary_applicantId: dto.user.id, formId: dto.formId }, 'Generated UUIDs');
 
             const application = new this.applicationModel({
                 applicationId,
-                userId: dto.user.id,
-                formData: null,
+                primary_applicantId: dto.user.id,
+                formData: dto.formData ?? null,
             });
 
             await application.save();
