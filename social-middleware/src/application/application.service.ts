@@ -7,6 +7,7 @@ import { Application, ApplicationDocument } from './schemas/application.schema';
 import { FormParameters, FormParametersDocument } from './schemas/form-parameters.schema';
 import { CreateApplicationDto } from './dto/create-application.dto';
 import { FormType } from './enums/form-type.enum';
+import { GetApplicationsDto } from './dto/get-applications.dto';
 
 @Injectable()
 export class ApplicationService {
@@ -58,6 +59,48 @@ export class ApplicationService {
                 this.logger.error({ error }, 'Unknown error during application creation');
             }
             throw new InternalServerErrorException('Failed to create application');
+        }
+    }
+
+    async getApplicationsByUser(userId: string): Promise<GetApplicationsDto[]> {
+        try {
+            this.logger.info({ userId }, 'Fetching applications for user');
+
+            const applications = await this.applicationModel.find(
+                { primary_applicantId: userId },
+                { formData: 0 }
+            ).lean();
+
+            if (!applications.length) {
+                this.logger.info({ userId }, 'No applications found for user');
+                return [];
+            }
+
+            // Fetch corresponding formIds from FormParameters
+            const applicationIds = applications.map(app => app.applicationId);
+            const formParameters = await this.formParametersModel.find(
+                { applicationId: { $in: applicationIds } },
+                { applicationId: 1, formId: 1 }
+            ).lean();
+
+            // Map applicationId -> formId
+            const formIdMap = new Map(formParameters.map(fp => [fp.applicationId, fp.formId]));
+
+            const results = applications.map(app => ({
+                applicationId: app.applicationId,
+                formId: formIdMap.get(app.applicationId) ?? '',
+                primary_applicantId: app.primary_applicantId,
+                type: app.type,
+                status: app.status,
+                submittedAt: app.submittedAt,
+                updatedAt: app.updatedAt,
+            }));
+
+            this.logger.info({ userId, count: results.length }, 'Applications fetched successfully');
+            return results;
+        } catch (error) {
+            this.logger.error({ error, userId }, 'Failed to fetch applications');
+            throw new InternalServerErrorException('Failed to fetch applications');
         }
     }
 }

@@ -24,6 +24,8 @@ export class Application {
 
     @Prop({ default: Date.now })
     submittedAt!: Date;
+
+    updatedAt!: Date;
 }
 
 export const ApplicationSchema = SchemaFactory.createForClass(Application);
