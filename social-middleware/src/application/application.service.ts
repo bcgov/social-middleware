@@ -1,4 +1,8 @@
-import { Injectable, InternalServerErrorException } from '@nestjs/common';
+import {
+  Injectable,
+  InternalServerErrorException,
+  BadRequestException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
 import { v4 as uuidv4 } from 'uuid';
@@ -74,11 +78,14 @@ export class ApplicationService {
   }
 
   async getApplicationsByUser(userId: string): Promise<GetApplicationsDto[]> {
+    if (typeof userId !== 'string' || userId.trim() === '') {
+      throw new BadRequestException('Invalid or missing userId');
+    }
     try {
       this.logger.info({ userId }, 'Fetching applications for user');
 
       const applications = await this.applicationModel
-        .find({ primary_applicantId: userId }, { formData: 0 })
+        .find({ primary_applicantId: { $eq: userId } }, { formData: 0 })
         .lean();
 
       if (!applications.length) {
