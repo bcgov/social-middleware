@@ -16,7 +16,7 @@ spec:
           value: >
             body.ref.split('/')[2] == 'main' &&
             body.head_commit.modified.exists(file,
-              file.startsWith('social-middleware') || file.startsWith('./social-middleware-helm')
+              file.startsWith('social-middleware') || file.startsWith('social-middleware-helm')
             )
     - ref:
         name: github
