@@ -20,10 +20,12 @@ export class Application {
     status!: ApplicationStatus;
 
     @Prop({ type: Object, default: null }) // Allows storing raw JSON
-    formData!: Record<string, any> | null;
+    formData!: Record<string, unknown> | null;
 
     @Prop({ default: Date.now })
     submittedAt!: Date;
+
+    updatedAt!: Date;
 }
 
 export const ApplicationSchema = SchemaFactory.createForClass(Application);
