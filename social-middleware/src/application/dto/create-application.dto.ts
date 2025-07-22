@@ -21,7 +21,7 @@ export class CreateApplicationDto {
     @IsNotEmpty()
     user!: {
         id: string;
-        [key: string]: any;
+        [key: string]: unknown;
     };
 
     @ApiProperty({
@@ -42,7 +42,7 @@ export class CreateApplicationDto {
         required: false,
     })
     @IsObject()
-    formParameters!: Record<string, any>;
+    formParameters!: Record<string, unknown>;
 
     @ApiProperty({
         description: 'Optional initial form data',
@@ -54,5 +54,5 @@ export class CreateApplicationDto {
     })
     @IsOptional()
     @IsObject()
-    formData?: Record<string, any>;
+    formData?: Record<string, unknown>;
 }
