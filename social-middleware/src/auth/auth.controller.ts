@@ -6,7 +6,7 @@ import { HttpService } from '@nestjs/axios';
 import { firstValueFrom } from 'rxjs';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UserService } from './user.service';
-import { ApiOperation, ApiResponse, ApiBody, ApiCookieAuth, ApiHeader } from '@nestjs/swagger';
+import { ApiOperation, ApiResponse, ApiBody, ApiCookieAuth, ApiHeader, ApiTags } from '@nestjs/swagger';
 import * as jwt from 'jsonwebtoken';
 
 
@@ -31,6 +31,7 @@ interface JwtPayload {
   exp?: number;
 }
 
+@ApiTags('Authentication')
 @Controller('auth')
 export class AuthController {
   private readonly bcscClientId: string;
