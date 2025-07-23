@@ -7,6 +7,7 @@ import { HealthModule } from './health/health.module';
 import { DatabaseModule } from './database/database.module';
 import { FormsModule } from './forms/forms.module';
 import { ApplicationModule } from './application/application.module';
+import { DevToolsModule } from './dev-tools/dev-tools.module';
 
 @Module({
   imports: [
@@ -39,6 +40,7 @@ import { ApplicationModule } from './application/application.module';
     FormsModule,
     DatabaseModule,
     ApplicationModule,
+    ...(process.env.ENABLE_DEV_TOOLS === 'true' ? [DevToolsModule] : []),
   ],
 })
 export class AppModule {}
