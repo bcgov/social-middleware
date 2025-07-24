@@ -2,6 +2,7 @@ import {
   Injectable,
   InternalServerErrorException,
   BadRequestException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
@@ -29,6 +30,7 @@ export class ApplicationService {
 
   async createApplication(
     dto: CreateApplicationDto,
+    userId: string,
   ): Promise<{ formAccessToken: string }> {
     const applicationId = uuidv4();
     const formAccessToken = uuidv4();
@@ -36,13 +38,13 @@ export class ApplicationService {
     try {
       this.logger.info('Creating new application');
       this.logger.debug(
-        { applicationId, primary_applicantId: dto.user.id, formId: dto.formId },
-        'Generated UUIDs',
+        { applicationId, primary_applicantId: userId, formId: dto.formId},
+        "Generated UUIDS",
       );
 
       const application = new this.applicationModel({
         applicationId,
-        primary_applicantId: dto.user.id,
+        primary_applicantId: userId,
         formData: dto.formData ?? null,
       });
 

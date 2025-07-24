@@ -8,9 +8,6 @@ import { SessionAuthGuard } from 'src/auth/session-auth.guard';
 import { Request } from 'express';
 import * as jwt from 'jsonwebtoken';
 import { ConfigService } from '@nestjs/config';
-
-
-
 @ApiTags('Application')
 @Controller('application')
 export class ApplicationController {
@@ -35,8 +32,27 @@ export class ApplicationController {
     status: 500,
     description: 'Server error during application creation',
   })
-  async createApplication(@Body() dto: CreateApplicationDto) {
-    return this.applicationService.createApplication(dto);
+  async createApplication(
+    @Body() dto: CreateApplicationDto,
+    @Req() request: Request 
+  ): Promise<{ formAccessToken: string }> {
+    try {
+      const sessionToken = request.cookies?.session_token;
+
+      if (!sessionToken) {
+        throw new UnauthorizedException("No session token provided.");
+      }
+
+      const decoded = jwt.verify(sessionToken, this.jwtSecret) as any;
+      const mongoUserId = decoded.userId;
+
+      return this.applicationService.createApplication(dto, mongoUserId);
+
+    } catch (error) {
+      console.error("JWT verification error:", error);
+      throw new UnauthorizedException("Invalid or expired session");
+    }
+    
   }
 
   @Get()
@@ -62,15 +78,14 @@ export class ApplicationController {
 
     // Decode JWT token (same as your auth/status endpoint)
     const decoded = jwt.verify(sessionToken, this.jwtSecret!) as any;
-    const userId = decoded.sub;
+    
+    //const userId = decoded.sub;
+    const mongoUserId = decoded.userId;
 
-    console.log("Getting Applications For UserID:", userId);
+    console.log("Getting Applications For UserID:", mongoUserId);
   
-    if(!userId) {
-      throw new UnauthorizedException("User ID not found in token")
-    }
-
-    return this.applicationService.getApplicationsByUser(userId);
+    
+    return this.applicationService.getApplicationsByUser(mongoUserId);
   } catch (error) {
     console.error("JWT verification error:", error);
     throw new UnauthorizedException("Invalid or expired session");
