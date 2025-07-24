@@ -2,7 +2,7 @@ import { Controller, Delete, Query, BadRequestException } from '@nestjs/common';
 import { DevToolsService } from './dev-tools.service';
 import { ApiTags } from '@nestjs/swagger';
 import { DevOnlySwaggerDocs } from '../common/decorators/dev-only-doc.decorator';
-import { isDev } from '../config/config-loader';
+import { isDev } from '../common/config/config-loader';
 
 @Controller('dev-tools')
 @ApiTags('[DevTools]')
