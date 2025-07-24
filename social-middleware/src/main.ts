@@ -4,14 +4,16 @@ import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { ConfigService } from '@nestjs/config';
 import * as cookieParser from 'cookie-parser';
 import { Logger } from 'nestjs-pino';
+import { setConfigService } from './common/config/config-loader';
 
 async function bootstrap() {
   try {
-    const app = await NestFactory.create(AppModule, {
+    const app = await NestFactory.create(AppModule.register(), {
       bufferLogs: true,
     });
 
     const config = app.get(ConfigService);
+    setConfigService(config);
     const port = config.get<number>('PORT') || 3001;
     const frontendUrl =
       config.get<string>('FRONTEND_URL') || 'http://localhost:5173';
