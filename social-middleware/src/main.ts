@@ -4,6 +4,7 @@ import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { ConfigService } from '@nestjs/config';
 import * as cookieParser from 'cookie-parser';
 import { Logger } from 'nestjs-pino';
+import { setConfigService } from './config/config-loader';
 
 async function bootstrap() {
   try {
@@ -16,6 +17,8 @@ async function bootstrap() {
     const frontendUrl =
       config.get<string>('FRONTEND_URL') || 'http://localhost:5173';
     console.log('FRONTEND_URL from config:', frontendUrl);
+
+    setConfigService(config);
 
     // Enable CORS to handle preflight OPTIONS requests
 

@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, DynamicModule } from '@nestjs/common';
 import { HttpModule } from '@nestjs/axios';
 import { AuthModule } from './auth/auth.module';
 import { LoggerModule } from 'nestjs-pino';
@@ -8,39 +8,43 @@ import { DatabaseModule } from './database/database.module';
 import { FormsModule } from './forms/forms.module';
 import { ApplicationModule } from './application/application.module';
 import { DevToolsModule } from './dev-tools/dev-tools.module';
+import { isDev } from './config/config-loader';
 
-@Module({
-  imports: [
-    ConfigModule.forRoot({
-      isGlobal: true,
-    }),
-    HttpModule,
-    AuthModule,
-    LoggerModule.forRootAsync({
-      imports: [ConfigModule],
-      inject: [ConfigService],
-      useFactory: (config: ConfigService) => ({
-        pinoHttp: {
-          level: config.get('NODE_ENV') === 'production' ? 'info' : 'debug',
-          transport:
-            config.get('NODE_ENV') !== 'production'
-              ? {
-                  target: 'pino-pretty',
-                  options: {
-                    colorize: true,
-                    translateTime: 'SYS:standard',
-                    ignore: 'pid,hostname',
-                  },
-                }
-              : undefined,
-        },
-      }),
-    }),
-    HealthModule,
-    FormsModule,
-    DatabaseModule,
-    ApplicationModule,
-    ...(process.env.ENABLE_DEV_TOOLS === 'true' ? [DevToolsModule] : []),
-  ],
-})
-export class AppModule {}
+@Module({})
+export class AppModule {
+  static forRoot(): DynamicModule {
+    return {
+      module: AppModule,
+      imports: [
+        ConfigModule.forRoot({ isGlobal: true }),
+        HttpModule,
+        AuthModule,
+        LoggerModule.forRootAsync({
+          imports: [ConfigModule],
+          inject: [ConfigService],
+          useFactory: (config: ConfigService) => ({
+            pinoHttp: {
+              level: config.get('NODE_ENV') === 'production' ? 'info' : 'debug',
+              transport:
+                config.get('NODE_ENV') !== 'production'
+                  ? {
+                      target: 'pino-pretty',
+                      options: {
+                        colorize: true,
+                        translateTime: 'SYS:standard',
+                        ignore: 'pid,hostname',
+                      },
+                    }
+                  : undefined,
+            },
+          }),
+        }),
+        HealthModule,
+        FormsModule,
+        DatabaseModule,
+        ApplicationModule,
+        ...(isDev() ? [DevToolsModule] : []),
+      ],
+    };
+  }
+}

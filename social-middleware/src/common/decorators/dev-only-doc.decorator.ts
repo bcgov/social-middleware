@@ -5,12 +5,11 @@ import {
   ApiResponse,
   ApiExcludeEndpoint,
 } from '@nestjs/swagger';
+import { isDev } from '../../config/config-loader';
 
 export function DevOnlySwaggerDocs() {
-  const isEnabled = process.env.ENABLE_DEV_TOOLS === 'true';
-
   // When dev tools are disabled, hide the endpoint from Swagger
-  if (!isEnabled) {
+  if (!isDev()) {
     return applyDecorators(ApiExcludeEndpoint());
   }
 
