@@ -7,25 +7,29 @@ export type ApplicationDocument = Application & Document;
 
 @Schema({ timestamps: true })
 export class Application {
-    @Prop({ required: true, unique: true })
-    applicationId!: string;
+  @Prop({ required: true, unique: true })
+  applicationId!: string;
 
-    @Prop({ required: true })
-    primary_applicantId!: string;
+  @Prop({ required: true })
+  primary_applicantId!: string;
 
-    @Prop({ enum: ApplicationTypes, default: ApplicationTypes.Sample })
-    type!: ApplicationTypes;
+  @Prop({ enum: ApplicationTypes, default: ApplicationTypes.Sample })
+  type!: ApplicationTypes;
 
-    @Prop({ required: true, enum: ApplicationStatus, default: ApplicationStatus.Pending })
-    status!: ApplicationStatus;
+  @Prop({
+    required: true,
+    enum: ApplicationStatus,
+    default: ApplicationStatus.Pending,
+  })
+  status!: ApplicationStatus;
 
-    @Prop({ type: Object, default: null }) // Allows storing raw JSON
-    formData!: Record<string, unknown> | null;
+  @Prop({ type: Object, default: null }) // Allows storing raw JSON
+  formData!: Record<string, unknown> | null;
 
-    @Prop({ default: Date.now })
-    submittedAt!: Date;
+  @Prop({ default: Date.now })
+  submittedAt!: Date;
 
-    updatedAt!: Date;
+  updatedAt!: Date;
 }
 
 export const ApplicationSchema = SchemaFactory.createForClass(Application);
