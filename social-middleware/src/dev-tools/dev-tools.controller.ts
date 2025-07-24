@@ -1,5 +1,11 @@
 // dev-tools/dev-tools.controller.ts
-import { Controller, Delete, Query, BadRequestException, ForbiddenException } from '@nestjs/common';
+import {
+  Controller,
+  Delete,
+  Query,
+  BadRequestException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { DevToolsService } from './dev-tools.service';
 import { ApiTags } from '@nestjs/swagger';
@@ -16,7 +22,6 @@ export class DevToolsController {
   @Delete('clear-user-data')
   @DevOnlySwaggerDocs()
   async clearUserData(@Query('userId') userId: string) {
-
     const isDev = this.configService.get<string>('NODE_ENV') !== 'production';
 
     if (!isDev) {
