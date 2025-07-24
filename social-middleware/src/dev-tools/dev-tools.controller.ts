@@ -2,7 +2,7 @@ import { Controller, Delete, Query, BadRequestException } from '@nestjs/common';
 import { DevToolsService } from './dev-tools.service';
 import { ApiTags } from '@nestjs/swagger';
 import { DevOnlySwaggerDocs } from '../common/decorators/dev-only-doc.decorator';
-import { isDev } from 'src/common/config/config-loader';
+import { isDev } from '../config/config-loader';
 
 @Controller('dev-tools')
 @ApiTags('[DevTools]')
@@ -12,7 +12,7 @@ export class DevToolsController {
   @Delete('clear-user-data')
   @DevOnlySwaggerDocs()
   async clearUserData(@Query('userId') userId: string) {
-    if (!isDev) {
+    if (!isDev()) {
       throw new BadRequestException('Dev tools are disabled');
     }
 
