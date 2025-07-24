@@ -10,7 +10,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
     MongooseModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
-      useFactory: async (configService: ConfigService) => {
+      useFactory: (configService: ConfigService) => {
         const user = configService.get<string>('MONGO_USER');
         const pass = configService.get<string>('MONGO_PASS');
         const host = configService.get<string>('MONGO_HOST', 'mongodb');
@@ -20,9 +20,9 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
         if (!host || !port || !db) {
           throw new Error('Missing required MongoDB environment variables');
         }
-        
+
         let uri = '';
-        
+
         if (user && pass) {
           uri = `mongodb://${user}:${pass}@${host}:${port}/${db}`;
         } else {

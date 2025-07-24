@@ -4,17 +4,22 @@ import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { ConfigService } from '@nestjs/config';
 import * as cookieParser from 'cookie-parser';
 import { Logger } from 'nestjs-pino';
+import { setConfigService } from './common/config/config-loader';
 
 async function bootstrap() {
   try {
-    const app = await NestFactory.create(AppModule, {
+    const app = await NestFactory.create(AppModule.register(), {
       bufferLogs: true,
     });
 
     const config = app.get(ConfigService);
+    setConfigService(config);
     const port = config.get<number>('PORT') || 3001;
-    const frontendUrl = config.get<string>('FRONTEND_URL') || 'http://localhost:5173';
+    const frontendUrl =
+      config.get<string>('FRONTEND_URL') || 'http://localhost:5173';
     console.log('FRONTEND_URL from config:', frontendUrl);
+
+    setConfigService(config);
 
     // Enable CORS to handle preflight OPTIONS requests
 
@@ -25,7 +30,10 @@ async function bootstrap() {
     console.log('Allowed origins:', allowedOrigins);
 
     app.enableCors({
-      origin: (origin: string | undefined, callback: (error: Error | null, allow?: boolean) => void) => {
+      origin: (
+        origin: string | undefined,
+        callback: (error: Error | null, allow?: boolean) => void,
+      ) => {
         console.log('Incoming request origin:', origin);
         console.log('Checking against allowed origins:', allowedOrigins);
 
@@ -38,22 +46,25 @@ async function bootstrap() {
 
         console.log('Origin rejected');
         return callback(new Error('Not allowed by CORS'));
-
       },
       methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-      allowedHeaders: ['Content-Type',
+      allowedHeaders: [
+        'Content-Type',
         'Authorization',
         'X-Requested-With',
         'Accept',
-        'Origin'],
+        'Origin',
+      ],
       credentials: true,
       preflightContinue: false,
-      optionsSuccessStatus: 204
+      optionsSuccessStatus: 204,
     });
 
     const swaggerConfig = new DocumentBuilder()
       .setTitle('Caregiver Middleware API')
-      .setDescription('APIs used in the middleware of Caregiver Portal are documented here')
+      .setDescription(
+        'APIs used in the middleware of Caregiver Portal are documented here',
+      )
       .setVersion('1.0')
       .build();
 
@@ -66,14 +77,12 @@ async function bootstrap() {
 
     await app.listen(port);
     console.log(`🚀 Server running at http://localhost:${port}/health`);
-
   } catch (error) {
     console.error('❌ Failed to create NestJS app:', error);
     throw error;
   }
-
 }
-bootstrap().catch(err => {
-  console.error("Bootstrap failed", err);
+bootstrap().catch((err) => {
+  console.error('Bootstrap failed', err);
   process.exit(1);
 });
