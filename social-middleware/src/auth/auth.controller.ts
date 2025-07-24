@@ -24,9 +24,10 @@ interface UserInfo {
 }
 
 interface JwtPayload {
-  sub: string;
+  sub: string;  // BC Services Card ID
   email: string;
   name: string;
+  userId: string; // MongoDB User ID
   iat: number;
   exp?: number;
 }
@@ -246,6 +247,7 @@ export class AuthController {
           sub: userInfo.sub,
           email: userInfo.email,
           name: userInfo.name || `${userInfo.given_name} ${userInfo.family_name}`,
+          userId: user.id.toString(),
           iat: Math.floor(Date.now() / 1000),
         },
         this.jwtSecret,
@@ -386,10 +388,11 @@ export class AuthController {
   })
   async getStatus(@Req() req: Request) {
     try {
+      
       console.log('All cookies:', req.cookies);
-      console.log('Headers:', req.headers.cookie);
       
       const sessionToken = req.cookies.session_token;
+
       console.log('Session token:', sessionToken ? 'Present' : 'Missing');
       
       if (!sessionToken) {
@@ -401,6 +404,7 @@ export class AuthController {
       return {
         user: {
           id: decoded.sub,
+          // we DO NOT expose the MongoDB user ID here
           email: decoded.email,
           name: decoded.name,
         },
