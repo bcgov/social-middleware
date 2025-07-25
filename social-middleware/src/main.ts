@@ -12,21 +12,16 @@ async function bootstrap() {
       bufferLogs: true,
     });
 
-    const config = app.get(ConfigService);
-    setConfigService(config);
+    // load config
+    const config = app.get(ConfigService);    
+    
     const port = config.get<number>('PORT') || 3001;
-    const frontendUrl =
-      config.get<string>('FRONTEND_URL') || 'http://localhost:5173';
-    console.log('FRONTEND_URL from config:', frontendUrl);
-
-    setConfigService(config);
+    const frontendUrl = config.get<string>('FRONTEND_URL') || 'http://localhost:5173';
+    //console.log('FRONTEND_URL from config:', frontendUrl);
 
     // Enable CORS to handle preflight OPTIONS requests
-
-    const allowedOrigins = [frontendUrl];
-
+    const allowedOrigins = [frontendUrl, 'http://localhost:3001'];
     console.log('🔧 CORS Configuration:');
-
     console.log('Allowed origins:', allowedOrigins);
 
     app.enableCors({
