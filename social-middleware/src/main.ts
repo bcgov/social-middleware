@@ -12,21 +12,15 @@ async function bootstrap() {
       bufferLogs: true,
     });
 
-    const config = app.get(ConfigService);
-    setConfigService(config);
+    // load config
+    const config = app.get(ConfigService);    
+    
     const port = config.get<number>('PORT') || 3001;
-    const frontendUrl =
-      config.get<string>('FRONTEND_URL') || 'http://localhost:5173';
-    console.log('FRONTEND_URL from config:', frontendUrl);
-
-    setConfigService(config);
+    const frontendUrl = config.get<string>('FRONTEND_URL') || 'http://localhost:5173';
 
     // Enable CORS to handle preflight OPTIONS requests
-
-    const allowedOrigins = [frontendUrl];
-
+    const allowedOrigins = [frontendUrl, 'http://localhost:3001'];
     console.log('🔧 CORS Configuration:');
-
     console.log('Allowed origins:', allowedOrigins);
 
     app.enableCors({
@@ -66,6 +60,24 @@ async function bootstrap() {
         'APIs used in the middleware of Caregiver Portal are documented here',
       )
       .setVersion('1.0')
+      .addCookieAuth('session_token', {
+        type: 'apiKey',
+        in: 'cookie',
+        name: 'session_token',
+        description: 'Session token for authenticated requests'
+      })
+      .addCookieAuth('refresh_token', {
+        type: 'apiKey',
+        in: 'cookie',
+        name: 'refresh_token',
+        description: 'Refresh token for session renewal'
+      })
+      .addCookieAuth('id_token', {
+        type: 'apiKey',
+        in: 'cookie',
+        name: 'id_token',
+        description: 'OpenID Connect ID token'
+      })
       .build();
 
     const document = SwaggerModule.createDocument(app, swaggerConfig);
