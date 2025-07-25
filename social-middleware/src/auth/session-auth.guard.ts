@@ -1,7 +1,8 @@
+// src/auth/session-auth.guard.ts
+
 import { Injectable, CanActivate, ExecutionContext } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as jwt from 'jsonwebtoken';
-
 
 @Injectable()
 export class SessionAuthGuard implements CanActivate {
