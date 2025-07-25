@@ -17,7 +17,6 @@ async function bootstrap() {
     
     const port = config.get<number>('PORT') || 3001;
     const frontendUrl = config.get<string>('FRONTEND_URL') || 'http://localhost:5173';
-    //console.log('FRONTEND_URL from config:', frontendUrl);
 
     // Enable CORS to handle preflight OPTIONS requests
     const allowedOrigins = [frontendUrl, 'http://localhost:3001'];
