@@ -1,8 +1,11 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import {
   Injectable,
   InternalServerErrorException,
   BadRequestException,
   UnauthorizedException,
+  HttpException,
+  NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
@@ -16,6 +19,8 @@ import {
 import { CreateApplicationDto } from './dto/create-application.dto';
 import { FormType } from './enums/form-type.enum';
 import { GetApplicationsDto } from './dto/get-applications.dto';
+import { SubmitApplicationDto } from './dto/submit-application-dto';
+import { ApplicationStatus } from './enums/application-status.enum';
 
 @Injectable()
 export class ApplicationService {
@@ -38,8 +43,8 @@ export class ApplicationService {
     try {
       this.logger.info('Creating new application');
       this.logger.debug(
-        { applicationId, primary_applicantId: userId, formId: dto.formId},
-        "Generated UUIDS",
+        { applicationId, primary_applicantId: userId, formId: dto.formId },
+        'Generated UUIDS',
       );
 
       const application = new this.applicationModel({
@@ -127,6 +132,48 @@ export class ApplicationService {
     } catch (error) {
       this.logger.error({ error, userId }, 'Failed to fetch applications');
       throw new InternalServerErrorException('Failed to fetch applications');
+    }
+  }
+  async submitApplication(dto: SubmitApplicationDto): Promise<void> {
+    try {
+      this.logger.info('Saving application');
+      this.logger.debug('Saving application for token', dto.token);
+
+      const record = await this.formParametersModel
+        .findOne({ formAccessToken: { $eq: dto.token } })
+        .select('applicationId')
+        .lean()
+        .exec();
+
+      if (!record) {
+        throw new NotFoundException(`Token ${dto.token} not found`);
+      }
+      const updated = await this.applicationModel
+        .findOneAndUpdate(
+          { applicationId: record.applicationId },
+          {
+            $set: {
+              formData: dto.formJson,
+              status: ApplicationStatus.Submitted,
+            },
+          },
+          { new: true },
+        )
+        .exec();
+      if (!updated) {
+        throw new NotFoundException(
+          `Application ${record.applicationId} not found`,
+        );
+      }
+      this.logger.info('Application saved  to DB ', record.applicationId);
+    } catch (err) {
+      if (err instanceof HttpException) {
+        // Re-throw known HTTP exceptions (404, 400)
+        throw err;
+      }
+      // Log internal errors
+      this.logger.error('Error submitting application', err);
+      throw new InternalServerErrorException('Could not save form data');
     }
   }
 }
