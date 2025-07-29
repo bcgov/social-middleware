@@ -6,6 +6,7 @@ import {
   Logger,
   HttpException,
   HttpStatus,
+  Get,
 } from '@nestjs/common';
 import { HouseholdService } from './household.service';
 import { CreateHouseholdMemberDto } from './dto/create-household-member.dto';
@@ -16,6 +17,7 @@ import {
   ApiResponse,
   ApiParam,
   ApiBody,
+  ApiOkResponse,
 } from '@nestjs/swagger';
 
 @ApiTags('Household Members')
@@ -51,6 +53,32 @@ export class HouseholdController {
       );
       throw new HttpException(
         'Failed to create household member',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  @Get()
+  @ApiOperation({ summary: 'Get household members by applicationId' })
+  @ApiParam({ name: 'applicationId', type: String })
+  @ApiOkResponse({
+    description: 'List of household members associated with the application',
+    type: [CreateHouseholdMemberDto],
+  })
+  @ApiResponse({ status: 500, description: 'Internal server error.' })
+  async getAllHouseholdMembers(
+    @Param('applicationId') applicationId: string,
+  ): Promise<HouseholdMembersDocument[]> {
+    try {
+      return await this.householdService.findAllHouseholdMembers(applicationId);
+    } catch (error: unknown) {
+      const err = error as Error;
+      this.logger.error(
+        `Error retrieving household: ${err.message}`,
+        err.stack,
+      );
+      throw new HttpException(
+        'Failed to retrieve household members',
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }

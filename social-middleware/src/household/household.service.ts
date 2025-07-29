@@ -46,4 +46,24 @@ export class HouseholdService {
       );
     }
   }
+
+  async findAllHouseholdMembers(
+    applicationId: string,
+  ): Promise<HouseholdMembersDocument[]> {
+    try {
+      const members = await this.householdMemberModel
+        .find({ applicationId })
+        .exec();
+      return members;
+    } catch (error: unknown) {
+      const err = error as Error;
+      this.logger.error(
+        `Error fetching household members for applicationId=${applicationId}: ${err.message}`,
+        err.stack,
+      );
+      throw new InternalServerErrorException(
+        'Failed to retrieve household members',
+      );
+    }
+  }
 }
