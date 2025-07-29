@@ -10,18 +10,22 @@ export class HouseholdMembers {
   @Prop({ required: true, type: String })
   applicationId!: string;
 
-  @Prop({ required: true, unique: true, type: String, default: uuidv4() })
+  @Prop({ required: true, unique: true, type: String, default: uuidv4 })
   householdMemberId!: string;
 
   @Prop({ required: true, type: String })
   userId!: string;
 
-  @Prop({ required: true, enum: MemberTypes, default: MemberTypes.Primary })
+  @Prop({
+    required: true,
+    enum: Object.values(MemberTypes),
+    default: MemberTypes.Primary,
+  })
   memberType!: MemberTypes;
 
   @Prop({
     required: true,
-    enum: RelationshipToPrimary,
+    enum: Object.values(RelationshipToPrimary),
     default: RelationshipToPrimary.Self,
   })
   relationshipToPrimary!: RelationshipToPrimary;
