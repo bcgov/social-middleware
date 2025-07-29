@@ -5,7 +5,7 @@ metadata:
   namespace: {{.Release.Namespace}}
 spec:
   description: |
-    This task will re-roll a single deployment using OpenShift's `oc rollout restart` command.
+    This task will re-roll a single deployment using OpenShift's `oc patch` command as oc rollout not available in tekton oc version.
   params:
     - name: deploymentName
       description: The name of the deployment to be re-rolled.
@@ -19,6 +19,4 @@ spec:
       script: |
         #!/bin/bash
         echo "Re-rolling deployment: $(params.deploymentName) in namespace: $(params.namespace)"
-        
-        # Perform the rollout restart
-        oc rollout restart deployment/$(params.deploymentName) -n $(params.namespace)
+        oc patch deployment $(params.deploymentName) -n $(params.namespace) -p '{"spec":{"template":{"metadata":{"labels":{"date":"'$(date +%s)'"}}}}}'

@@ -121,16 +121,16 @@ spec:
       workspaces:
         - name: source
           workspace: shared-data
-    - name: reroll-deployments
+    - name: reroll-deployment
       runAfter:
         - helm-deploy
       taskRef:
         kind: Task
-        name: reroll-deployments
+        name: reroll-deployment
       params:
-        - name: DEPLOYMENT_NAMES
+        - name: deploymentName
           value: $(params.deploymentName)
-        - name: NAMESPACE
+        - name: namespace
           value: $(params.namespace)
   workspaces:
     - description: |
