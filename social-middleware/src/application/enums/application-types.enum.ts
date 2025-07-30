@@ -1,4 +1,4 @@
 export enum ApplicationTypes {
-    Sample = 'Sample',
-    FosterCaregiver = 'Foster Caregiver',
+  Sample = 'Sample',
+  FosterCaregiver = 'Foster Caregiver',
 }
