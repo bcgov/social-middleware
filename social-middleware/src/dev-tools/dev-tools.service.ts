@@ -44,7 +44,7 @@ export class DevToolsService {
       const applicationIds = applications.map((app) => app.applicationId);
 
       const deletedUser = await this.userModel.deleteMany({
-        id: { $eq: userId },
+        _id: { $eq: userId },
       });
 
       const deletedApps = await this.applicationModel.deleteMany({
