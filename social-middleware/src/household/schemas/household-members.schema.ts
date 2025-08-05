@@ -16,6 +16,18 @@ export class HouseholdMembers {
   @Prop({ required: true, type: String })
   userId!: string;
 
+  @Prop({ required: true, type: String })
+  firstName!: string;
+
+  @Prop({ required: true, type: String })
+  lastName!: string;
+
+  @Prop({ required: true, type: String })
+  dateOfBirth!: string; // ISO date string
+
+  @Prop({ required: true, type: String })
+  email!: string;
+
   @Prop({
     required: true,
     enum: Object.values(MemberTypes),

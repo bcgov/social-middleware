@@ -21,6 +21,7 @@ interface UserInfo {
   name?: string;
   given_name: string;
   family_name: string;
+  birthdate: string;
 }
 
 interface JwtPayload {
@@ -221,13 +222,15 @@ export class AuthController {
       );
 
       const userInfo: UserInfo = userInfoResponse.data;
-      console.log('User info received:', { sub: userInfo.sub, email: userInfo.email, first: userInfo.given_name, given: userInfo.given_name, last: userInfo.family_name });
+      console.log('Full userInfo response: ', JSON.stringify(userInfoResponse.data, null, 2));
+      //console.log('User info received:', { sub: userInfo.sub, email: userInfo.email, first: userInfo.given_name, given: userInfo.given_name, last: userInfo.family_name });
 
       //  Persist user to database
       const userData: CreateUserDto = {
         bc_services_card_id: userInfo.sub,
         first_name: userInfo.given_name,
         last_name: userInfo.family_name,
+        dateOfBirth: userInfo.birthdate,
         email: userInfo.email,
       };
 

@@ -22,6 +22,9 @@ export class User {
   @Prop({ required: true })
   email!: string;
 
+  @Prop({ required: true })
+  dateOfBirth!: string;
+
   @Prop({ default: Date.now })
   last_login!: Date;
 
