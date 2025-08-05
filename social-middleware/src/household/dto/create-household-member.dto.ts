@@ -13,7 +13,7 @@ export class CreateHouseholdMemberDto {
   userId?: string; // ID of the user this member represents (UUID)
 
   @IsString()
-  firstName!: string; 
+  firstName!: string;
   @IsString()
   lastName!: string;
 

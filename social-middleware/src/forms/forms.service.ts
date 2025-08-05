@@ -44,7 +44,6 @@ export class FormsService {
         .select('formParameters createdAt -_id')
         .lean()
         .exec();
-        
     } catch (err) {
       // Log and handle only unexpected DB errors
       this.logger.error('Error validating token', err);
@@ -66,7 +65,7 @@ export class FormsService {
     }
     this.logger.info('Form access token not expired, passing parameters');
     // Return only the formParameters field
-    this.logger.info('Form Parameters',  record.formParameters);
+    this.logger.info('Form Parameters', record.formParameters);
     return record.formParameters;
   }
 }

@@ -17,7 +17,7 @@ import { AuthModule } from 'src/auth/auth.module';
       { name: FormParameters.name, schema: FormParametersSchema },
     ]),
     HouseholdModule,
-    AuthModule
+    AuthModule,
   ],
   exports: [MongooseModule],
   controllers: [ApplicationController],

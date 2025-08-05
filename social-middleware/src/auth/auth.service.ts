@@ -4,8 +4,7 @@ import qs from 'qs';
 import * as crypto from 'crypto';
 import { ConfigService } from '@nestjs/config';
 
-
-// this service is for handling OAuth2 authentication with a code verifier; 
+// this service is for handling OAuth2 authentication with a code verifier;
 // it is used for ICM Siebel Labs Integration
 @Injectable()
 export class AuthService {
@@ -17,10 +16,7 @@ export class AuthService {
 
   generateCodeVerifier() {
     this.codeVerifier = crypto.randomBytes(32).toString('hex');
-    const hash = crypto
-      .createHash('sha256')
-      .update(this.codeVerifier)
-      .digest();
+    const hash = crypto.createHash('sha256').update(this.codeVerifier).digest();
     return this.base64URLEncode(hash);
   }
 

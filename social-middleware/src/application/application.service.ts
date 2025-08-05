@@ -26,7 +26,6 @@ import { MemberTypes } from 'src/household/enums/member-types.enum';
 import { RelationshipToPrimary } from 'src/household/enums/relationship-to-primary.enum';
 import { UserService } from 'src/auth/user.service';
 
-
 @Injectable()
 export class ApplicationService {
   constructor(
@@ -38,7 +37,6 @@ export class ApplicationService {
     private readonly logger: PinoLogger,
     private readonly householdService: HouseholdService,
     private readonly userService: UserService,
-
   ) {}
 
   async createApplication(
@@ -78,17 +76,17 @@ export class ApplicationService {
       const user = await this.userService.findOne(userId);
 
       // create the household with the primary applicant as the first member
-       await this.householdService.createMember(applicationId, {
-         applicationId,
-         userId: userId,
-         firstName: user.first_name,
-         lastName: user.last_name,
-         dateOfBirth: user.dateOfBirth,
-         email: user.email,
-         memberType: MemberTypes.Primary,
-         relationshipToPrimary: RelationshipToPrimary.Self,
-         requireScreening: true,
-       });  
+      await this.householdService.createMember(applicationId, {
+        applicationId,
+        userId: userId,
+        firstName: user.first_name,
+        lastName: user.last_name,
+        dateOfBirth: user.dateOfBirth,
+        email: user.email,
+        memberType: MemberTypes.Primary,
+        relationshipToPrimary: RelationshipToPrimary.Self,
+        requireScreening: true,
+      });
 
       return { formAccessToken };
     } catch (error) {

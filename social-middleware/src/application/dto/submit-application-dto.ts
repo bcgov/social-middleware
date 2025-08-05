@@ -1,4 +1,3 @@
-/* eslint-disable prettier/prettier */
 import { ApiProperty } from '@nestjs/swagger';
 import { IsObject, IsString, IsUUID } from 'class-validator';
 export class SubmitApplicationDto {

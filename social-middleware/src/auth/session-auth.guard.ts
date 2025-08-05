@@ -7,19 +7,17 @@ import * as jwt from 'jsonwebtoken';
 @Injectable()
 export class SessionAuthGuard implements CanActivate {
   private readonly jwtSecret: string;
-  constructor(private readonly configService: ConfigService) 
-  {
+  constructor(private readonly configService: ConfigService) {
     this.jwtSecret = this.configService.get<string>('JWT_SECRET')!;
   }
 
   canActivate(context: ExecutionContext): boolean {
-    
     const request = context.switchToHttp().getRequest();
 
     try {
       const sessionToken = request.cookies?.session_token;
 
-      if(!sessionToken) {
+      if (!sessionToken) {
         return false;
       }
 
@@ -28,7 +26,7 @@ export class SessionAuthGuard implements CanActivate {
 
       request.user = decoded;
       return true;
-    }    catch (error) {
+    } catch (error) {
       return false;
     }
   }
