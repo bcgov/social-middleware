@@ -7,9 +7,7 @@ import { CreateUserDto, UpdateUserDto } from './dto/update-user.dto';
 
 @Injectable()
 export class UserService {
-  constructor(
-    @InjectModel(User.name) private userModel: Model<UserDocument>,
-  ) {}
+  constructor(@InjectModel(User.name) private userModel: Model<UserDocument>) {}
 
   async create(createUserDto: CreateUserDto): Promise<User> {
     const createdUser = new this.userModel(createUserDto);
@@ -29,9 +27,13 @@ export class UserService {
   }
 
   async findByBcServicesCardId(bcServicesCardId: string): Promise<User> {
-    const user = await this.userModel.findOne({ bc_services_card_id: bcServicesCardId }).exec();
+    const user = await this.userModel
+      .findOne({ bc_services_card_id: bcServicesCardId })
+      .exec();
     if (!user) {
-      throw new NotFoundException(`User with BC Services Card ID ${bcServicesCardId} not found`);
+      throw new NotFoundException(
+        `User with BC Services Card ID ${bcServicesCardId} not found`,
+      );
     }
     return user;
   }
@@ -74,7 +76,9 @@ export class UserService {
 
   async findOrCreate(createUserDto: CreateUserDto): Promise<User> {
     try {
-      return await this.findByBcServicesCardId(createUserDto.bc_services_card_id);
+      return await this.findByBcServicesCardId(
+        createUserDto.bc_services_card_id,
+      );
     } catch (error) {
       if (error instanceof NotFoundException) {
         return this.create(createUserDto);

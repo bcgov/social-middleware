@@ -1,5 +1,5 @@
 // auth/dto/create-user.dto.ts
-import { IsString, IsEmail, IsNotEmpty } from 'class-validator';
+import { IsString, IsEmail, IsNotEmpty, IsDate } from 'class-validator';
 
 export class CreateUserDto {
   @IsString()
@@ -17,4 +17,8 @@ export class CreateUserDto {
   @IsEmail()
   @IsNotEmpty()
   email!: string;
+
+  @IsString()
+  @IsNotEmpty()
+  dateOfBirth!: string;
 }

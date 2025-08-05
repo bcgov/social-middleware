@@ -13,10 +13,11 @@ async function bootstrap() {
     });
 
     // load config
-    const config = app.get(ConfigService);    
-    
+    const config = app.get(ConfigService);
+
     const port = config.get<number>('PORT') || 3001;
-    const frontendUrl = config.get<string>('FRONTEND_URL') || 'http://localhost:5173';
+    const frontendUrl =
+      config.get<string>('FRONTEND_URL') || 'http://localhost:5173';
 
     // Enable CORS to handle preflight OPTIONS requests
     const allowedOrigins = [frontendUrl, 'http://localhost:3001'];
@@ -64,19 +65,19 @@ async function bootstrap() {
         type: 'apiKey',
         in: 'cookie',
         name: 'session_token',
-        description: 'Session token for authenticated requests'
+        description: 'Session token for authenticated requests',
       })
       .addCookieAuth('refresh_token', {
         type: 'apiKey',
         in: 'cookie',
         name: 'refresh_token',
-        description: 'Refresh token for session renewal'
+        description: 'Refresh token for session renewal',
       })
       .addCookieAuth('id_token', {
         type: 'apiKey',
         in: 'cookie',
         name: 'id_token',
-        description: 'OpenID Connect ID token'
+        description: 'OpenID Connect ID token',
       })
       .build();
 
