@@ -8,6 +8,7 @@ import { DatabaseModule } from './database/database.module';
 import { FormsModule } from './forms/forms.module';
 import { ApplicationModule } from './application/application.module';
 import { DevToolsModule } from './dev-tools/dev-tools.module';
+import { ContactModule } from './contact/contact.module';
 
 @Module({})
 export class AppModule {
@@ -43,6 +44,7 @@ export class AppModule {
           }),
         }),
         HealthModule,
+        ContactModule,
         FormsModule,
         DatabaseModule,
         ApplicationModule,
