@@ -7,8 +7,14 @@ import {
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { User, UserDocument } from '../auth/schemas/user.schema';
-import { Application, ApplicationDocument } from '../application/schemas/application.schema';
-import { FormParameters, FormParametersDocument} from '../application/schemas/form-parameters.schema';
+import {
+  Application,
+  ApplicationDocument,
+} from '../application/schemas/application.schema';
+import {
+  FormParameters,
+  FormParametersDocument,
+} from '../application/schemas/form-parameters.schema';
 import { PinoLogger } from 'nestjs-pino';
 
 @Injectable()
@@ -38,7 +44,7 @@ export class DevToolsService {
       const applicationIds = applications.map((app) => app.applicationId);
 
       const deletedUser = await this.userModel.deleteMany({
-        _id: {$eq: userId},
+        _id: { $eq: userId },
       });
 
       const deletedApps = await this.applicationModel.deleteMany({
@@ -48,7 +54,6 @@ export class DevToolsService {
       const deletedFormParams = await this.formParametersModel.deleteMany({
         applicationId: { $in: applicationIds },
       });
-
 
       this.logger.warn(
         {

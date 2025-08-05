@@ -9,6 +9,7 @@ import { FormsModule } from './forms/forms.module';
 import { ApplicationModule } from './application/application.module';
 import { DevToolsModule } from './dev-tools/dev-tools.module';
 import { ContactModule } from './contact/contact.module';
+import { HouseholdModule } from './household/household.module';
 
 @Module({})
 export class AppModule {
@@ -48,6 +49,7 @@ export class AppModule {
         FormsModule,
         DatabaseModule,
         ApplicationModule,
+        HouseholdModule,
         ...(isDevelopment ? [DevToolsModule] : []),
       ],
     };
