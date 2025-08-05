@@ -1,5 +1,6 @@
 export enum MemberTypes {
-  Primary = 'Primary',
-  NoncaregiverAdult = 'Non-caregiver Adult',
-  NonAdult = 'NonAdult',
+  Primary = 'Primary Applicant',
+  PrimaryNonApplicant = 'Primary Non-Applicant',
+  NonCaregiverAdult = 'Non-Caregiver Adult',
+  NonAdult = 'Child/Youth',
 }
