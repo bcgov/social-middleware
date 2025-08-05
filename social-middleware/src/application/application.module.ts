@@ -7,6 +7,8 @@ import {
 } from './schemas/form-parameters.schema';
 import { ApplicationService } from './application.service';
 import { ApplicationController } from './application.controller';
+import { HouseholdModule } from 'src/household/household.module';
+import { AuthModule } from 'src/auth/auth.module';
 
 @Module({
   imports: [
@@ -14,6 +16,8 @@ import { ApplicationController } from './application.controller';
       { name: Application.name, schema: ApplicationSchema },
       { name: FormParameters.name, schema: FormParametersSchema },
     ]),
+    HouseholdModule,
+    AuthModule
   ],
   exports: [MongooseModule],
   controllers: [ApplicationController],

@@ -15,5 +15,6 @@ import {
   ],
   controllers: [HouseholdController],
   providers: [HouseholdService],
+  exports: [HouseholdService],
 })
 export class HouseholdModule {}
