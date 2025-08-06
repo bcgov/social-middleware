@@ -1,3 +1,5 @@
+// note, still in progress, not yet tested or linted
+
 import { Injectable } from '@nestjs/common';
 import axios from 'axios';
 import qs from 'qs';
@@ -6,6 +8,13 @@ import { ConfigService } from '@nestjs/config';
 
 // this service is for handling OAuth2 authentication with a code verifier;
 // it is used for ICM Siebel Labs Integration
+
+interface OAuthTokenResponse {
+  access_token: string;
+  expires_in: number;
+  token_type?: string;
+  refresh_token?: string;
+}
 @Injectable()
 export class AuthService {
   private codeVerifier = '';
