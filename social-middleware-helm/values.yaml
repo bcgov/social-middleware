@@ -1,5 +1,5 @@
 nextjs:
-  podlabel: nextjs-app
+  podlabel: social-middleware
   image: image-registry.openshift-image-registry.svc:5000/f6e00d-tools/nextjs:latest
   port: 3001
 

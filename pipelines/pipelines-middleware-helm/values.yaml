@@ -6,7 +6,7 @@ general:
   imageurl: nextjs
   helmrelease: social-middleware
   helmdir: ./social-middleware-helm
-  deploymentname: nextjs-app
+  deploymentname: social-middleware
   deploymentnamespace: f6e00d-dev
 
  
