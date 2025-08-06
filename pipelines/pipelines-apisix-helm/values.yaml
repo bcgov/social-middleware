@@ -1,0 +1,10 @@
+general:
+  name: apisix
+  repourl: https://github.com/bcgov/social-middleware.git
+  imagetag: latest
+  contextpath: ./apisix/
+  imageurl: apisix
+  helmrelease: apisix
+  helmdir: ./apisix/apisix-helm
+
+ 
