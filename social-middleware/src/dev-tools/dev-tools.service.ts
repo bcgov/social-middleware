@@ -7,6 +7,8 @@ import {
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { User, UserDocument } from '../auth/schemas/user.schema';
+import { HouseholdService } from '../household/household.service';
+
 import {
   Application,
   ApplicationDocument,
@@ -26,6 +28,7 @@ export class DevToolsService {
     private applicationModel: Model<ApplicationDocument>,
     @InjectModel(FormParameters.name)
     private formParametersModel: Model<FormParametersDocument>,
+    private readonly householdService: HouseholdService,
     private readonly logger: PinoLogger,
   ) {}
 
@@ -42,6 +45,20 @@ export class DevToolsService {
         .lean();
 
       const applicationIds = applications.map((app) => app.applicationId);
+
+      let totalDeletedHouseholdMembers = 0;
+      for (const appId of applicationIds) {
+        try {
+          const result =
+            await this.householdService.deleteAllMembersByApplicationId(appId);
+          totalDeletedHouseholdMembers += result.deletedCount || 0;
+        } catch (error) {
+          this.logger.warn(
+            { appId, error },
+            `[DevTools] Failed to delete household members for applicationId=${appId}`,
+          );
+        }
+      }
 
       const deletedUser = await this.userModel.deleteMany({
         _id: { $eq: userId },
@@ -66,7 +83,7 @@ export class DevToolsService {
       );
 
       return {
-        message: `Deleted user ${deletedUser.deletedCount}, Deleted ${deletedApps.deletedCount} applications, ${deletedFormParams.deletedCount} form parameters`,
+        message: `Deleted user ${deletedUser.deletedCount}, Deleted ${deletedApps.deletedCount} applications, ${deletedFormParams.deletedCount} form parameters, and ${totalDeletedHouseholdMembers} household members for userId ${userId}`,
       };
     } catch (error) {
       this.logger.error({ error, userId }, 'Error in [DevTools] clearUserData');

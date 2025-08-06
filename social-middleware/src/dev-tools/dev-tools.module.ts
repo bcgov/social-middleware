@@ -4,6 +4,7 @@ import { ConfigModule } from '@nestjs/config';
 import { DevToolsController } from './dev-tools.controller';
 import { DevToolsService } from './dev-tools.service';
 import { User, UserSchema } from '../auth/schemas/user.schema';
+import { HouseholdModule } from 'src/household/household.module';
 import {
   Application,
   ApplicationSchema,
@@ -21,6 +22,7 @@ import {
       { name: Application.name, schema: ApplicationSchema },
       { name: FormParameters.name, schema: FormParametersSchema },
     ]),
+    HouseholdModule
   ],
   controllers: [DevToolsController],
   providers: [DevToolsService],

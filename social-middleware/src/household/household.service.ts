@@ -82,6 +82,35 @@ export class HouseholdService {
     return deletedHouseholdMember;
   }
 
+  async deleteAllMembersByApplicationId(
+    applicationId: string,
+  ): Promise<{ deletedCount: number }> {
+    try {
+      this.logger.log(
+        `Deleting all household members for applicationId: ${applicationId}`,
+      );
+
+      const result = await this.householdMemberModel
+        .deleteMany({ applicationId })
+        .exec();
+
+      this.logger.log(
+        `Deleted ${result.deletedCount} household members for applicationId: ${applicationId}`,
+      );
+
+      return { deletedCount: result.deletedCount };
+    } catch (error: unknown) {
+      const err = error as Error;
+      this.logger.error(
+        `Failed to delete household members for applicationId=${applicationId}: ${err.message}`,
+        err.stack,
+      );
+      throw new InternalServerErrorException(
+        'Could not delete household members',
+      );
+    }
+  }
+
   async findOrCreate(
     createHouseholdMemberDTO: CreateHouseholdMemberDto,
   ): Promise<HouseholdMembersDocument> {
