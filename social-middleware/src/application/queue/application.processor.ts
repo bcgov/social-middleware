@@ -77,6 +77,7 @@ export class ApplicationProcessor {
       this.logger.info({ formAccessToken }, 'Saved form parameters to DB');
 
       const user = await this.userService.findOne(userId);
+      this.logger.debug({ user }, 'Fetched user data');
 
       // create the household with the primary applicant as the first member
       await this.householdService.createMember(applicationId, {
@@ -84,6 +85,7 @@ export class ApplicationProcessor {
         userId: userId,
         firstName: user.first_name,
         lastName: user.last_name,
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
         dateOfBirth: user.dateOfBirth,
         email: user.email,
         memberType: MemberTypes.Primary,
