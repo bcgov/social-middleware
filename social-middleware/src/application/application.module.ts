@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { Application, ApplicationSchema } from './schemas/application.schema';
+import { ApplicationQueueModule } from './queue/application-queue.module';
 import {
   FormParameters,
   FormParametersSchema,
@@ -18,6 +19,7 @@ import { AuthModule } from 'src/auth/auth.module';
     ]),
     HouseholdModule,
     AuthModule,
+    ApplicationQueueModule,
   ],
   exports: [MongooseModule],
   controllers: [ApplicationController],
