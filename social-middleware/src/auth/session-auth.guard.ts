@@ -2,31 +2,57 @@
 
 import { Injectable, CanActivate, ExecutionContext } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { Request } from 'express';
 import * as jwt from 'jsonwebtoken';
+
+interface UserPayload {
+  sub: string;
+  email: string;
+  name: string;
+  userId?: string;
+  iat?: number;
+  exp?: number;
+}
+interface AuthenticatedRequest extends Request {
+  user?: UserPayload;
+}
 
 @Injectable()
 export class SessionAuthGuard implements CanActivate {
   private readonly jwtSecret: string;
+
   constructor(private readonly configService: ConfigService) {
     this.jwtSecret = this.configService.get<string>('JWT_SECRET')!;
   }
 
   canActivate(context: ExecutionContext): boolean {
-    const request = context.switchToHttp().getRequest();
+    const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
 
     try {
-      const sessionToken = request.cookies?.session_token;
+      const sessionToken = request.cookies?.session_token as string | undefined;
 
       if (!sessionToken) {
         return false;
       }
 
-      // Verify JWT token
-      const decoded = jwt.verify(sessionToken, this.jwtSecret);
+      // Verify JWT token and cast to UserPayload
+      const decoded = jwt.verify(sessionToken, this.jwtSecret) as UserPayload;
+
+      // Validate the decoded payload
+      if (
+        !decoded ||
+        typeof decoded !== 'object' ||
+        !decoded.sub ||
+        !decoded.email ||
+        !decoded.name
+      ) {
+        return false;
+      }
 
       request.user = decoded;
+
       return true;
-    } catch (error) {
+    } catch {
       return false;
     }
   }

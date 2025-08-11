@@ -50,6 +50,14 @@ interface JwtPayload {
   exp?: number;
 }
 
+interface TokenResponse {
+  access_token: string;
+  id_token?: string;
+  refresh_token?: string;
+  expires_in?: number;
+  token_type?: string;
+}
+
 @ApiTags('Authentication')
 @Controller('auth')
 export class AuthController {
@@ -227,7 +235,9 @@ export class AuthController {
       );
 
       console.log('Token exchange successful');
-      const { access_token, id_token, refresh_token } = tokenResponse.data;
+
+      const tokenData = tokenResponse.data as TokenResponse;
+      const { access_token, id_token, refresh_token } = tokenData;
 
       // Get user info from BC Services Card
       console.log('Fetching user info...');
@@ -243,7 +253,10 @@ export class AuthController {
         ),
       );
 
-      const userInfo: UserInfo = userInfoResponse.data;
+      //const userInfo: UserInfo = userInfoResponse.data;
+
+      const userInfo = userInfoResponse.data as UserInfo;
+
       console.log(
         'Full userInfo response: ',
         JSON.stringify(userInfoResponse.data, null, 2),
@@ -334,24 +347,31 @@ export class AuthController {
           family_name: userInfo.family_name,
         },
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error';
+      //const errorStatus = error instanceof Error ? error.response?.status : 'Unknown error';
+
       console.error('Token exchange error:', {
-        message: error.message,
-        response: error.response?.data,
-        status: error.response?.status,
-        config: error.config
-          ? {
-              url: error.config.url,
-              method: error.config.method,
-              headers: error.config.headers,
-            }
-          : undefined,
+        message: errorMessage,
+        //response: error.response?.data,
+        //status: error.response?.status,
+        //config: error.config
+        //  ? {
+        //      url: error.config.url,
+        //      method: error.config.method,
+        //      headers: error.config.headers,
+        //    }
+        //  : undefined,
       });
 
       throw new HttpException(
         {
           error: 'Authentication failed',
-          details: this.nodeEnv === 'development' ? error.message : undefined,
+          details:
+            this.nodeEnv === 'development'
+              ? errorMessage
+              : ' An error occurred during authentication',
         },
         HttpStatus.BAD_REQUEST,
       );
@@ -423,11 +443,11 @@ export class AuthController {
       example: 'session_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
     },
   })
-  async getStatus(@Req() req: Request) {
+  getStatus(@Req() req: Request) {
     try {
       console.log('All cookies:', req.cookies);
 
-      const sessionToken = req.cookies.session_token;
+      const sessionToken = req.cookies.session_token as string;
 
       console.log('Session token:', sessionToken ? 'Present' : 'Missing');
 
@@ -438,7 +458,25 @@ export class AuthController {
         );
       }
 
-      const decoded = jwt.verify(sessionToken, this.jwtSecret) as JwtPayload;
+      const isValidJwtPayload = (payload: unknown): payload is JwtPayload => {
+        if (!payload || typeof payload !== 'object' || payload === null) {
+          return false;
+        }
+
+        const obj = payload as Record<string, unknown>;
+
+        return (
+          typeof obj.sub === 'string' &&
+          typeof obj.email === 'string' &&
+          typeof obj.name === 'string'
+        );
+      };
+
+      const decoded = jwt.verify(sessionToken, this.jwtSecret);
+
+      if (!isValidJwtPayload(decoded)) {
+        throw new Error('Invalid token payload');
+      }
 
       return {
         user: {
@@ -448,10 +486,14 @@ export class AuthController {
           name: decoded.name,
         },
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error';
+      const errorName = error instanceof Error ? error.name : 'Unknown';
+
       console.error('Session validation error:', {
-        message: error.message,
-        name: error.name,
+        message: errorMessage,
+        name: errorName,
       });
 
       if (error instanceof HttpException) {
@@ -521,8 +563,8 @@ export class AuthController {
       example: 'session_token=eyJ...; id_token=eyJ...; refresh_token=eyJ...',
     },
   })
-  async logout(@Req() req: Request, @Res() res: Response) {
-    const idToken = req.cookies.id_token;
+  logout(@Req() req: Request, @Res() res: Response): void {
+    const idToken = req.cookies.id_token as string | undefined;
 
     // Clear all auth cookies
     res.clearCookie('session_token', {
@@ -554,7 +596,7 @@ export class AuthController {
       logoutUrl.searchParams.set('id_token_hint', idToken);
       logoutUrl.searchParams.set(
         'post_logout_redirect_uri',
-        `${this.configService.get('FRONTEND_URL')}/login`,
+        `${this.configService.get<string>('FRONTEND_URL')}/login`,
       );
       logoutUrl.searchParams.set('prompt', 'login');
       return res.redirect(logoutUrl.toString());

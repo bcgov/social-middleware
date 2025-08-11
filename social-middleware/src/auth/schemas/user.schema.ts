@@ -24,6 +24,9 @@ export class User {
   @Prop({ required: true })
   dateOfBirth!: string;
 
+  @Prop({ required: false })
+  contactId!: string;
+
   @Prop({ default: Date.now })
   last_login!: Date;
 
