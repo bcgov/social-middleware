@@ -1,6 +1,7 @@
 import { Module, forwardRef } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { Application, ApplicationSchema } from './schemas/application.schema';
+import { ApplicationQueueModule } from './queue/application-queue.module';
 import {
   FormParameters,
   FormParametersSchema,
@@ -20,6 +21,7 @@ import { ApplicationSubmissionModule } from 'src/application-submission/applicat
     HouseholdModule,
     AuthModule,
     forwardRef(() => ApplicationSubmissionModule),
+    ApplicationQueueModule,
   ],
   exports: [ApplicationService, MongooseModule],
   controllers: [ApplicationController],

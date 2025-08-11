@@ -11,6 +11,7 @@ import { ApplicationSubmissionModule } from './application-submission/applicatio
 import { DevToolsModule } from './dev-tools/dev-tools.module';
 import { ContactModule } from './contact/contact.module';
 import { HouseholdModule } from './household/household.module';
+import { BullDashboardModule } from './bull-dashboard/bull-dashboard.module';
 
 @Module({})
 export class AppModule {
@@ -53,6 +54,7 @@ export class AppModule {
         ApplicationSubmissionModule,
         HouseholdModule,
         ...(isDevelopment ? [DevToolsModule] : []),
+        BullDashboardModule,
       ],
     };
   }
