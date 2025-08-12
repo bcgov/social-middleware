@@ -21,13 +21,13 @@ import { AuthModule } from 'src/auth/auth.module';
       useFactory: (configService: ConfigService) => ({
         redis: {
           host: configService.get<string>('REDIS_HOST'),
-          port: configService.get<number>('REDIS_PORT'),
+          port: Number(configService.get<string>('REDIS_PORT')),
         },
         defaultJobOptions: {
-          attempts: configService.get<number>('QUEUE_JOB_ATTEMPTS'),
+          attempts: Number(configService.get<string>('QUEUE_JOB_ATTEMPTS')),
           backoff: {
-            type: 'exponential',
-            delay: configService.get<number>('QUEUE_BACKOFF_DELAY'),
+            type: 'fixed',
+            delay: Number(configService.get<string>('QUEUE_BACKOFF_DELAY')),
           },
         },
       }),
