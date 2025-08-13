@@ -4,15 +4,9 @@ import { Injectable, CanActivate, ExecutionContext } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Request } from 'express';
 import * as jwt from 'jsonwebtoken';
+import { UserPayload } from '../common/interfaces/user-payload.interface';
+import { isValidUserPayload } from '../common/utils';
 
-interface UserPayload {
-  sub: string;
-  email: string;
-  name: string;
-  userId?: string;
-  iat?: number;
-  exp?: number;
-}
 interface AuthenticatedRequest extends Request {
   user?: UserPayload;
 }
@@ -39,13 +33,7 @@ export class SessionAuthGuard implements CanActivate {
       const decoded = jwt.verify(sessionToken, this.jwtSecret) as UserPayload;
 
       // Validate the decoded payload
-      if (
-        !decoded ||
-        typeof decoded !== 'object' ||
-        !decoded.sub ||
-        !decoded.email ||
-        !decoded.name
-      ) {
+      if (!isValidUserPayload(decoded)) {
         return false;
       }
 

@@ -26,6 +26,7 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import * as jwt from 'jsonwebtoken';
+import { isValidUserPayload } from 'src/common/utils';
 
 interface AuthCallbackRequest {
   code: string;
@@ -40,16 +41,6 @@ interface UserInfo {
   family_name: string;
   birthdate: string;
 }
-
-interface JwtPayload {
-  sub: string; // BC Services Card ID
-  email: string;
-  name: string;
-  userId: string; // MongoDB User ID
-  iat: number;
-  exp?: number;
-}
-
 interface TokenResponse {
   access_token: string;
   id_token?: string;
@@ -458,23 +449,9 @@ export class AuthController {
         );
       }
 
-      const isValidJwtPayload = (payload: unknown): payload is JwtPayload => {
-        if (!payload || typeof payload !== 'object' || payload === null) {
-          return false;
-        }
-
-        const obj = payload as Record<string, unknown>;
-
-        return (
-          typeof obj.sub === 'string' &&
-          typeof obj.email === 'string' &&
-          typeof obj.name === 'string'
-        );
-      };
-
       const decoded = jwt.verify(sessionToken, this.jwtSecret);
 
-      if (!isValidJwtPayload(decoded)) {
+      if (!isValidUserPayload(decoded)) {
         throw new Error('Invalid token payload');
       }
 
