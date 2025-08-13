@@ -4,6 +4,7 @@ import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { ConfigService } from '@nestjs/config';
 import * as cookieParser from 'cookie-parser';
 import { Logger } from 'nestjs-pino';
+import { ValidationPipe } from '@nestjs/common';
 
 async function bootstrap() {
   try {
@@ -17,12 +18,14 @@ async function bootstrap() {
     const port = config.get<number>('PORT') || 3001;
     const frontendUrl =
       config.get<string>('FRONTEND_URL') || 'http://localhost:5173';
+    const isDevelopment = config.get<string>('NODE_ENV') !== 'production';
     const apiUrl = config.get<string>('API_URL') || 'http://localhost:3001';
     // Enable CORS to handle preflight OPTIONS requests
     const allowedOrigins = [frontendUrl, apiUrl];
     console.log('🔧 CORS Configuration:');
     console.log('Allowed origins:', allowedOrigins);
 
+    
     app.enableCors({
       origin: (
         origin: string | undefined,
@@ -53,6 +56,7 @@ async function bootstrap() {
       preflightContinue: false,
       optionsSuccessStatus: 204,
     });
+    
 
     const swaggerConfig = new DocumentBuilder()
       .setTitle('Caregiver Middleware API')
@@ -60,10 +64,10 @@ async function bootstrap() {
         'APIs used in the middleware of Caregiver Portal are documented here',
       )
       .setVersion('1.0')
-      .addCookieAuth('session_token', {
+      .addCookieAuth('session', {
         type: 'apiKey',
         in: 'cookie',
-        name: 'session_token',
+        name: 'session',
         description: 'Session token for authenticated requests',
       })
       .addCookieAuth('refresh_token', {
@@ -84,6 +88,19 @@ async function bootstrap() {
     SwaggerModule.setup('api', app, document);
 
     app.use(cookieParser());
+
+    app.useGlobalPipes(
+      new ValidationPipe({
+        whitelist: true,                // strip unknown properties from DTOs
+        forbidNonWhitelisted: true,     // throw error if unknown properties are present
+        transform: true,                // automatically transform payloads to DTO instances
+        disableErrorMessages: isDevelopment ? false : true,    // enable detailed error messages (set to true in production for security)
+        validationError: {
+          target: false,               // do not expose the original object in errors
+          value: false,                // do not expose the value that failed validation
+        }
+      }),
+    )
 
     app.useLogger(app.get(Logger));
 

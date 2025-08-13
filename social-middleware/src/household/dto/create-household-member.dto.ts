@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsEnum, IsString, IsBoolean, IsOptional, IsDate, IsNumber } from 'class-validator';
+import { IsEnum, IsString, IsBoolean, IsOptional } from 'class-validator';
 import { MemberTypes } from '../enums/member-types.enum';
 import { RelationshipToPrimary } from '../enums/relationship-to-primary.enum';
 
@@ -8,11 +8,10 @@ export class CreateHouseholdMemberDto {
   @IsString()
   applicationId!: string; // ID of the application this member belongs to
 
-
- // @ApiProperty({ example: 'user_456' })
- // @IsOptional()
- // @IsString()
- // screeningId!: string; // ID of the screening application for this member
+  // @ApiProperty({ example: 'user_456' })
+  // @IsOptional()
+  // @IsString()
+  // screeningId!: string; // ID of the screening application for this member
 
   @IsOptional() // when created for a family member, we will not have a userId
   @IsString()
@@ -52,5 +51,4 @@ export class CreateHouseholdMemberDto {
   //@ApiProperty({ default: 0, required: false })
   //@IsNumber()
   //numberOfInvitationsSent?: number;
-
 }

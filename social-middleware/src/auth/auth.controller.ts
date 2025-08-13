@@ -26,6 +26,7 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import * as jwt from 'jsonwebtoken';
+import { isValidUserPayload } from 'src/common/utils';
 
 interface AuthCallbackRequest {
   code: string;
@@ -40,16 +41,6 @@ interface UserInfo {
   family_name: string;
   birthdate: string;
 }
-
-interface JwtPayload {
-  sub: string; // BC Services Card ID
-  email: string;
-  name: string;
-  userId: string; // MongoDB User ID
-  iat: number;
-  exp?: number;
-}
-
 interface TokenResponse {
   access_token: string;
   id_token?: string;
@@ -179,7 +170,7 @@ export class AuthController {
       },
     },
   })
-  @ApiCookieAuth('session_token')
+  @ApiCookieAuth('session')
   @ApiCookieAuth('refresh_token')
   @ApiCookieAuth('id_token')
   async authCallback(
@@ -300,7 +291,7 @@ export class AuthController {
 
       // Set HTTP-only cookies using NestJS response
       // TO DO: Offload these to OpenShift config
-      res.cookie('session_token', sessionToken, {
+      res.cookie('session', sessionToken, {
         httpOnly: true,
         secure:
           this.nodeEnv === 'production' ||
@@ -384,7 +375,7 @@ export class AuthController {
     description:
       'Validates the session token and returns current user information if authenticated',
   })
-  @ApiCookieAuth('session_token')
+  @ApiCookieAuth('session')
   @ApiResponse({
     status: 200,
     description: 'User is authenticated - returns current user information',
@@ -436,18 +427,18 @@ export class AuthController {
   })
   @ApiHeader({
     name: 'Cookie',
-    description: 'HTTP cookies containing session_token',
+    description: 'HTTP cookies containing session',
     required: true,
     schema: {
       type: 'string',
-      example: 'session_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
+      example: 'session=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
     },
   })
   getStatus(@Req() req: Request) {
     try {
       console.log('All cookies:', req.cookies);
 
-      const sessionToken = req.cookies.session_token as string;
+      const sessionToken = req.cookies.session as string;
 
       console.log('Session token:', sessionToken ? 'Present' : 'Missing');
 
@@ -458,23 +449,9 @@ export class AuthController {
         );
       }
 
-      const isValidJwtPayload = (payload: unknown): payload is JwtPayload => {
-        if (!payload || typeof payload !== 'object' || payload === null) {
-          return false;
-        }
-
-        const obj = payload as Record<string, unknown>;
-
-        return (
-          typeof obj.sub === 'string' &&
-          typeof obj.email === 'string' &&
-          typeof obj.name === 'string'
-        );
-      };
-
       const decoded = jwt.verify(sessionToken, this.jwtSecret);
 
-      if (!isValidJwtPayload(decoded)) {
+      if (!isValidUserPayload(decoded)) {
         throw new Error('Invalid token payload');
       }
 
@@ -513,7 +490,7 @@ export class AuthController {
     description:
       'Clears all authentication cookies and redirects to BC Services Card logout or login page',
   })
-  @ApiCookieAuth('session_token')
+  @ApiCookieAuth('session')
   @ApiCookieAuth('id_token')
   @ApiCookieAuth('refresh_token')
   @ApiResponse({
@@ -546,7 +523,7 @@ export class AuthController {
             type: 'string',
           },
           example: [
-            'session_token=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; HttpOnly; Secure; SameSite=Lax',
+            'session=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; HttpOnly; Secure; SameSite=Lax',
             'id_token=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; HttpOnly; Secure; SameSite=Lax',
             'refresh_token=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; HttpOnly; Secure; SameSite=Lax',
           ],
@@ -556,18 +533,18 @@ export class AuthController {
   })
   @ApiHeader({
     name: 'Cookie',
-    description: 'HTTP cookies (session_token, id_token, refresh_token)',
+    description: 'HTTP cookies (session, id_token, refresh_token)',
     required: false,
     schema: {
       type: 'string',
-      example: 'session_token=eyJ...; id_token=eyJ...; refresh_token=eyJ...',
+      example: 'session=eyJ...; id_token=eyJ...; refresh_token=eyJ...',
     },
   })
   logout(@Req() req: Request, @Res() res: Response): void {
     const idToken = req.cookies.id_token as string | undefined;
 
     // Clear all auth cookies
-    res.clearCookie('session_token', {
+    res.clearCookie('session', {
       httpOnly: true,
       secure:
         this.nodeEnv === 'production' ||

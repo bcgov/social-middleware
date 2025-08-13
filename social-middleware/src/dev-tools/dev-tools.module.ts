@@ -22,7 +22,7 @@ import {
       { name: Application.name, schema: ApplicationSchema },
       { name: FormParameters.name, schema: FormParametersSchema },
     ]),
-    HouseholdModule
+    HouseholdModule,
   ],
   controllers: [DevToolsController],
   providers: [DevToolsService],

@@ -1,9 +1,9 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
 import {
+  forwardRef,
+  Inject,
   Injectable,
   InternalServerErrorException,
   BadRequestException,
-  UnauthorizedException,
   HttpException,
   NotFoundException,
 } from '@nestjs/common';
@@ -25,12 +25,15 @@ import { HouseholdService } from 'src/household/household.service';
 import { MemberTypes } from 'src/household/enums/member-types.enum';
 import { RelationshipToPrimary } from 'src/household/enums/relationship-to-primary.enum';
 import { UserService } from 'src/auth/user.service';
+import { ApplicationSubmissionService } from 'src/application-submission/application-submission.service';
 
 @Injectable()
 export class ApplicationService {
   constructor(
     @InjectModel(Application.name)
     private applicationModel: Model<ApplicationDocument>,
+    @Inject(forwardRef(() => ApplicationSubmissionService))
+    private readonly applicationSubmissionService: ApplicationSubmissionService,
     @InjectModel(FormParameters.name)
     private formParametersModel: Model<FormParametersDocument>,
     @InjectPinoLogger(ApplicationService.name)
@@ -59,8 +62,14 @@ export class ApplicationService {
         formData: dto.formData ?? null,
       });
 
-      await application.save();
+      const savedApplication = await application.save();
+
       this.logger.info({ applicationId }, 'Saved application to DB');
+
+      // create initial submission
+      await this.applicationSubmissionService.createInitialSubmission(
+        String(savedApplication._id),
+      );
 
       const formParameters = new this.formParametersModel({
         applicationId,
@@ -105,10 +114,29 @@ export class ApplicationService {
     }
   }
 
-  async getApplicationsByUser(userId: string): Promise<GetApplicationsDto[]> {
-    if (typeof userId !== 'string' || userId.trim() === '') {
-      throw new BadRequestException('Invalid or missing userId');
+  async findByIdAndUser(
+    applicationId: string,
+    userId: string,
+  ): Promise<ApplicationDocument | null> {
+    try {
+      const application = await this.applicationModel
+        .findOne({
+          _id: applicationId,
+          primary_applicantId: userId,
+        })
+        .exec();
+
+      return application;
+    } catch (error) {
+      this.logger.error(
+        { error, applicationId, userId },
+        'Error finding application by ID and user',
+      );
+      return null;
     }
+  }
+
+  async getApplicationsByUser(userId: string): Promise<GetApplicationsDto[]> {
     try {
       this.logger.info({ userId }, 'Fetching applications for user');
 

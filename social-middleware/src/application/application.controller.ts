@@ -52,7 +52,7 @@ export class ApplicationController {
     @Req() request: Request,
   ): Promise<{ formAccessToken: string }> {
     try {
-      const sessionToken = request.cookies?.session_token;
+      const sessionToken = request.cookies?.session;
 
       if (!sessionToken) {
         throw new UnauthorizedException('No session token provided.');
@@ -81,7 +81,7 @@ export class ApplicationController {
     @Req() request: Request & { session?: any; user?: any },
   ): Promise<GetApplicationsDto[]> {
     try {
-      const sessionToken = request.cookies?.session_token;
+      const sessionToken = request.cookies?.session;
 
       if (!sessionToken) {
         throw new UnauthorizedException('No session token provided');
