@@ -16,6 +16,7 @@ export class CreateApplicationDto {
   @IsString()
   formId!: string;
 
+  
   @ApiProperty({
     description: 'The user initiating the application',
     example: {
@@ -23,6 +24,7 @@ export class CreateApplicationDto {
       name: 'Jane Doe',
     },
   })
+  @IsOptional()
   @IsObject()
   @IsNotEmpty()
   user!: {
@@ -36,6 +38,7 @@ export class CreateApplicationDto {
     example: ApplicationTypes.FosterCaregiver,
     required: false,
   })
+  @IsOptional()
   @IsEnum(ApplicationTypes)
   type!: ApplicationTypes;
 

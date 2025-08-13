@@ -4,6 +4,7 @@ import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { ConfigService } from '@nestjs/config';
 import * as cookieParser from 'cookie-parser';
 import { Logger } from 'nestjs-pino';
+import { ValidationPipe } from '@nestjs/common';
 
 async function bootstrap() {
   try {
@@ -17,6 +18,7 @@ async function bootstrap() {
     const port = config.get<number>('PORT') || 3001;
     const frontendUrl =
       config.get<string>('FRONTEND_URL') || 'http://localhost:5173';
+    const isDevelopment = config.get<string>('NODE_ENV') !== 'production';
 
     // Enable CORS to handle preflight OPTIONS requests
     const allowedOrigins = [frontendUrl, 'http://localhost:3001'];
@@ -84,6 +86,19 @@ async function bootstrap() {
     SwaggerModule.setup('api', app, document);
 
     app.use(cookieParser());
+
+    app.useGlobalPipes(
+      new ValidationPipe({
+        whitelist: true,                // strip unknown properties from DTOs
+        forbidNonWhitelisted: true,     // throw error if unknown properties are present
+        transform: true,                // automatically transform payloads to DTO instances
+        disableErrorMessages: isDevelopment ? false : true,    // enable detailed error messages (set to true in production for security)
+        validationError: {
+          target: false,               // do not expose the original object in errors
+          value: false,                // do not expose the value that failed validation
+        }
+      }),
+    )
 
     app.useLogger(app.get(Logger));
 
