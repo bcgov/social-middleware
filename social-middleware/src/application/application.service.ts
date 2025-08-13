@@ -137,9 +137,6 @@ export class ApplicationService {
   }
 
   async getApplicationsByUser(userId: string): Promise<GetApplicationsDto[]> {
-    if (typeof userId !== 'string' || userId.trim() === '') {
-      throw new BadRequestException('Invalid or missing userId');
-    }
     try {
       this.logger.info({ userId }, 'Fetching applications for user');
 
