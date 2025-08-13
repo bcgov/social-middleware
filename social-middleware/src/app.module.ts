@@ -7,6 +7,7 @@ import { HealthModule } from './health/health.module';
 import { DatabaseModule } from './database/database.module';
 import { FormsModule } from './forms/forms.module';
 import { ApplicationModule } from './application/application.module';
+import { ApplicationSubmissionModule } from './application-submission/application-submission.module';
 import { DevToolsModule } from './dev-tools/dev-tools.module';
 import { ContactModule } from './contact/contact.module';
 import { HouseholdModule } from './household/household.module';
@@ -49,6 +50,7 @@ export class AppModule {
         FormsModule,
         DatabaseModule,
         ApplicationModule,
+        ApplicationSubmissionModule,
         HouseholdModule,
         ...(isDevelopment ? [DevToolsModule] : []),
       ],

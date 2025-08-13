@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { Application, ApplicationSchema } from './schemas/application.schema';
 import {
@@ -9,6 +9,7 @@ import { ApplicationService } from './application.service';
 import { ApplicationController } from './application.controller';
 import { HouseholdModule } from 'src/household/household.module';
 import { AuthModule } from 'src/auth/auth.module';
+import { ApplicationSubmissionModule } from 'src/application-submission/application-submission.module';
 
 @Module({
   imports: [
@@ -18,8 +19,9 @@ import { AuthModule } from 'src/auth/auth.module';
     ]),
     HouseholdModule,
     AuthModule,
+    forwardRef(() => ApplicationSubmissionModule),
   ],
-  exports: [MongooseModule],
+  exports: [ApplicationService, MongooseModule],
   controllers: [ApplicationController],
   providers: [ApplicationService],
 })
