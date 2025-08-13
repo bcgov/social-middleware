@@ -23,7 +23,7 @@ export class SessionAuthGuard implements CanActivate {
     const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
 
     try {
-      const sessionToken = request.cookies?.session_token as string | undefined;
+      const sessionToken = request.cookies?.session as string | undefined;
 
       if (!sessionToken) {
         return false;
