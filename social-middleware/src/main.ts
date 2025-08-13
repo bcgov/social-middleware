@@ -14,12 +14,12 @@ async function bootstrap() {
     // load config
     const config = app.get(ConfigService);
 
-    const port = config.get<number>('PORT') || 3001;
+
     const frontendUrl =
       config.get<string>('FRONTEND_URL') || 'http://localhost:5173';
-
+    const apiUrl = config.get<string>('API_URL') || 'http://localhost:3001';
     // Enable CORS to handle preflight OPTIONS requests
-    const allowedOrigins = [frontendUrl, 'http://localhost:3001'];
+    const allowedOrigins = [frontendUrl, apiUrl];
     console.log('🔧 CORS Configuration:');
     console.log('Allowed origins:', allowedOrigins);
 
