@@ -25,7 +25,6 @@ async function bootstrap() {
     console.log('🔧 CORS Configuration:');
     console.log('Allowed origins:', allowedOrigins);
 
-    
     app.enableCors({
       origin: (
         origin: string | undefined,
@@ -56,7 +55,6 @@ async function bootstrap() {
       preflightContinue: false,
       optionsSuccessStatus: 204,
     });
-    
 
     const swaggerConfig = new DocumentBuilder()
       .setTitle('Caregiver Middleware API')
@@ -91,16 +89,16 @@ async function bootstrap() {
 
     app.useGlobalPipes(
       new ValidationPipe({
-        whitelist: true,                // strip unknown properties from DTOs
-        forbidNonWhitelisted: true,     // throw error if unknown properties are present
-        transform: true,                // automatically transform payloads to DTO instances
-        disableErrorMessages: isDevelopment ? false : true,    // enable detailed error messages (set to true in production for security)
+        whitelist: true, // strip unknown properties from DTOs
+        forbidNonWhitelisted: true, // throw error if unknown properties are present
+        transform: true, // automatically transform payloads to DTO instances
+        disableErrorMessages: isDevelopment ? false : true, // enable detailed error messages (set to true in production for security)
         validationError: {
-          target: false,               // do not expose the original object in errors
-          value: false,                // do not expose the value that failed validation
-        }
+          target: false, // do not expose the original object in errors
+          value: false, // do not expose the value that failed validation
+        },
       }),
-    )
+    );
 
     app.useLogger(app.get(Logger));
 

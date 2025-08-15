@@ -16,7 +16,6 @@ export class CreateApplicationDto {
   @IsString()
   formId!: string;
 
-  
   @ApiProperty({
     description: 'The user initiating the application',
     example: {
