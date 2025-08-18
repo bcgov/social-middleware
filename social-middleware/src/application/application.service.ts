@@ -97,14 +97,15 @@ export class ApplicationService {
         //requireScreening: true,
       });
 
-      const job = await this.applicationQueue.add('create', {
-        dto,
-        userId,
-      });
+      //const job = await this.applicationQueue.add('create', {
+      //  dto,
+      //  userId,
+      //});
 
-      this.logger.info(`Queued application creation with jobId ${job.id}`);
-      const result = (await job.finished()) as { formAccessToken: string };
-      return { formAccessToken: result.formAccessToken };
+      //this.logger.info(`Queued application creation with jobId ${job.id}`);
+      //const result = (await job.finished()) as { formAccessToken: string };
+      //return { formAccessToken: result.formAccessToken };
+      return {formAccessToken};
 
     } catch (error) {
       this.logger.error({ error }, 'Failed to create application');
