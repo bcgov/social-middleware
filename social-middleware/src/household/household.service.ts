@@ -11,6 +11,9 @@ import {
   HouseholdMembersDocument,
 } from './schemas/household-members.schema';
 import { CreateHouseholdMemberDto } from './dto/create-household-member.dto';
+import { RelationshipToPrimary } from './enums/relationship-to-primary.enum';
+import { MemberTypes } from './enums/member-types.enum';
+import { v4 as uuidv4 } from 'uuid';
 
 @Injectable()
 export class HouseholdService {
@@ -21,37 +24,112 @@ export class HouseholdService {
     private householdMemberModel: Model<HouseholdMembersDocument>,
   ) {}
 
+  // helper method to make some decisions off of
+  private calculateAge(dateOfBirth: string): number {
+    const today = new Date();
+    const birthDate = new Date(dateOfBirth);
+    let age = today.getFullYear() - birthDate.getFullYear();
+    
+    const monthDifference = today.getMonth() - birthDate.getMonth();
+    // if their birthday is after the current month
+    // or if the day of their birthday is later this month
+    // then we need to subtract a year from their calculated age
+    if (monthDifference < 0 || (monthDifference === 0 && today.getDate() < birthDate.getDate())) {
+      age--;
+    }
+    return age;
+  }
+
+  // create a household member
   async createMember(
     applicationId: string,
     dto: CreateHouseholdMemberDto,
   ): Promise<HouseholdMembersDocument> {
     try {
-      this.logger.log(
-        `Creating household member for applicationId: ${applicationId}`,
-      );
+      let { householdMemberId, ...memberData } = dto;
 
-      const created = new this.householdMemberModel({
-        ...dto,
-        applicationId,
-      });
+      // householdMemberId is used by the front-end to refer to the record in the DB so we can perform RUD operations
+      // if no householdMemberId is provided, generate one
+      if (!householdMemberId) {
+        householdMemberId = uuidv4();
+        this.logger.log(
+          `Generated new householdMemberId: ${householdMemberId}`,
+        );
+      } else {
+        this.logger.log(
+          `Using provided householdMemberId: ${householdMemberId}`,
+        );
+      }
 
-      const saved = await created.save();
+      const age = this.calculateAge(dto.dateOfBirth);
+      this.logger.log(`Age is ${age}`);
+      // everyone over 19 requires a screening
+      const requireScreening = age >= 19;
+      this.logger.log( `requiresScreening is: ${requireScreening}`);
+      let memberType = null;
+
+      switch(dto.relationshipToPrimary) {
+
+        case RelationshipToPrimary.Self:
+            memberType = MemberTypes.Primary;
+            break;
+        case RelationshipToPrimary.Spouse:
+            memberType = MemberTypes.PrimaryNonApplicant;
+            break;
+        case RelationshipToPrimary.Partner:
+            memberType = MemberTypes.PrimaryNonApplicant;
+            break;
+        default:
+          if(requireScreening) {
+            memberType = MemberTypes.NonCaregiverAdult;
+          } else {
+            memberType = MemberTypes.NonAdult;
+          }
+          break;
+      }
+
+
+      const result = await this.householdMemberModel
+        .findOneAndUpdate(
+          {
+            householdMemberId: householdMemberId,
+            applicationId: applicationId,
+          },
+          {
+            $set: {
+              ...memberData,
+              householdMemberId,
+              applicationId,
+              requireScreening,
+              memberType
+            },
+          },
+          {
+            new: true,
+            upsert: true, //update a record if it exists, otherwise create a new one.
+            runValidators: true,
+            setDefaultsOnInsert: true,
+          },
+        )
+        .exec();
+
       this.logger.log(
-        `Created household member with ID: ${saved.householdMemberId} for applicationId: ${applicationId}`,
+        `Successfully upserted household member with ID: ${result.householdMemberId} for applicationId: ${applicationId}`,
       );
-      return saved;
+      return result;
     } catch (error: unknown) {
       const err = error as Error;
       this.logger.error(
-        `Failed to create household member for applicationId=${applicationId}: ${err.message}`,
+        `Failed to upsert household member for applicationId=${applicationId}: ${err.message}`,
         err.stack,
       );
       throw new InternalServerErrorException(
-        'Could not create household member',
+        'Could not create/update household member',
       );
     }
   }
 
+  // list all household members for an applicationID
   async findAllHouseholdMembers(
     applicationId: string,
   ): Promise<HouseholdMembersDocument[]> {
@@ -72,16 +150,49 @@ export class HouseholdService {
     }
   }
 
-  async remove(id: string): Promise<HouseholdMembersDocument> {
-    const deletedHouseholdMember = await this.householdMemberModel
-      .findByIdAndDelete(id)
-      .exec();
-    if (!deletedHouseholdMember) {
-      throw new NotFoundException(`Household Member with ID ${id} not found`);
+  // used when a household member is removed by the front end
+  // e.g. the applicant removes a household member that may have been saved
+  //
+  async remove(householdMemberId: string): Promise<boolean> {
+    try {
+      this.logger.log(
+        `Attempting to delete household member with ID: ${householdMemberId}`,
+      );
+
+      const result = await this.householdMemberModel
+        .findOneAndDelete({ householdMemberId })
+        .exec();
+
+      if (!result) {
+        this.logger.warn(
+          `Household Member with ID ${householdMemberId} not found`,
+        );
+        throw new NotFoundException(
+          `Household Member with ID ${householdMemberId} not found`,
+        );
+      }
+
+      this.logger.log(
+        `Successfully deleted household member with ID: ${householdMemberId}`,
+      );
+      return true;
+    } catch (error: unknown) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+
+      const err = error as Error;
+      this.logger.error(
+        `Failed to delete household member ${householdMemberId}: ${err.message}`,
+        err.stack,
+      );
+      throw new InternalServerErrorException(
+        'Could not delete household member',
+      );
     }
-    return deletedHouseholdMember;
   }
 
+  // used by the dev util for clearing out the data
   async deleteAllMembersByApplicationId(
     applicationId: string,
   ): Promise<{ deletedCount: number }> {
@@ -111,25 +222,7 @@ export class HouseholdService {
     }
   }
 
-  async findOrCreate(
-    createHouseholdMemberDTO: CreateHouseholdMemberDto,
-  ): Promise<HouseholdMembersDocument> {
-    try {
-      return await this.findByLastNameAndDOB(
-        createHouseholdMemberDTO.lastName,
-        createHouseholdMemberDTO.dateOfBirth,
-      );
-    } catch (error) {
-      if (error instanceof NotFoundException) {
-        return this.createMember(
-          createHouseholdMemberDTO.applicationId,
-          createHouseholdMemberDTO,
-        );
-      }
-      throw error;
-    }
-  }
-
+  // used by household invitation process, when we attempt to lookup a household member and don't have a user record yet.
   async findByLastNameAndDOB(
     lastName: string,
     dateOfBirth: string,

@@ -13,6 +13,13 @@ export class CreateHouseholdMemberDto {
   // @IsString()
   // screeningId!: string; // ID of the screening application for this member
 
+  @ApiProperty({
+    example: 'f47ac10b-58cc-4372-a567-0e02b2c3d479',
+  })
+  @IsOptional() // will be auto-generated if not provided
+  @IsString()
+  householdMemberId?: string; // Unique ID for the household member (UUID)
+
   @IsOptional() // when created for a family member, we will not have a userId
   @IsString()
   userId?: string; // ID of the user this member represents (UUID)
@@ -25,20 +32,21 @@ export class CreateHouseholdMemberDto {
   @IsString()
   dateOfBirth!: string; // ISO date string
   @IsString()
+  @IsOptional()
   email!: string;
 
-  @ApiProperty({ enum: MemberTypes })
-  @IsEnum(MemberTypes)
-  memberType!: MemberTypes;
+  //@ApiProperty({ enum: MemberTypes })
+  //@IsEnum(MemberTypes)
+  //memberType!: MemberTypes;
 
   @ApiProperty({ enum: RelationshipToPrimary })
   @IsEnum(RelationshipToPrimary)
   relationshipToPrimary!: RelationshipToPrimary;
 
-  @ApiProperty({ default: true, required: false })
-  @IsOptional()
-  @IsBoolean()
-  requireScreening?: boolean;
+  //@ApiProperty({ default: true, required: false })
+  //@IsOptional()
+  //@IsBoolean()
+  //requireScreening?: boolean;
 
   //@ApiProperty({ default: false, required: false })
   //@IsBoolean()

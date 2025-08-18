@@ -7,6 +7,7 @@ import {
   HttpException,
   HttpStatus,
   Get,
+  Delete,
 } from '@nestjs/common';
 import { HouseholdService } from './household.service';
 import { CreateHouseholdMemberDto } from './dto/create-household-member.dto';
@@ -79,6 +80,46 @@ export class HouseholdController {
       );
       throw new HttpException(
         'Failed to retrieve household members',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  @Delete(':householdMemberId')
+  @ApiOperation({ summary: 'Delete household member by householdMemberId' })
+  @ApiParam({ name: 'householdMemberId', type: String })
+  @ApiOkResponse({
+    description: 'Household Member deleted successfully',
+    schema: {
+      type: 'object',
+      properties: {
+        success: { type: 'boolean', example: true },
+        message: {
+          type: 'string',
+          example: 'Household member deleted successfully',
+        },
+      },
+    },
+  })
+  @ApiResponse({ status: 404, description: 'Household member not found.' })
+  @ApiResponse({ status: 500, description: 'Internal server error.' })
+  async deleteHouseholdMember(
+    @Param('householdMemberId') householdMemberId: string,
+  ): Promise<{ success: boolean; message: string }> {
+    try {
+      const result = await this.householdService.remove(householdMemberId);
+      return {
+        success: result,
+        message: 'Household member deleted successfully',
+      };
+    } catch (error: unknown) {
+      const err = error as Error;
+      this.logger.error(
+        `Error deleting household member: ${err.message}`,
+        err.stack,
+      );
+      throw new HttpException(
+        'Failed to delete household member',
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }

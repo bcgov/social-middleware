@@ -13,7 +13,7 @@ export class HouseholdMembers {
   @Prop({ required: true, unique: true, type: String, default: uuidv4 })
   householdMemberId!: string;
 
-  @Prop({ required: true, type: String })
+  @Prop({ required: false, type: String, default: null })
   userId!: string;
 
   @Prop({ required: true, type: String })
