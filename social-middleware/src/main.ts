@@ -5,12 +5,15 @@ import { ConfigService } from '@nestjs/config';
 import * as cookieParser from 'cookie-parser';
 import { Logger } from 'nestjs-pino';
 import { ValidationPipe } from '@nestjs/common';
+import { BullDashboardService } from './bull-dashboard/bull-dashboard.service';
 
 async function bootstrap() {
   try {
     const app = await NestFactory.create(AppModule.register(), {
       bufferLogs: true,
     });
+    const bullDashboard = app.get(BullDashboardService);
+    app.use('/admin/queues', bullDashboard.getRouter());
 
     // load config
     const config = app.get(ConfigService);

@@ -3,11 +3,12 @@ import {
   Inject,
   Injectable,
   InternalServerErrorException,
-  BadRequestException,
   HttpException,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
+import { InjectQueue } from '@nestjs/bull';
+import { Queue } from 'bull';
 import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
 import { v4 as uuidv4 } from 'uuid';
 import { Model } from 'mongoose';
@@ -22,7 +23,6 @@ import { GetApplicationsDto } from './dto/get-applications.dto';
 import { SubmitApplicationDto } from './dto/submit-application-dto';
 import { ApplicationStatus } from './enums/application-status.enum';
 import { HouseholdService } from 'src/household/household.service';
-import { MemberTypes } from 'src/household/enums/member-types.enum';
 import { RelationshipToPrimary } from 'src/household/enums/relationship-to-primary.enum';
 import { UserService } from 'src/auth/user.service';
 import { ApplicationSubmissionService } from 'src/application-submission/application-submission.service';
@@ -40,6 +40,8 @@ export class ApplicationService {
     private readonly logger: PinoLogger,
     private readonly householdService: HouseholdService,
     private readonly userService: UserService,
+    @InjectQueue('applicationQueue')
+    private readonly applicationQueue: Queue,
   ) {}
 
   async createApplication(
@@ -50,11 +52,9 @@ export class ApplicationService {
     const formAccessToken = uuidv4();
 
     try {
+
       this.logger.info('Creating new application');
-      this.logger.debug(
-        { applicationId, primary_applicantId: userId, formId: dto.formId },
-        'Generated UUIDS',
-      );
+      this.logger.debug( {applicationId, primary_applicantId: userId, formId: dto.formId} , 'Generated UUIDS',);
 
       const application = new this.applicationModel({
         applicationId,
@@ -97,20 +97,18 @@ export class ApplicationService {
         //requireScreening: true,
       });
 
-      return { formAccessToken };
+      const job = await this.applicationQueue.add('create', {
+        dto,
+        userId,
+      });
+
+      this.logger.info(`Queued application creation with jobId ${job.id}`);
+      const result = (await job.finished()) as { formAccessToken: string };
+      return { formAccessToken: result.formAccessToken };
+
     } catch (error) {
-      if (error instanceof Error) {
-        this.logger.error(
-          { error: error.message, stack: error.stack },
-          'Error creating application',
-        );
-      } else {
-        this.logger.error(
-          { error },
-          'Unknown error during application creation',
-        );
-      }
-      throw new InternalServerErrorException('Failed to create application');
+      this.logger.error({ error }, 'Failed to create application');
+      throw new InternalServerErrorException('Application creation failed');
     }
   }
 
