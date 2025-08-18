@@ -35,18 +35,18 @@ export class CreateHouseholdMemberDto {
   @IsOptional()
   email!: string;
 
-  @ApiProperty({ enum: MemberTypes })
-  @IsEnum(MemberTypes)
-  memberType!: MemberTypes;
+  //@ApiProperty({ enum: MemberTypes })
+  //@IsEnum(MemberTypes)
+  //memberType!: MemberTypes;
 
   @ApiProperty({ enum: RelationshipToPrimary })
   @IsEnum(RelationshipToPrimary)
   relationshipToPrimary!: RelationshipToPrimary;
 
-  @ApiProperty({ default: true, required: false })
-  @IsOptional()
-  @IsBoolean()
-  requireScreening?: boolean;
+  //@ApiProperty({ default: true, required: false })
+  //@IsOptional()
+  //@IsBoolean()
+  //requireScreening?: boolean;
 
   //@ApiProperty({ default: false, required: false })
   //@IsBoolean()

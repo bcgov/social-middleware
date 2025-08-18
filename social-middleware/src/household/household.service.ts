@@ -11,6 +11,8 @@ import {
   HouseholdMembersDocument,
 } from './schemas/household-members.schema';
 import { CreateHouseholdMemberDto } from './dto/create-household-member.dto';
+import { RelationshipToPrimary } from './enums/relationship-to-primary.enum';
+import { MemberTypes } from './enums/member-types.enum';
 import { v4 as uuidv4 } from 'uuid';
 
 @Injectable()
@@ -21,6 +23,22 @@ export class HouseholdService {
     @InjectModel(HouseholdMembers.name)
     private householdMemberModel: Model<HouseholdMembersDocument>,
   ) {}
+
+  // helper method to make some decisions off of
+  private calculateAge(dateOfBirth: string): number {
+    const today = new Date();
+    const birthDate = new Date(dateOfBirth);
+    let age = today.getFullYear() - birthDate.getFullYear();
+    
+    const monthDifference = today.getMonth() - birthDate.getMonth();
+    // if their birthday is after the current month
+    // or if the day of their birthday is later this month
+    // then we need to subtract a year from their calculated age
+    if (monthDifference < 0 || (monthDifference === 0 && today.getDate() < birthDate.getDate())) {
+      age--;
+    }
+    return age;
+  }
 
   // create a household member
   async createMember(
@@ -43,6 +61,34 @@ export class HouseholdService {
         );
       }
 
+      const age = this.calculateAge(dto.dateOfBirth);
+      this.logger.log(`Age is ${age}`);
+      // everyone over 19 requires a screening
+      const requireScreening = age >= 19;
+      this.logger.log( `requiresScreening is: ${requireScreening}`);
+      let memberType = null;
+
+      switch(dto.relationshipToPrimary) {
+
+        case RelationshipToPrimary.Self:
+            memberType = MemberTypes.Primary;
+            break;
+        case RelationshipToPrimary.Spouse:
+            memberType = MemberTypes.PrimaryNonApplicant;
+            break;
+        case RelationshipToPrimary.Partner:
+            memberType = MemberTypes.PrimaryNonApplicant;
+            break;
+        default:
+          if(requireScreening) {
+            memberType = MemberTypes.NonCaregiverAdult;
+          } else {
+            memberType = MemberTypes.NonAdult;
+          }
+          break;
+      }
+
+
       const result = await this.householdMemberModel
         .findOneAndUpdate(
           {
@@ -54,6 +100,8 @@ export class HouseholdService {
               ...memberData,
               householdMemberId,
               applicationId,
+              requireScreening,
+              memberType
             },
           },
           {

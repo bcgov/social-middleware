@@ -92,9 +92,9 @@ export class ApplicationService {
         lastName: user.last_name,
         dateOfBirth: user.dateOfBirth,
         email: user.email,
-        memberType: MemberTypes.Primary,
+        //memberType: MemberTypes.Primary,
         relationshipToPrimary: RelationshipToPrimary.Self,
-        requireScreening: true,
+        //requireScreening: true,
       });
 
       return { formAccessToken };
