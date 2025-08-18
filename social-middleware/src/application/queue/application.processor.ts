@@ -88,9 +88,9 @@ export class ApplicationProcessor {
         // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
         dateOfBirth: user.dateOfBirth,
         email: user.email,
-        memberType: MemberTypes.Primary,
+        //memberType: MemberTypes.Primary,
         relationshipToPrimary: RelationshipToPrimary.Self,
-        requireScreening: true,
+        //requireScreening: true,
       });
 
       this.logger.info(`Application created via queue: ${applicationId}`);
