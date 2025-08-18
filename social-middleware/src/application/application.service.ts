@@ -1,15 +1,13 @@
 import {
-  forwardRef,
-  Inject,
   Injectable,
   InternalServerErrorException,
-  BadRequestException,
   HttpException,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
+import { InjectQueue } from '@nestjs/bull';
+import { Queue } from 'bull';
 import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
-import { v4 as uuidv4 } from 'uuid';
 import { Model } from 'mongoose';
 import { Application, ApplicationDocument } from './schemas/application.schema';
 import {
@@ -17,100 +15,38 @@ import {
   FormParametersDocument,
 } from './schemas/form-parameters.schema';
 import { CreateApplicationDto } from './dto/create-application.dto';
-import { FormType } from './enums/form-type.enum';
 import { GetApplicationsDto } from './dto/get-applications.dto';
 import { SubmitApplicationDto } from './dto/submit-application-dto';
 import { ApplicationStatus } from './enums/application-status.enum';
-import { HouseholdService } from 'src/household/household.service';
-import { MemberTypes } from 'src/household/enums/member-types.enum';
-import { RelationshipToPrimary } from 'src/household/enums/relationship-to-primary.enum';
-import { UserService } from 'src/auth/user.service';
-import { ApplicationSubmissionService } from 'src/application-submission/application-submission.service';
 
 @Injectable()
 export class ApplicationService {
   constructor(
     @InjectModel(Application.name)
     private applicationModel: Model<ApplicationDocument>,
-    @Inject(forwardRef(() => ApplicationSubmissionService))
-    private readonly applicationSubmissionService: ApplicationSubmissionService,
     @InjectModel(FormParameters.name)
     private formParametersModel: Model<FormParametersDocument>,
     @InjectPinoLogger(ApplicationService.name)
     private readonly logger: PinoLogger,
-    private readonly householdService: HouseholdService,
-    private readonly userService: UserService,
+    @InjectQueue('applicationQueue')
+    private readonly applicationQueue: Queue,
   ) {}
 
   async createApplication(
     dto: CreateApplicationDto,
     userId: string,
   ): Promise<{ formAccessToken: string }> {
-    const applicationId = uuidv4();
-    const formAccessToken = uuidv4();
-
     try {
-      this.logger.info('Creating new application');
-      this.logger.debug(
-        { applicationId, primary_applicantId: userId, formId: dto.formId },
-        'Generated UUIDS',
-      );
-
-      const application = new this.applicationModel({
-        applicationId,
-        primary_applicantId: userId,
-        formData: dto.formData ?? null,
+      const job = await this.applicationQueue.add('create', {
+        dto,
+        userId,
       });
-
-      const savedApplication = await application.save();
-
-      this.logger.info({ applicationId }, 'Saved application to DB');
-
-      // create initial submission
-      await this.applicationSubmissionService.createInitialSubmission(
-        String(savedApplication._id),
-      );
-
-      const formParameters = new this.formParametersModel({
-        applicationId,
-        type: FormType.New,
-        formId: dto.formId,
-        formAccessToken,
-        formParameters: dto.formParameters,
-      });
-
-      await formParameters.save();
-      this.logger.info({ formAccessToken }, 'Saved form parameters to DB');
-
-      const user = await this.userService.findOne(userId);
-
-      // create the household with the primary applicant as the first member
-      await this.householdService.createMember(applicationId, {
-        applicationId,
-        userId: userId,
-        firstName: user.first_name,
-        lastName: user.last_name,
-        dateOfBirth: user.dateOfBirth,
-        email: user.email,
-        memberType: MemberTypes.Primary,
-        relationshipToPrimary: RelationshipToPrimary.Self,
-        requireScreening: true,
-      });
-
-      return { formAccessToken };
+      this.logger.info(`Queued application creation with jobId ${job.id}`);
+      const result = (await job.finished()) as { formAccessToken: string };
+      return { formAccessToken: result.formAccessToken };
     } catch (error) {
-      if (error instanceof Error) {
-        this.logger.error(
-          { error: error.message, stack: error.stack },
-          'Error creating application',
-        );
-      } else {
-        this.logger.error(
-          { error },
-          'Unknown error during application creation',
-        );
-      }
-      throw new InternalServerErrorException('Failed to create application');
+      this.logger.error({ error }, 'Failed to create application');
+      throw new InternalServerErrorException('Application creation failed');
     }
   }
 
