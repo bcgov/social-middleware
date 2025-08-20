@@ -18,7 +18,6 @@ import { PinoLogger } from 'nestjs-pino';
 import { HouseholdService } from 'src/household/household.service';
 import { UserService } from 'src/auth/user.service';
 import { RelationshipToPrimary } from 'src/household/enums/relationship-to-primary.enum';
-import { MemberTypes } from 'src/household/enums/member-types.enum';
 import { ApplicationSubmissionService } from 'src/application-submission/application-submission.service';
 
 @Processor('applicationQueue')

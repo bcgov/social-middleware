@@ -52,9 +52,11 @@ export class ApplicationService {
     const formAccessToken = uuidv4();
 
     try {
-
       this.logger.info('Creating new application');
-      this.logger.debug( {applicationId, primary_applicantId: userId, formId: dto.formId} , 'Generated UUIDS',);
+      this.logger.debug(
+        { applicationId, primary_applicantId: userId, formId: dto.formId },
+        'Generated UUIDS',
+      );
 
       const application = new this.applicationModel({
         applicationId,
@@ -105,8 +107,7 @@ export class ApplicationService {
       //this.logger.info(`Queued application creation with jobId ${job.id}`);
       //const result = (await job.finished()) as { formAccessToken: string };
       //return { formAccessToken: result.formAccessToken };
-      return {formAccessToken};
-
+      return { formAccessToken };
     } catch (error) {
       this.logger.error({ error }, 'Failed to create application');
       throw new InternalServerErrorException('Application creation failed');
