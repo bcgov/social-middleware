@@ -12,6 +12,7 @@ import { DevToolsModule } from './dev-tools/dev-tools.module';
 import { ContactModule } from './contact/contact.module';
 import { HouseholdModule } from './household/household.module';
 import { BullDashboardModule } from './bull-dashboard/bull-dashboard.module';
+import { SiebelModule } from './siebel/siebel.module';
 
 @Module({})
 export class AppModule {
@@ -55,6 +56,7 @@ export class AppModule {
         HouseholdModule,
         ...(isDevelopment ? [DevToolsModule] : []),
         BullDashboardModule,
+        SiebelModule,
       ],
     };
   }
