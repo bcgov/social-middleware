@@ -1,10 +1,4 @@
-import {
-  BadRequestException,
-  Controller,
-  Get,
-  Param,
-  Query,
-} from '@nestjs/common';
+import { BadRequestException, Controller, Get, Query } from '@nestjs/common';
 import { SiebelApiService } from './siebel-api.service';
 import { PinoLogger } from 'nestjs-pino';
 
@@ -38,10 +32,10 @@ export class SiebelController {
     }
   }
 
-  @Get(':endpoint')
-  async getData(@Param('endpoint') endpoint: string, @Query() query: any) {
+  @Get('get-icm-contact')
+  async getData(@Query() query: any) {
     try {
-      return await this.siebelApiService.get(`/${endpoint}`, query);
+      return await this.siebelApiService.getCaseContacts(query);
     } catch (error: unknown) {
       if (error instanceof Error) {
         this.logger.error(

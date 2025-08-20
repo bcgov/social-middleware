@@ -35,6 +35,14 @@ export class SiebelApiService {
     };
   }
 
+  async getCaseContacts(query: any) {
+    const baseUrl = this.configService.get<string>('SIEBEL_APS_BASE_URL');
+    const endpoint = this.configService.get<string>('CASE_CONTACTS_ENDPOINT');
+    const fullUrl = `${baseUrl}${endpoint}`;
+
+    return await this.get(fullUrl, query);
+  }
+
   async get<T>(endpoint: string, params?: Record<string, any>): Promise<T> {
     try {
       const headers = await this.getHeaders();
