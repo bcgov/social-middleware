@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { ConfigService } from '@nestjs/config';
-import { SiebelAuthService } from './siebel-auth.service';
+import { SiebelPKCEAuthService } from './siebel-pkce-auth.service';
 import { firstValueFrom } from 'rxjs';
 import { PinoLogger } from 'nestjs-pino';
 import { AxiosError } from 'axios';
@@ -14,7 +14,7 @@ export class SiebelApiService {
   constructor(
     private readonly httpService: HttpService,
     private readonly configService: ConfigService,
-    private readonly siebelAuthService: SiebelAuthService,
+    private readonly siebelPKCEAuthService: SiebelPKCEAuthService,
     private readonly logger: PinoLogger,
   ) {
     this.baseUrl = this.configService.get<string>('SIEBEL_APS_BASE_URL')!;
@@ -25,7 +25,7 @@ export class SiebelApiService {
   }
 
   private async getHeaders(): Promise<Record<string, string>> {
-    const accessToken = await this.siebelAuthService.getAccessToken();
+    const accessToken = await this.siebelPKCEAuthService.getAccessToken();
 
     return {
       Authorization: `Bearer ${accessToken}`,
@@ -36,11 +36,11 @@ export class SiebelApiService {
   }
 
   async getCaseContacts(query: any) {
-    const baseUrl = this.configService.get<string>('SIEBEL_APS_BASE_URL');
     const endpoint = this.configService.get<string>('CASE_CONTACTS_ENDPOINT');
-    const fullUrl = `${baseUrl}${endpoint}`;
-
-    return await this.get(fullUrl, query);
+    if (!endpoint) { 
+      throw new Error('CASE_CONTACTS_ENDPOINT configuration is missing');
+    }
+    return await this.get(endpoint, query);
   }
 
   async get<T>(endpoint: string, params?: Record<string, any>): Promise<T> {
