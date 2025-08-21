@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsOptional } from 'class-validator';
+import { IsString } from 'class-validator';
 
 export class GetIcmContactQueryDto {
   @ApiProperty({

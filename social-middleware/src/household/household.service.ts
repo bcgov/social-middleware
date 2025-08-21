@@ -29,12 +29,15 @@ export class HouseholdService {
     const today = new Date();
     const birthDate = new Date(dateOfBirth);
     let age = today.getFullYear() - birthDate.getFullYear();
-    
+
     const monthDifference = today.getMonth() - birthDate.getMonth();
     // if their birthday is after the current month
     // or if the day of their birthday is later this month
     // then we need to subtract a year from their calculated age
-    if (monthDifference < 0 || (monthDifference === 0 && today.getDate() < birthDate.getDate())) {
+    if (
+      monthDifference < 0 ||
+      (monthDifference === 0 && today.getDate() < birthDate.getDate())
+    ) {
       age--;
     }
     return age;
@@ -65,29 +68,27 @@ export class HouseholdService {
       this.logger.log(`Age is ${age}`);
       // everyone over 19 requires a screening
       const requireScreening = age >= 19;
-      this.logger.log( `requiresScreening is: ${requireScreening}`);
+      this.logger.log(`requiresScreening is: ${requireScreening}`);
       let memberType = null;
 
-      switch(dto.relationshipToPrimary) {
-
+      switch (dto.relationshipToPrimary) {
         case RelationshipToPrimary.Self:
-            memberType = MemberTypes.Primary;
-            break;
+          memberType = MemberTypes.Primary;
+          break;
         case RelationshipToPrimary.Spouse:
-            memberType = MemberTypes.PrimaryNonApplicant;
-            break;
+          memberType = MemberTypes.PrimaryNonApplicant;
+          break;
         case RelationshipToPrimary.Partner:
-            memberType = MemberTypes.PrimaryNonApplicant;
-            break;
+          memberType = MemberTypes.PrimaryNonApplicant;
+          break;
         default:
-          if(requireScreening) {
+          if (requireScreening) {
             memberType = MemberTypes.NonCaregiverAdult;
           } else {
             memberType = MemberTypes.NonAdult;
           }
           break;
       }
-
 
       const result = await this.householdMemberModel
         .findOneAndUpdate(
@@ -101,7 +102,7 @@ export class HouseholdService {
               householdMemberId,
               applicationId,
               requireScreening,
-              memberType
+              memberType,
             },
           },
           {
