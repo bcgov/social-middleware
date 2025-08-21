@@ -1,7 +1,10 @@
 import { BadRequestException, Controller, Get, Query } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiResponse, ApiQuery} from '@nestjs/swagger';
 import { SiebelApiService } from './siebel-api.service';
 import { PinoLogger } from 'nestjs-pino';
+import { GetIcmContactQueryDto } from './dto/get-icm-contact-query.dto';
 
+@ApiTags('Siebel Integration')
 @Controller('siebel')
 export class SiebelController {
   constructor(
@@ -33,7 +36,17 @@ export class SiebelController {
   }
 
   @Get('get-icm-contact')
-  async getData(@Query() query: any) {
+  @ApiOperation({
+    summary: 'Get ICM Contact Information',
+    description: 'Retrieves contact data from Siebel ICM based on query parameters',
+  })
+  @ApiQuery({
+    name: 'lastName',
+    required: true,
+    description: 'the Last Name of the user to filter by',
+    example: 'JOHNSON',
+  })
+  async getICMContact(@Query() query: GetIcmContactQueryDto) {
     try {
       return await this.siebelApiService.getCaseContacts(query);
     } catch (error: unknown) {
