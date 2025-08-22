@@ -20,6 +20,15 @@ spec:
           ports:
             - containerPort: 6379
           args: ["--appendonly", "yes"]
+          env:
+            - name: REDIS_HOST
+              value: "localhost"
+            - name: REDIS_PORT
+              value: "6379"
+            - name: QUEUE_JOB_ATTEMPTS
+              value: "3"
+            - name: QUEUE_BACKOFF_DELAY
+              value: "5000"
           volumeMounts:
             - name: redis-storage
               mountPath: /data
@@ -27,4 +36,3 @@ spec:
         - name: redis-storage
           persistentVolumeClaim:
             claimName: redis-pvc
-
