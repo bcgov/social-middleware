@@ -1,14 +1,11 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString } from 'class-validator';
 
 export class GetIcmContactQueryDto {
   @ApiProperty({
-    description: 'Contact Last Name',
-    example: 'Johnson',
-    required: true,
+    description: 'Siebel SearchSpec query string',
+    example: "([Last Name]='UL-Souers' AND [Birth Date]='05/18/1973')",
   })
-  @IsString()
-  lastName?: string;
+  SearchSpec!: string;
 
   // Add other query parameters as needed
 }

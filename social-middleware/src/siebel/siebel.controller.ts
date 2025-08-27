@@ -42,10 +42,10 @@ export class SiebelController {
       'Retrieves contact data from Siebel ICM based on query parameters',
   })
   @ApiQuery({
-    name: 'lastName',
+    name: 'SearchSpec',
     required: true,
-    description: 'the Last Name of the user to filter by',
-    example: 'JOHNSON',
+    description: 'Siebel SearchSpec string',
+    example: "([Last Name]='UL-Souers' AND [Birth Date]='05/18/1973')",
   })
   async getICMContact(@Query() query: GetIcmContactQueryDto) {
     try {
