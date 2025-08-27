@@ -47,6 +47,13 @@ export class SiebelController {
     description: 'Siebel SearchSpec string',
     example: "([Last Name]='UL-Souers' AND [Birth Date]='05/18/1973')",
   })
+  @ApiQuery({
+    name: 'fields',
+    required: false,
+    description: 'Comma-separated list of fields to return from Siebel',
+    example:
+      'M/F, Row Id, Joined AKA Last Name, Joined AKA First Name, Deceased Flag, Primary Contact Address Id, Employee Flag, Joined AKA Middle Name, Deceased Date, Last Name, Middle Name, First Name',
+  })
   async getICMContact(@Query() query: GetIcmContactQueryDto) {
     try {
       return await this.siebelApiService.getCaseContacts(query);
