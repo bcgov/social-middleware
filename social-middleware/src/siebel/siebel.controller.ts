@@ -1,5 +1,5 @@
 import { BadRequestException, Controller, Get, Query } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiQuery} from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse, ApiQuery } from '@nestjs/swagger';
 import { SiebelApiService } from './siebel-api.service';
 import { PinoLogger } from 'nestjs-pino';
 import { GetIcmContactQueryDto } from './dto/get-icm-contact-query.dto';
@@ -38,7 +38,8 @@ export class SiebelController {
   @Get('get-icm-contact')
   @ApiOperation({
     summary: 'Get ICM Contact Information',
-    description: 'Retrieves contact data from Siebel ICM based on query parameters',
+    description:
+      'Retrieves contact data from Siebel ICM based on query parameters',
   })
   @ApiQuery({
     name: 'lastName',
