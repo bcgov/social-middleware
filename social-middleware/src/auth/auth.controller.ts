@@ -27,6 +27,8 @@ import {
 } from '@nestjs/swagger';
 import * as jwt from 'jsonwebtoken';
 import { isValidUserPayload } from 'src/common/utils';
+import { SiebelApiService } from 'src/siebel/siebel-api.service';
+import { SiebelContactResponse } from 'src/siebel/dto/siebel-contact-response.dto';
 
 interface AuthCallbackRequest {
   code: string;
@@ -63,6 +65,7 @@ export class AuthController {
     private readonly httpService: HttpService,
     private readonly userService: UserService,
     private readonly configService: ConfigService,
+    private readonly siebelApiService: SiebelApiService,
   ) {
     this.bcscClientId = this.configService.get<string>('BCSC_CLIENT_ID')!;
     this.bcscClientSecret =
@@ -270,6 +273,33 @@ export class AuthController {
       // Update last login
       await this.userService.updateLastLogin(user.id);
       console.log('Last login updated');
+
+      // Check for contactId on user record
+      console.log('No contactId found. Attempting to fetch from Siebel...');
+      try {
+        const contactQuery = {
+          lastName: user.last_name,
+          dateOfBirth: user.dateOfBirth,
+        };
+
+        const response = (await this.siebelApiService.getCaseContacts(
+          contactQuery,
+        )) as SiebelContactResponse;
+        const icmContact = response.items?.[0];
+        if (icmContact?.rowId) {
+          console.log('ICM contact found:', icmContact.rowId);
+
+          await this.userService.updateUser(user.id, {
+            contactId: icmContact.rowId,
+          });
+
+          console.log('User contactId updated');
+        } else {
+          console.warn('No matching ICM contact found');
+        }
+      } catch (error) {
+        console.error('Error fetching ICM contact:', error);
+      }
 
       // Create session token for portal
       const sessionToken = jwt.sign(
