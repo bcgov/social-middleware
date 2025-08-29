@@ -37,7 +37,7 @@ export class SiebelApiService {
 
   async getCaseContacts(query: any) {
     const endpoint = this.configService.get<string>('CASE_CONTACTS_ENDPOINT');
-    if (!endpoint) { 
+    if (!endpoint) {
       throw new Error('CASE_CONTACTS_ENDPOINT configuration is missing');
     }
     return await this.get(endpoint, query);

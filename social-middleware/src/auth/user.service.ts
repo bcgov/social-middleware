@@ -86,4 +86,17 @@ export class UserService {
       throw error;
     }
   }
+  async updateUser(id: string, updateData: Partial<User>): Promise<User> {
+    const updatedUser = await this.userModel.findByIdAndUpdate(
+      id,
+      { $set: updateData },
+      { new: true },
+    );
+
+    if (!updatedUser) {
+      throw new NotFoundException(`User with ID ${id} not found`);
+    }
+
+    return updatedUser;
+  }
 }
