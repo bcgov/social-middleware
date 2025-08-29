@@ -1,5 +1,5 @@
 import { BadRequestException, Controller, Get, Query } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiQuery } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiQuery } from '@nestjs/swagger';
 import { SiebelApiService } from './siebel-api.service';
 import { PinoLogger } from 'nestjs-pino';
 import { GetIcmContactQueryDto } from './dto/get-icm-contact-query.dto';
@@ -42,10 +42,17 @@ export class SiebelController {
       'Retrieves contact data from Siebel ICM based on query parameters',
   })
   @ApiQuery({
-    name: 'lastName',
+    name: 'SearchSpec',
     required: true,
-    description: 'the Last Name of the user to filter by',
-    example: 'JOHNSON',
+    description: 'Siebel SearchSpec string',
+    example: "([Last Name]='UL-Souers' AND [Birth Date]='05/18/1973')",
+  })
+  @ApiQuery({
+    name: 'fields',
+    required: false,
+    description: 'Comma-separated list of fields to return from Siebel',
+    example:
+      'M/F, Row Id, Joined AKA Last Name, Joined AKA First Name, Deceased Flag, Primary Contact Address Id, Employee Flag, Joined AKA Middle Name, Deceased Date, Last Name, Middle Name, First Name',
   })
   async getICMContact(@Query() query: GetIcmContactQueryDto) {
     try {

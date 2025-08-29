@@ -6,11 +6,13 @@ import { AuthController } from './auth.controller';
 import { UserService } from './user.service';
 import { HttpModule } from '@nestjs/axios';
 import { User, UserSchema } from './schemas/user.schema';
+import { SiebelModule } from 'src/siebel/siebel.module';
 
 @Module({
   imports: [
     HttpModule,
     MongooseModule.forFeature([{ name: User.name, schema: UserSchema }]),
+    SiebelModule,
   ],
   controllers: [AuthController],
   providers: [UserService],
