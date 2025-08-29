@@ -45,6 +45,15 @@ export class HouseholdMembers {
   @Prop({ type: Boolean, default: false })
   requireScreening!: boolean;
 
+  @Prop({ required: false, type: Boolean, default: false })
+  isInvited!: boolean;
+
+  @Prop({ required: false, type: Date, default: null })
+  invitationLastSent!: Date;
+
+  @Prop({ type: Number, default: 0 })
+  numberOfInvitationsSent!: number;
+
   createdAt!: Date;
 }
 

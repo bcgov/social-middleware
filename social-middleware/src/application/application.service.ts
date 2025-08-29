@@ -13,6 +13,7 @@ import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
 import { v4 as uuidv4 } from 'uuid';
 import { Model } from 'mongoose';
 import { Application, ApplicationDocument } from './schemas/application.schema';
+import { ApplicationTypes } from './enums/application-types.enum';
 import {
   FormParameters,
   FormParametersDocument,
@@ -26,6 +27,10 @@ import { HouseholdService } from 'src/household/household.service';
 import { RelationshipToPrimary } from 'src/household/enums/relationship-to-primary.enum';
 import { UserService } from 'src/auth/user.service';
 import { ApplicationSubmissionService } from 'src/application-submission/application-submission.service';
+import {
+  ScreeningAccessCode,
+  ScreeningAccessCodeDocument,
+} from './schemas/screening-access-code.schema';
 
 @Injectable()
 export class ApplicationService {
@@ -36,6 +41,8 @@ export class ApplicationService {
     private readonly applicationSubmissionService: ApplicationSubmissionService,
     @InjectModel(FormParameters.name)
     private formParametersModel: Model<FormParametersDocument>,
+    @InjectModel(ScreeningAccessCode.name) // add this line
+    private screeningAccessCodeModel: Model<ScreeningAccessCodeDocument>,
     @InjectPinoLogger(ApplicationService.name)
     private readonly logger: PinoLogger,
     private readonly householdService: HouseholdService,
@@ -111,6 +118,198 @@ export class ApplicationService {
     } catch (error) {
       this.logger.error({ error }, 'Failed to create application');
       throw new InternalServerErrorException('Application creation failed');
+    }
+  }
+
+  // service to create a household screening application record
+  async createHouseholdScreening(
+    parentApplicationId: string,
+    householdMemberId: string,
+  ): Promise<{
+    accessCode: string;
+    screeningApplicationId: string;
+    expiresAt: Date;
+  }> {
+    const screeningApplicationId = uuidv4();
+    const accessCode = this.generateSecureAccessCode();
+    const expiresAt = new Date(Date.now() + 72 * 60 * 60 * 1000); // 72 hours
+
+    try {
+      // create screening application record
+      this.logger.info('Creating new screening application');
+
+      const application = new this.applicationModel({
+        applicationId: screeningApplicationId,
+        parentApplicationId: parentApplicationId,
+        type: ApplicationTypes.CaregiverScreening,
+      });
+
+      await application.save();
+
+      this.logger.info({ screeningApplicationId }, 'Saved application to DB');
+
+      // create access code record
+      const accessCodeRecord = new this.screeningAccessCodeModel({
+        accessCode,
+        parentApplicationId,
+        screeningApplicationId,
+        householdMemberId,
+        isUsed: false,
+        expiresAt,
+        attemptCount: 0,
+        maxAttempts: 3,
+      });
+
+      await accessCodeRecord.save();
+      this.logger.info(
+        { accessCode, screeningApplicationId, expiresAt },
+        'Created screening access code record',
+      );
+
+      return { accessCode, screeningApplicationId, expiresAt };
+    } catch (error) {
+      this.logger.error({ error }, 'Failed to create screening application');
+      throw new InternalServerErrorException(
+        'Screening application creation failed',
+      );
+    }
+  }
+
+  // secure code generation
+
+  private generateSecureAccessCode(): string {
+    //
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // removed confusing chars: 0,O,1,I
+    let result = '';
+    for (let i = 0; i < 6; i++) {
+      result += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return result;
+  }
+
+  async associateUserWithAccessCode(
+    accessCode: string,
+    userId: string,
+    bcscUserData: {
+      lastName: string;
+      dateOfBirth: string;
+      email?: string;
+      firstName?: string;
+    },
+  ): Promise<{
+    success: boolean;
+    screeningApplicationId?: string;
+    error?: string;
+  }> {
+    try {
+      const accessCodeRecord = await this.screeningAccessCodeModel.findOne({
+        accessCode,
+        isUsed: false,
+        expiresAt: { $gt: new Date() },
+        attemptCount: { $lt: 3 },
+      });
+
+      if (!accessCodeRecord) {
+        this.logger.warn(
+          { accessCode },
+          'Invalid, expired, or locked access code',
+        );
+        return { success: false, error: 'Invalid or expired access code' };
+      }
+
+      // lookup the household member data for validation
+      const householdMember = await this.householdService.findById(
+        accessCodeRecord.householdMemberId,
+      );
+
+      if (!householdMember) {
+        this.logger.error(
+          { householdMemberId: accessCodeRecord.householdMemberId },
+          'Household member not found',
+        );
+        return { success: false, error: 'No match' };
+      }
+
+      this.logger.debug(
+        { householdMember, bcscUserData },
+        'Validating user against household member',
+      );
+
+      // validate user data against expected values
+      const lastNameMatch =
+        bcscUserData.lastName.toLowerCase().trim() ===
+        householdMember.lastName.toLowerCase().trim();
+      const dobMatch = bcscUserData.dateOfBirth === householdMember.dateOfBirth;
+
+      if (!lastNameMatch || !dobMatch) {
+        // increment attempt count
+        await this.screeningAccessCodeModel.findByIdAndUpdate(
+          accessCodeRecord._id,
+          {
+            $inc: { attemptCount: 1 },
+          },
+        );
+
+        this.logger.warn(
+          {
+            accessCode,
+            userId,
+            expectedLastName: householdMember.lastName,
+            providedLastName: bcscUserData.lastName.toLowerCase().trim(),
+            expectedDOB: householdMember.dateOfBirth,
+            providedDOB: bcscUserData.dateOfBirth,
+            attemptCount: accessCodeRecord.attemptCount + 1,
+          },
+          'User validation failed for access code',
+        );
+
+        return {
+          success: false,
+          error: 'Personal information does not match.',
+        };
+      }
+
+      // validation successful, associate user record to access code usage;
+      await this.screeningAccessCodeModel.findByIdAndUpdate(
+        accessCodeRecord._id,
+        {
+          assignedUserId: userId,
+          isUsed: true,
+        },
+      );
+
+      // associate screening record to user
+      await this.applicationModel.findOneAndUpdate(
+        { applicationId: accessCodeRecord.screeningApplicationId },
+        { primary_applicantId: userId },
+      );
+
+      // associate the household record to the user
+      await this.householdService.associateUserWithMember(
+        accessCodeRecord.householdMemberId,
+        userId,
+      );
+
+      this.logger.info(
+        {
+          accessCode,
+          userId,
+          householdMemberId: accessCodeRecord.householdMemberId,
+          screeningApplicationId: accessCodeRecord.screeningApplicationId,
+        },
+        'Successfully validated and associated user with screening application',
+      );
+
+      return {
+        success: true,
+        screeningApplicationId: accessCodeRecord.screeningApplicationId,
+      };
+    } catch (error) {
+      this.logger.error(
+        { error, accessCode, userId },
+        ' failed to associate user with access code',
+      );
+      throw new InternalServerErrorException('Failed to process access code');
     }
   }
 

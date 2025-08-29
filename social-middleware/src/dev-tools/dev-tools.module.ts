@@ -13,6 +13,10 @@ import {
   FormParameters,
   FormParametersSchema,
 } from '../application/schemas/form-parameters.schema';
+import {
+  ScreeningAccessCode,
+  ScreeningAccessCodeSchema,
+} from 'src/application/schemas/screening-access-code.schema';
 
 @Module({
   imports: [
@@ -21,6 +25,7 @@ import {
       { name: User.name, schema: UserSchema },
       { name: Application.name, schema: ApplicationSchema },
       { name: FormParameters.name, schema: FormParametersSchema },
+      { name: ScreeningAccessCode.name, schema: ScreeningAccessCodeSchema },
     ]),
     HouseholdModule,
   ],

@@ -25,7 +25,7 @@ export class User {
   dateOfBirth!: string;
 
   @Prop({ required: false })
-  contactId!: string;
+  contactId!: string;     // row ID from ICM
 
   @Prop({ default: Date.now })
   last_login!: Date;

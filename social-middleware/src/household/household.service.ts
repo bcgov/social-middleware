@@ -130,6 +130,73 @@ export class HouseholdService {
     }
   }
 
+  // associate a userID with a householdMemberID; used when a household member successfully uses an access code
+  async associateUserWithMember(
+    householdMemberId: string,
+    userId: string,
+  ): Promise<HouseholdMembersDocument | null> {
+    try {
+      this.logger.log(
+        `Associating user ${userId} with household member ${householdMemberId}`,
+      );
+
+      const result = await this.householdMemberModel
+        .findOneAndUpdate(
+          { householdMemberId },
+          { userId: userId },
+          { new: true }, // return the updated document
+        )
+        .exec();
+
+      if (!result) {
+        this.logger.warn(
+          `Household member with ID ${householdMemberId} not found for user association.`,
+        );
+        return null;
+      }
+
+      this.logger.log(
+        `Successfully associated user ${userId} with household member ${householdMemberId}`,
+      );
+      return result;
+    } catch (error: unknown) {
+      const err = error as Error;
+      this.logger.error(
+        `Failed to associate ${userId} with household member ${householdMemberId}: ${err.message}`,
+        err.stack,
+      );
+      throw new InternalServerErrorException(
+        'Could not associate user with household member',
+      );
+    }
+  }
+
+  async findById(
+    householdMemberId: string,
+  ): Promise<HouseholdMembersDocument | null> {
+    try {
+      const member = await this.householdMemberModel
+        .findOne({ householdMemberId })
+        .exec();
+
+      if (!member) {
+        this.logger.warn(
+          `Household member with ID ${householdMemberId} not found`,
+        );
+        return null;
+      }
+
+      return member;
+    } catch (error: unknown) {
+      const err = error as Error;
+      this.logger.error(
+        `Error finding household member with ID=${householdMemberId}: ${err.message}`,
+        err.stack,
+      );
+      throw new InternalServerErrorException('Failed to find household member');
+    }
+  }
+
   // list all household members for an applicationID
   async findAllHouseholdMembers(
     applicationId: string,
