@@ -29,12 +29,15 @@ export class HouseholdService {
     const today = new Date();
     const birthDate = new Date(dateOfBirth);
     let age = today.getFullYear() - birthDate.getFullYear();
-    
+
     const monthDifference = today.getMonth() - birthDate.getMonth();
     // if their birthday is after the current month
     // or if the day of their birthday is later this month
     // then we need to subtract a year from their calculated age
-    if (monthDifference < 0 || (monthDifference === 0 && today.getDate() < birthDate.getDate())) {
+    if (
+      monthDifference < 0 ||
+      (monthDifference === 0 && today.getDate() < birthDate.getDate())
+    ) {
       age--;
     }
     return age;
@@ -46,7 +49,7 @@ export class HouseholdService {
     dto: CreateHouseholdMemberDto,
   ): Promise<HouseholdMembersDocument> {
     try {
-      let { householdMemberId, ...memberData } = dto;
+      let { householdMemberId } = dto;
 
       // householdMemberId is used by the front-end to refer to the record in the DB so we can perform RUD operations
       // if no householdMemberId is provided, generate one
@@ -65,29 +68,27 @@ export class HouseholdService {
       this.logger.log(`Age is ${age}`);
       // everyone over 19 requires a screening
       const requireScreening = age >= 19;
-      this.logger.log( `requiresScreening is: ${requireScreening}`);
+      this.logger.log(`requiresScreening is: ${requireScreening}`);
       let memberType = null;
 
-      switch(dto.relationshipToPrimary) {
-
+      switch (dto.relationshipToPrimary) {
         case RelationshipToPrimary.Self:
-            memberType = MemberTypes.Primary;
-            break;
+          memberType = MemberTypes.Primary;
+          break;
         case RelationshipToPrimary.Spouse:
-            memberType = MemberTypes.PrimaryNonApplicant;
-            break;
+          memberType = MemberTypes.PrimaryNonApplicant;
+          break;
         case RelationshipToPrimary.Partner:
-            memberType = MemberTypes.PrimaryNonApplicant;
-            break;
+          memberType = MemberTypes.PrimaryNonApplicant;
+          break;
         default:
-          if(requireScreening) {
+          if (requireScreening) {
             memberType = MemberTypes.NonCaregiverAdult;
           } else {
             memberType = MemberTypes.NonAdult;
           }
           break;
       }
-
 
       const result = await this.householdMemberModel
         .findOneAndUpdate(
@@ -101,7 +102,7 @@ export class HouseholdService {
               householdMemberId,
               applicationId,
               requireScreening,
-              memberType
+              memberType,
             },
           },
           {
@@ -126,6 +127,73 @@ export class HouseholdService {
       throw new InternalServerErrorException(
         'Could not create/update household member',
       );
+    }
+  }
+
+  // associate a userID with a householdMemberID; used when a household member successfully uses an access code
+  async associateUserWithMember(
+    householdMemberId: string,
+    userId: string,
+  ): Promise<HouseholdMembersDocument | null> {
+    try {
+      this.logger.log(
+        `Associating user ${userId} with household member ${householdMemberId}`,
+      );
+
+      const result = await this.householdMemberModel
+        .findOneAndUpdate(
+          { householdMemberId },
+          { userId: userId },
+          { new: true }, // return the updated document
+        )
+        .exec();
+
+      if (!result) {
+        this.logger.warn(
+          `Household member with ID ${householdMemberId} not found for user association.`,
+        );
+        return null;
+      }
+
+      this.logger.log(
+        `Successfully associated user ${userId} with household member ${householdMemberId}`,
+      );
+      return result;
+    } catch (error: unknown) {
+      const err = error as Error;
+      this.logger.error(
+        `Failed to associate ${userId} with household member ${householdMemberId}: ${err.message}`,
+        err.stack,
+      );
+      throw new InternalServerErrorException(
+        'Could not associate user with household member',
+      );
+    }
+  }
+
+  async findById(
+    householdMemberId: string,
+  ): Promise<HouseholdMembersDocument | null> {
+    try {
+      const member = await this.householdMemberModel
+        .findOne({ householdMemberId })
+        .exec();
+
+      if (!member) {
+        this.logger.warn(
+          `Household member with ID ${householdMemberId} not found`,
+        );
+        return null;
+      }
+
+      return member;
+    } catch (error: unknown) {
+      const err = error as Error;
+      this.logger.error(
+        `Error finding household member with ID=${householdMemberId}: ${err.message}`,
+        err.stack,
+      );
+      throw new InternalServerErrorException('Failed to find household member');
     }
   }
 

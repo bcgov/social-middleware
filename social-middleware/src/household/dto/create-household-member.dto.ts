@@ -1,6 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsEnum, IsString, IsBoolean, IsOptional } from 'class-validator';
-import { MemberTypes } from '../enums/member-types.enum';
+import { IsEnum, IsString, IsOptional } from 'class-validator';
 import { RelationshipToPrimary } from '../enums/relationship-to-primary.enum';
 
 export class CreateHouseholdMemberDto {

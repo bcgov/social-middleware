@@ -8,7 +8,6 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { User, UserDocument } from '../auth/schemas/user.schema';
 import { HouseholdService } from '../household/household.service';
-
 import {
   Application,
   ApplicationDocument,
@@ -17,6 +16,10 @@ import {
   FormParameters,
   FormParametersDocument,
 } from '../application/schemas/form-parameters.schema';
+import {
+  ScreeningAccessCode,
+  ScreeningAccessCodeDocument,
+} from 'src/application/schemas/screening-access-code.schema';
 import { PinoLogger } from 'nestjs-pino';
 
 @Injectable()
@@ -28,6 +31,8 @@ export class DevToolsService {
     private applicationModel: Model<ApplicationDocument>,
     @InjectModel(FormParameters.name)
     private formParametersModel: Model<FormParametersDocument>,
+    @InjectModel(ScreeningAccessCode.name)
+    private screeningAccessCodeModel: Model<ScreeningAccessCodeDocument>,
     private readonly householdService: HouseholdService,
     private readonly logger: PinoLogger,
   ) {}
@@ -72,18 +77,33 @@ export class DevToolsService {
         applicationId: { $in: applicationIds },
       });
 
+      // delete screening access codes
+      const deletedAccessCodes = await this.screeningAccessCodeModel.deleteMany(
+        { parentApplicationId: { $in: applicationIds } },
+      );
+
+      // delete screening applications
+      const deletedScreeningApps = await this.applicationModel.deleteMany({
+        $or: [
+          { parentApplicationId: { $in: applicationIds } },
+          { parentApplicationId: { $eq: userId }, type: 'CaregiverScreening' },
+        ],
+      });
+
       this.logger.warn(
         {
           userId,
           deletedUsers: deletedUser.deletedCount,
           deletedApplications: deletedApps.deletedCount,
+          deletedScreeningApps: deletedScreeningApps.deletedCount,
+          deletedAccessCodes: deletedAccessCodes.deletedCount,
           deletedFormParameters: deletedFormParams.deletedCount,
         },
         '[DevTools] Deletion complete',
       );
 
       return {
-        message: `Deleted user ${deletedUser.deletedCount}, Deleted ${deletedApps.deletedCount} applications, ${deletedFormParams.deletedCount} form parameters, and ${totalDeletedHouseholdMembers} household members for userId ${userId}`,
+        message: `Deleted user ${deletedUser.deletedCount}, ${deletedApps.deletedCount} applications, ${deletedScreeningApps.deletedCount} screening applications, ${deletedAccessCodes.deletedCount} access codes, ${deletedFormParams.deletedCount} form parameters, and ${totalDeletedHouseholdMembers} household members for userId ${userId}`,
       };
     } catch (error) {
       this.logger.error({ error, userId }, 'Error in [DevTools] clearUserData');

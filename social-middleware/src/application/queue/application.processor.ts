@@ -84,7 +84,7 @@ export class ApplicationProcessor {
         userId: userId,
         firstName: user.first_name,
         lastName: user.last_name,
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+
         dateOfBirth: user.dateOfBirth,
         email: user.email,
         //memberType: MemberTypes.Primary,

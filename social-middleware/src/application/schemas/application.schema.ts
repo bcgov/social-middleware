@@ -10,7 +10,10 @@ export class Application {
   @Prop({ required: true, unique: true })
   applicationId!: string;
 
-  @Prop({ required: true })
+  @Prop({ required: false, unique: true })
+  parentApplicationId!: string;
+
+  @Prop({ required: false })
   primary_applicantId!: string;
 
   @Prop({ enum: ApplicationTypes, default: ApplicationTypes.Sample })
