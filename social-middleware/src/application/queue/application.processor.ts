@@ -19,6 +19,7 @@ import { HouseholdService } from 'src/household/household.service';
 import { UserService } from 'src/auth/user.service';
 import { RelationshipToPrimary } from 'src/household/enums/relationship-to-primary.enum';
 import { ApplicationSubmissionService } from 'src/application-submission/application-submission.service';
+import { GenderTypes } from 'src/household/enums/gender-types.enum';
 
 @Processor('applicationQueue')
 export class ApplicationProcessor {
@@ -84,7 +85,7 @@ export class ApplicationProcessor {
         userId: userId,
         firstName: user.first_name,
         lastName: user.last_name,
-
+        genderType: this.sexToGenderType(user.sex),
         dateOfBirth: user.dateOfBirth,
         email: user.email,
         //memberType: MemberTypes.Primary,
@@ -100,4 +101,18 @@ export class ApplicationProcessor {
       throw error;
     }
   }
+
+  private sexToGenderType(sex: string): GenderTypes {
+    switch (sex.toLowerCase()) {
+      case ("male"):
+        return GenderTypes.ManBoy;
+      case ("female"):
+        return GenderTypes.WomanGirl;
+      case ("non-binary"):
+        return GenderTypes.NonBinary;
+      default:
+        return GenderTypes.Unspecified;
+    }
+  }
 }
+
