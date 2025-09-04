@@ -12,6 +12,12 @@ spec:
           value:
             - key: branchName
               expression: "body.ref.split('/')[2]"
+            - key: imageTag
+              expression: >
+                body.ref.split('/')[2] == 'main' ? 'stable' :
+                body.ref.split('/')[2] == 'test' ? 'test' :
+                body.ref.split('/')[2] == 'dev' ? 'latest' :
+                'unknown'
         - name: filter
           value: >
             body.ref.split('/')[2] == 'main' &&

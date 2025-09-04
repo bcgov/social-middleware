@@ -13,7 +13,7 @@ spec:
       name: imageRegistryPass
     - default: '{{ .Values.general.imageurl }}'
       name: imageUrl
-    - default: '{{ .Values.general.imagetag }}'
+    - default: unknown
       name: imageTag
     - default: '{{ .Values.general.repourl }}'
       name: repoUrl
