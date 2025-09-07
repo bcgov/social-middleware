@@ -55,7 +55,7 @@ export class ApplicationService {
   async createApplication(
     dto: CreateApplicationDto,
     userId: string,
-  ): Promise<{ formAccessToken: string }> {
+  ): Promise<{ applicationId: string }> {
     const applicationId = uuidv4();
     const formAccessToken = uuidv4();
 
@@ -116,7 +116,7 @@ export class ApplicationService {
       //this.logger.info(`Queued application creation with jobId ${job.id}`);
       //const result = (await job.finished()) as { formAccessToken: string };
       //return { formAccessToken: result.formAccessToken };
-      return { formAccessToken };
+      return { applicationId };
     } catch (error) {
       this.logger.error({ error }, 'Failed to create application');
       throw new InternalServerErrorException('Application creation failed');
