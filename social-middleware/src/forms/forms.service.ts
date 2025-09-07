@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ValidateTokenDto } from './dto/validate-token.dto';
+import { GetTokenDto } from './dto/get-token.dto';
 import { ConfigService } from '@nestjs/config';
 import { InjectModel } from '@nestjs/mongoose';
 import {
@@ -68,4 +69,51 @@ export class FormsService {
     this.logger.info('Form Parameters', record.formParameters);
     return record.formParameters;
   }
-}
+  
+
+  async getFormAccessToken(dto: GetTokenDto): Promise<any> {
+    this.logger.info('Retrieving Form Access Token');
+    const applicationId = dto.applicationId;
+    this.logger.debug('Passed applicationId:', applicationId);
+    this.logger.info('Checking whether form access token exists for applicationId');    
+
+    // TODO: SESSION AUTHGUARD
+
+    try {
+
+          // TODO: Handle types other than 'New'
+          const formParameters = await this.formParametersModel.findOne({
+            applicationId: applicationId,
+            type: 'New'
+          })
+          .exec();
+
+          if (!formParameters) {
+            throw new NotFoundException(
+              `No form parameters found for applicationId ${applicationId}`,
+            );
+          }
+
+          return(formParameters.formAccessToken);
+          
+          } catch (error) {
+    
+            if (error instanceof NotFoundException) {
+              // Re-throw NotFoundException (from the !formParameters check)
+              throw error;
+            }
+            // Log and handle unexpected database errors
+            this.logger.error(
+              { error, applicationId },
+              `Error finding formAccessToken for application: ${applicationId}`
+            );
+            throw new InternalServerErrorException('Failed to retrieve form access token');
+
+        }
+      }
+
+    
+
+  }
+
+
