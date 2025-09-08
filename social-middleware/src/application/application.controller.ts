@@ -2,6 +2,8 @@ import {
   Controller,
   Post,
   Get,
+  HttpCode,
+  Delete,
   Body,
   Param,
   Req,
@@ -12,6 +14,8 @@ import {
 import { ApplicationService } from './application.service';
 import { UserService } from 'src/auth/user.service';
 import { CreateApplicationDto } from './dto/create-application.dto';
+import { DeleteApplicationDto } from './dto/delete-application.dto';
+import { SessionUtil } from 'src/common/utils/session.util';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { GetApplicationsDto } from './dto/get-applications.dto';
 import { SessionAuthGuard } from 'src/auth/session-auth.guard';
@@ -28,6 +32,7 @@ export class ApplicationController {
   constructor(
     private readonly applicationService: ApplicationService,
     private readonly userService: UserService,
+    private readonly sessionUtil: SessionUtil,
     private readonly configService: ConfigService,
     private readonly logger: PinoLogger,
   ) {
@@ -148,6 +153,42 @@ export class ApplicationController {
   })
   async submitApplication(@Body() dto: SubmitApplicationDto) {
     return this.applicationService.submitApplication(dto);
+  }
+
+  @Delete(':applicationId')
+  @UseGuards(SessionAuthGuard)
+  @HttpCode(204)
+  @ApiOperation({ summary: 'Delete application data at users request' })
+  @ApiResponse({
+    status: 204,
+    description: 'Application and associated records deleted successfully',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid request or application cannot be deleted'
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized - invalid session'
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden - user cannot delete this application'
+  })
+  @ApiResponse({ 
+    status: 404,
+    description: 'Application not found'
+  })
+  @ApiResponse({
+    status: 500,
+    description: 'Internal Server Error',
+  })
+  async cancelApplication(
+    @Body() dto: DeleteApplicationDto,
+    @Req() request: Request
+  ): Promise<void> {
+    const userId = this.sessionUtil.extractUserIdFromRequest(request);
+    return this.applicationService.cancelApplication(dto, userId);
   }
 
   @Post('access-code/associate')

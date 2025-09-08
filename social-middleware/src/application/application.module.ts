@@ -7,6 +7,7 @@ import {
   FormParametersSchema,
 } from './schemas/form-parameters.schema';
 import { ApplicationService } from './application.service';
+import { SessionUtil } from 'src/common/utils/session.util';
 import { ApplicationController } from './application.controller';
 import { HouseholdModule } from 'src/household/household.module';
 import { AuthModule } from 'src/auth/auth.module';
@@ -28,8 +29,8 @@ import {
     forwardRef(() => ApplicationSubmissionModule),
     ApplicationQueueModule,
   ],
-  exports: [ApplicationService, MongooseModule],
+  exports: [ApplicationService, MongooseModule, SessionUtil],
   controllers: [ApplicationController],
-  providers: [ApplicationService],
+  providers: [ApplicationService, SessionUtil],
 })
 export class ApplicationModule {}
