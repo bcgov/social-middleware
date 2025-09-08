@@ -94,7 +94,7 @@ export class FormsService {
             );
           }
 
-          return(formParameters.formAccessToken);
+          return { formAccessToken: formParameters.formAccessToken };
           
           } catch (error) {
     
