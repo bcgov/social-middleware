@@ -16,7 +16,7 @@ import { UserService } from 'src/auth/user.service';
 import { CreateApplicationDto } from './dto/create-application.dto';
 import { DeleteApplicationDto } from './dto/delete-application.dto';
 import { SessionUtil } from 'src/common/utils/session.util';
-import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { GetApplicationsDto } from './dto/get-applications.dto';
 import { SessionAuthGuard } from 'src/auth/session-auth.guard';
 import { Request } from 'express';
@@ -24,6 +24,7 @@ import * as jwt from 'jsonwebtoken';
 import { ConfigService } from '@nestjs/config';
 import { SubmitApplicationDto } from './dto/submit-application-dto';
 import { PinoLogger } from 'nestjs-pino';
+@ApiBearerAuth()
 @ApiTags('Application')
 @Controller('application')
 export class ApplicationController {
@@ -105,7 +106,6 @@ export class ApplicationController {
   async inviteHouseholdMember(
     @Param('applicationId') applicationId: string,
     @Param('householdMemberId') householdMemberId: string,
-    //@Req() req: any,
   ) {
     return await this.applicationService.createHouseholdScreening(
       applicationId,
