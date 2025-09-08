@@ -184,10 +184,11 @@ export class ApplicationController {
     description: 'Internal Server Error',
   })
   async cancelApplication(
-    @Body() dto: DeleteApplicationDto,
+    @Param('applicationId') applicationId: string,
     @Req() request: Request
   ): Promise<void> {
     const userId = this.sessionUtil.extractUserIdFromRequest(request);
+    const dto: DeleteApplicationDto = { applicationId };
     return this.applicationService.cancelApplication(dto, userId);
   }
 

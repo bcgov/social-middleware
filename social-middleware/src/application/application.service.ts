@@ -444,6 +444,9 @@ export class ApplicationService {
 
   async cancelApplication(dto: DeleteApplicationDto, userId: string): Promise<void> {
     const { applicationId } = dto;
+
+    console.log(`ApplicationId ${applicationId}`)
+    console.log(`UserId ${userId}`)
  
     try {
       this.logger.info({ applicationId, userId}, 'Starting application cancellation');
