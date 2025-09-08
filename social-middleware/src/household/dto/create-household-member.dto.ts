@@ -1,6 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsEnum, IsString, IsOptional } from 'class-validator';
 import { RelationshipToPrimary } from '../enums/relationship-to-primary.enum';
+import { GenderTypes } from '../enums/gender-types.enum';
 
 export class CreateHouseholdMemberDto {
   @ApiProperty({ example: 'user_456' })
@@ -41,6 +42,10 @@ export class CreateHouseholdMemberDto {
   @ApiProperty({ enum: RelationshipToPrimary })
   @IsEnum(RelationshipToPrimary)
   relationshipToPrimary!: RelationshipToPrimary;
+
+  @ApiProperty({ enum: GenderTypes })
+  @IsEnum(GenderTypes)
+  genderType!: GenderTypes;
 
   //@ApiProperty({ default: true, required: false })
   //@IsOptional()

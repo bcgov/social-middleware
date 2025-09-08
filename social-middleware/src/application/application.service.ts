@@ -20,6 +20,7 @@ import {
 } from './schemas/form-parameters.schema';
 import { CreateApplicationDto } from './dto/create-application.dto';
 import { FormType } from './enums/form-type.enum';
+import { GenderTypes } from 'src/household/enums/gender-types.enum';
 import { GetApplicationsDto } from './dto/get-applications.dto';
 import { SubmitApplicationDto } from './dto/submit-application-dto';
 import { ApplicationStatus } from './enums/application-status.enum';
@@ -54,7 +55,7 @@ export class ApplicationService {
   async createApplication(
     dto: CreateApplicationDto,
     userId: string,
-  ): Promise<{ formAccessToken: string }> {
+  ): Promise<{ applicationId: string }> {
     const applicationId = uuidv4();
     const formAccessToken = uuidv4();
 
@@ -101,6 +102,7 @@ export class ApplicationService {
         lastName: user.last_name,
         dateOfBirth: user.dateOfBirth,
         email: user.email,
+        genderType: this.sexToGenderType(user.sex),
         //memberType: MemberTypes.Primary,
         relationshipToPrimary: RelationshipToPrimary.Self,
         //requireScreening: true,
@@ -114,7 +116,7 @@ export class ApplicationService {
       //this.logger.info(`Queued application creation with jobId ${job.id}`);
       //const result = (await job.finished()) as { formAccessToken: string };
       //return { formAccessToken: result.formAccessToken };
-      return { formAccessToken };
+      return { applicationId };
     } catch (error) {
       this.logger.error({ error }, 'Failed to create application');
       throw new InternalServerErrorException('Application creation failed');
@@ -185,6 +187,19 @@ export class ApplicationService {
       result += chars.charAt(Math.floor(Math.random() * chars.length));
     }
     return result;
+  }
+
+  private sexToGenderType(sex: string): GenderTypes {
+    switch (sex.toLowerCase()) {
+      case 'male':
+        return GenderTypes.ManBoy;
+      case 'female':
+        return GenderTypes.WomanGirl;
+      case 'non-binary':
+        return GenderTypes.NonBinary;
+      default:
+        return GenderTypes.Unspecified;
+    }
   }
 
   async associateUserWithAccessCode(

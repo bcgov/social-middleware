@@ -49,7 +49,7 @@ export class ApplicationController {
   async createApplication(
     @Body() dto: CreateApplicationDto,
     @Req() request: Request,
-  ): Promise<{ formAccessToken: string }> {
+  ): Promise<{ applicationId: string }> {
     try {
       const sessionToken = request.cookies?.session as string;
 

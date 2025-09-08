@@ -24,8 +24,11 @@ export class User {
   @Prop({ required: true })
   dateOfBirth!: string;
 
+  @Prop({ required: true })
+  sex!: string;
+
   @Prop({ required: false })
-  contactId!: string;     // row ID from ICM
+  contactId!: string; // row ID from ICM
 
   @Prop({ default: Date.now })
   last_login!: Date;

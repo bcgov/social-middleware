@@ -41,6 +41,7 @@ interface UserInfo {
   name?: string;
   given_name: string;
   family_name: string;
+  gender: string;
   birthdate: string;
 }
 interface TokenResponse {
@@ -180,14 +181,6 @@ export class AuthController {
     @Body() body: AuthCallbackRequest,
     @Res({ passthrough: true }) res: Response,
   ) {
-    //console.log('=== AUTH CALLBACK DEBUG ===');
-    //console.log('Raw body:', JSON.stringify(body, null, 2));
-    //console.log('Body type:', typeof body);
-    //console.log('Code:', body.code);
-    //console.log('Redirect URI:', body.redirect_uri);
-    //console.log('Code exists:', !!body.code);
-    //console.log('Redirect URI exists:', !!body.redirect_uri);
-
     try {
       const { code, redirect_uri } = body;
 
@@ -255,6 +248,7 @@ export class AuthController {
         'Full userInfo response: ',
         JSON.stringify(userInfoResponse.data, null, 2),
       );
+
       //console.log('User info received:', { sub: userInfo.sub, email: userInfo.email, first: userInfo.given_name, given: userInfo.given_name, last: userInfo.family_name });
 
       //  Persist user to database
@@ -263,6 +257,7 @@ export class AuthController {
         first_name: userInfo.given_name,
         last_name: userInfo.family_name,
         dateOfBirth: userInfo.birthdate,
+        sex: userInfo.gender,
         email: userInfo.email,
       };
 
@@ -274,6 +269,7 @@ export class AuthController {
       await this.userService.updateLastLogin(user.id);
       console.log('Last login updated');
 
+      /*
       // Check for contactId on user record
       console.log('No contactId found. Attempting to fetch from Siebel...');
       try {
@@ -300,6 +296,8 @@ export class AuthController {
       } catch (error) {
         console.error('Error fetching ICM contact:', error);
       }
+
+      */
 
       // Create session token for portal
       const sessionToken = jwt.sign(
