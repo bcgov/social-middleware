@@ -2,7 +2,6 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document } from 'mongoose';
 import { UserStatus } from '../enums/user-status.enum';
-import { GenderTypes } from '../../household/enums/gender-types.enum';
 
 export type UserDocument = User & Document;
 
@@ -29,7 +28,7 @@ export class User {
   sex!: string;
 
   @Prop({ required: false })
-  contactId!: string;     // row ID from ICM
+  contactId!: string; // row ID from ICM
 
   @Prop({ default: Date.now })
   last_login!: Date;

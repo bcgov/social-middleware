@@ -49,7 +49,9 @@ export class HouseholdService {
     dto: CreateHouseholdMemberDto,
   ): Promise<HouseholdMembersDocument> {
     try {
-      let { householdMemberId, ...memberData } = dto;
+      let householdMemberId;
+      const { householdMemberId: tempId, ...memberData } = dto;
+      householdMemberId = tempId;
 
       // householdMemberId is used by the front-end to refer to the record in the DB so we can perform RUD operations
       // if no householdMemberId is provided, generate one

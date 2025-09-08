@@ -18,11 +18,27 @@ export class FormsController {
   @Get('token')
   @UseGuards(SessionAuthGuard)
   @ApiOperation({ summary: 'Get form access token by application ID' })
-  @ApiQuery({ name: 'applicationId', required: true, description: 'The application ID to get the form access token for'})
-  @ApiResponse({ status: 200, description: 'Form access token retrieved successfully' })
-  @ApiResponse({ status: 401, description: 'Unauthorized - invalid or missing session' })
-  @ApiResponse({ status: 404, description: 'No form parameters found for the given application ID' })
-  @ApiResponse({ status: 500, description: 'Internal server error' }) 
+  @ApiQuery({
+    name: 'applicationId',
+    required: true,
+    description: 'The application ID to get the form access token for',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Form access token retrieved successfully',
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized - invalid or missing session',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'No form parameters found for the given application ID',
+  })
+  @ApiResponse({
+    status: 500,
+    description: 'Internal server error',
+  })
   getFormAccessToken(@Query() dto: GetTokenDto) {
     return this.formsService.getFormAccessToken(dto);
   }

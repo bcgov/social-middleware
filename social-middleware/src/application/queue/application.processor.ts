@@ -104,15 +104,14 @@ export class ApplicationProcessor {
 
   private sexToGenderType(sex: string): GenderTypes {
     switch (sex.toLowerCase()) {
-      case ("male"):
+      case 'male':
         return GenderTypes.ManBoy;
-      case ("female"):
+      case 'female':
         return GenderTypes.WomanGirl;
-      case ("non-binary"):
+      case 'non-binary':
         return GenderTypes.NonBinary;
       default:
         return GenderTypes.Unspecified;
     }
   }
 }
-
