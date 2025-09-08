@@ -40,6 +40,7 @@ export class ApplicationController {
   }
 
   @Post()
+  @UseGuards(SessionAuthGuard)
   @ApiOperation({ summary: 'Create a new application' })
   @ApiResponse({
     status: 201,
@@ -47,6 +48,7 @@ export class ApplicationController {
       'Application created successfully and form access token returned',
   })
   @ApiResponse({ status: 400, description: 'Validation error' })
+  @ApiResponse({ status: 401, description: 'Unauthorized - invalid or missing session' })
   @ApiResponse({
     status: 500,
     description: 'Server error during application creation',
@@ -56,20 +58,8 @@ export class ApplicationController {
     @Req() request: Request,
   ): Promise<{ applicationId: string }> {
     try {
-      const sessionToken = request.cookies?.session as string;
-
-      if (!sessionToken) {
-        throw new UnauthorizedException('No session token provided.');
-      }
-
-      const decoded = jwt.verify(
-        sessionToken,
-        this.jwtSecret,
-      ) as jwt.JwtPayload;
-
-      const mongoUserId = decoded.userId as string;
-
-      return this.applicationService.createApplication(dto, mongoUserId);
+      const userId = this.sessionUtil.extractUserIdFromRequest(request);
+      return this.applicationService.createApplication(dto, userId);
     } catch (error) {
       console.error('JWT verification error:', error);
       throw new UnauthorizedException('Invalid or expired session');
@@ -77,6 +67,7 @@ export class ApplicationController {
   }
 
   @Get()
+  @UseGuards(SessionAuthGuard)
   @ApiOperation({ summary: 'Get applications by authenticated user' })
   //@ApiQuery({ name: 'userId', required: true, type: String })
   @ApiResponse({
@@ -84,33 +75,15 @@ export class ApplicationController {
     description: 'List of applications for authenticated user',
     type: [GetApplicationsDto],
   })
-  @UseGuards(SessionAuthGuard)
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized - invalid or missing session'
+  })
   async getApplications(
     @Req() request: Request & { session?: any; user?: any },
   ): Promise<GetApplicationsDto[]> {
-    try {
-      const sessionToken = request.cookies?.session as string;
-
-      if (!sessionToken) {
-        throw new UnauthorizedException('No session token provided');
-      }
-
-      // Decode JWT token
-      const decoded = jwt.verify(
-        sessionToken,
-        this.jwtSecret,
-      ) as jwt.JwtPayload;
-
-      //const userId = decoded.sub;
-      const mongoUserId = decoded.userId as string;
-
-      console.log('Getting Applications For UserID:', mongoUserId);
-
-      return this.applicationService.getApplicationsByUser(mongoUserId);
-    } catch (error) {
-      console.error('JWT verification error:', error);
-      throw new UnauthorizedException('Invalid or expired session');
-    }
+    const userId = this.sessionUtil.extractUserIdFromRequest(request);
+    return this.applicationService.getApplicationsByUser(userId);
   }
 
   @Post(':applicationId/household/:householdMemberId/invite')
@@ -214,21 +187,9 @@ export class ApplicationController {
     message: string;
   }> {
     try {
-      const sessionToken = request.cookies?.session as string;
+      const userId = this.sessionUtil.extractUserIdFromRequest(request);
 
-      if (!sessionToken) {
-        throw new UnauthorizedException('No session token provided.');
-      }
-
-      const decoded = jwt.verify(
-        sessionToken,
-        this.jwtSecret,
-      ) as jwt.JwtPayload;
-      const mongoUserId = decoded.userId as string;
-
-      this.logger.debug({ decoded }, 'Associating access code with user');
-
-      const user = await this.userService.findOne(mongoUserId);
+      const user = await this.userService.findOne(userId);
       if (!user) {
         throw new UnauthorizedException('User not found');
       }
@@ -239,13 +200,13 @@ export class ApplicationController {
       };
 
       this.logger.debug(
-        { accessCode: dto.accessCode, mongoUserId, userData },
+        { accessCode: dto.accessCode, userId, userData },
         'Associating access code with user',
       );
 
       const result = await this.applicationService.associateUserWithAccessCode(
         dto.accessCode,
-        mongoUserId,
+        userId,
         userData,
       );
 
