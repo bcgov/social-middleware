@@ -27,8 +27,9 @@ async function bootstrap() {
       config.get<string>('FRONTEND_URL') || 'http://localhost:5173';
     const isDevelopment = config.get<string>('NODE_ENV') !== 'production';
     const apiUrl = config.get<string>('API_URL') || 'http://localhost:3001';
+    const formsUrl = config.get<string>('FORMS_URL') || 'http://localhost:8080';
     // Enable CORS to handle preflight OPTIONS requests
-    const allowedOrigins = [frontendUrl, apiUrl];
+    const allowedOrigins = [frontendUrl, apiUrl, formsUrl];
     logger.log('🔧 CORS Configuration:');
     logger.log('Allowed origins:', allowedOrigins);
 
