@@ -16,11 +16,15 @@ import { UserService } from 'src/auth/user.service';
 import { CreateApplicationDto } from './dto/create-application.dto';
 import { DeleteApplicationDto } from './dto/delete-application.dto';
 import { SessionUtil } from 'src/common/utils/session.util';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBearerAuth,
+} from '@nestjs/swagger';
 import { GetApplicationsDto } from './dto/get-applications.dto';
 import { SessionAuthGuard } from 'src/auth/session-auth.guard';
 import { Request } from 'express';
-import * as jwt from 'jsonwebtoken';
 import { ConfigService } from '@nestjs/config';
 import { SubmitApplicationDto } from './dto/submit-application-dto';
 import { PinoLogger } from 'nestjs-pino';
@@ -50,7 +54,10 @@ export class ApplicationController {
       'Application created successfully and form access token returned',
   })
   @ApiResponse({ status: 400, description: 'Validation error' })
-  @ApiResponse({ status: 401, description: 'Unauthorized - invalid or missing session' })
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized - invalid or missing session',
+  })
   @ApiResponse({
     status: 500,
     description: 'Server error during application creation',
@@ -82,7 +89,7 @@ export class ApplicationController {
   })
   @ApiResponse({
     status: 401,
-    description: 'Unauthorized - invalid or missing session'
+    description: 'Unauthorized - invalid or missing session',
   })
   async getApplications(
     @Req() request: Request & { session?: any; user?: any },
@@ -142,19 +149,19 @@ export class ApplicationController {
   })
   @ApiResponse({
     status: 400,
-    description: 'Invalid request or application cannot be deleted'
+    description: 'Invalid request or application cannot be deleted',
   })
   @ApiResponse({
     status: 401,
-    description: 'Unauthorized - invalid session'
+    description: 'Unauthorized - invalid session',
   })
   @ApiResponse({
     status: 403,
-    description: 'Forbidden - user cannot delete this application'
+    description: 'Forbidden - user cannot delete this application',
   })
-  @ApiResponse({ 
+  @ApiResponse({
     status: 404,
-    description: 'Application not found'
+    description: 'Application not found',
   })
   @ApiResponse({
     status: 500,
@@ -162,7 +169,7 @@ export class ApplicationController {
   })
   async cancelApplication(
     @Param('applicationId') applicationId: string,
-    @Req() request: Request
+    @Req() request: Request,
   ): Promise<void> {
     const userId = this.sessionUtil.extractUserIdFromRequest(request);
     const dto: DeleteApplicationDto = { applicationId };

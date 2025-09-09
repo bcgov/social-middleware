@@ -442,63 +442,62 @@ export class ApplicationService {
     }
   }
 
-  async cancelApplication(dto: DeleteApplicationDto, userId: string): Promise<void> {
+  async cancelApplication(
+    dto: DeleteApplicationDto,
+    userId: string,
+  ): Promise<void> {
     const { applicationId } = dto;
 
-    console.log(`ApplicationId ${applicationId}`)
-    console.log(`UserId ${userId}`)
- 
-    try {
-      this.logger.info({ applicationId, userId}, 'Starting application cancellation');
-
+    this.logger.info(
+      { applicationId, userId },
+      'Starting application cancellation',
+    );
     // check to see if the user owns the application in question
     const application = await this.applicationModel
-    .findOne({
-      applicationId,
-      primary_applicantId: userId
-    })
-    .exec();
+      .findOne({
+        applicationId,
+        primary_applicantId: userId,
+      })
+      .exec();
 
-    if(!application) {
-      throw new NotFoundException(
-        `Application ${applicationId} not found`
-      );
+    if (!application) {
+      throw new NotFoundException(`Application ${applicationId} not found`);
     }
 
     // check if application can be cancelled
     if (application.status === ApplicationStatus.Submitted) {
-      throw new BadRequestException(
-        'Cannot cancel submitted application'
-      );
+      throw new BadRequestException('Cannot cancel submitted application');
     }
     // look for child applications
     const childApplications = await this.applicationModel
-    .find({ parentApplicationId: applicationId })
-    .exec();
+      .find({ parentApplicationId: applicationId })
+      .exec();
 
     // delete child applications first
     if (childApplications.length > 0) {
       this.logger.info(
         { applicationId, childCount: childApplications.length },
-        `Deleting ${childApplications.length} child application(s)`
+        `Deleting ${childApplications.length} child application(s)`,
       );
 
       await this.applicationModel
-      .deleteMany({ parentApplicationId: applicationId })
-      .exec();
+        .deleteMany({ parentApplicationId: applicationId })
+        .exec();
     }
 
     // look for household records
-    const householdMembers = await this.householdService
-    .findAllHouseholdMembers(applicationId)
+    const householdMembers =
+      await this.householdService.findAllHouseholdMembers(applicationId);
 
-    if (householdMembers.length > 0 ) {
+    if (householdMembers.length > 0) {
       this.logger.info(
         { applicationId, householdCount: householdMembers.length },
-        `Deleting ${householdMembers.length} household records`
+        `Deleting ${householdMembers.length} household records`,
       );
       // delete household members
-      await this.householdService.deleteAllMembersByApplicationId(applicationId)
+      await this.householdService.deleteAllMembersByApplicationId(
+        applicationId,
+      );
     }
 
     // look for application submission records
@@ -508,30 +507,22 @@ export class ApplicationService {
     //  this.logger.info({ applicationId }, 'Deleting application submission record');
     //  await this.applicationSubmissionService
     //  .deleteSubmission(String(application._id));
-    //}    
+    //}
 
     // Delete form parameters
-    await this.formParametersModel
-    .deleteMany({ applicationId })
-    .exec();
+    await this.formParametersModel.deleteMany({ applicationId }).exec();
 
     // Delete screening access codes
     await this.screeningAccessCodeModel
-    .deleteMany({ parentApplicationId: applicationId })
-    .exec();
+      .deleteMany({ parentApplicationId: applicationId })
+      .exec();
 
     // Finally, delete the main application
-    await this.applicationModel
-    .findByIdAndDelete(application._id)
-    .exec();
+    await this.applicationModel.findByIdAndDelete(application._id).exec();
 
-    this.logger.info({ applicationId, userId }, 'Application cancelled successfully');
-
-    } catch (error) {
-
-        throw error;
-      
-    }
-
+    this.logger.info(
+      { applicationId, userId },
+      'Application cancelled successfully',
+    );
   }
 }
