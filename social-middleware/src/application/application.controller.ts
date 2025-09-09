@@ -32,6 +32,7 @@ export class ApplicationController {
     private readonly logger: PinoLogger,
   ) {
     this.jwtSecret = this.configService.get<string>('JWT_SECRET')!;
+    this.logger.setContext(ApplicationController.name);
   }
 
   @Post()
@@ -66,7 +67,10 @@ export class ApplicationController {
 
       return this.applicationService.createApplication(dto, mongoUserId);
     } catch (error) {
-      console.error('JWT verification error:', error);
+      this.logger.error(
+        { error },
+        'JWT verification error in createApplication',
+      );
       throw new UnauthorizedException('Invalid or expired session');
     }
   }
@@ -99,11 +103,11 @@ export class ApplicationController {
       //const userId = decoded.sub;
       const mongoUserId = decoded.userId as string;
 
-      console.log('Getting Applications For UserID:', mongoUserId);
+      this.logger.info({ mongoUserId }, 'Fetching applications for user');
 
       return this.applicationService.getApplicationsByUser(mongoUserId);
     } catch (error) {
-      console.error('JWT verification error:', error);
+      this.logger.error({ error }, 'JWT verification error in getApplications');
       throw new UnauthorizedException('Invalid or expired session');
     }
   }
@@ -220,7 +224,7 @@ export class ApplicationController {
         };
       }
     } catch (error) {
-      console.error('Access code association error:', error);
+      this.logger.error({ error }, 'Access code association error');
       const errorMessage =
         error instanceof Error
           ? error.message
