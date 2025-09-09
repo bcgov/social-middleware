@@ -2,6 +2,8 @@ import {
   Controller,
   Post,
   Get,
+  HttpCode,
+  Delete,
   Body,
   Param,
   Req,
@@ -12,14 +14,21 @@ import {
 import { ApplicationService } from './application.service';
 import { UserService } from 'src/auth/user.service';
 import { CreateApplicationDto } from './dto/create-application.dto';
-import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import { DeleteApplicationDto } from './dto/delete-application.dto';
+import { SessionUtil } from 'src/common/utils/session.util';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBearerAuth,
+} from '@nestjs/swagger';
 import { GetApplicationsDto } from './dto/get-applications.dto';
 import { SessionAuthGuard } from 'src/auth/session-auth.guard';
 import { Request } from 'express';
-import * as jwt from 'jsonwebtoken';
 import { ConfigService } from '@nestjs/config';
 import { SubmitApplicationDto } from './dto/submit-application-dto';
 import { PinoLogger } from 'nestjs-pino';
+@ApiBearerAuth()
 @ApiTags('Application')
 @Controller('application')
 export class ApplicationController {
@@ -28,6 +37,7 @@ export class ApplicationController {
   constructor(
     private readonly applicationService: ApplicationService,
     private readonly userService: UserService,
+    private readonly sessionUtil: SessionUtil,
     private readonly configService: ConfigService,
     private readonly logger: PinoLogger,
   ) {
@@ -36,6 +46,7 @@ export class ApplicationController {
   }
 
   @Post()
+  @UseGuards(SessionAuthGuard)
   @ApiOperation({ summary: 'Create a new application' })
   @ApiResponse({
     status: 201,
@@ -43,6 +54,10 @@ export class ApplicationController {
       'Application created successfully and form access token returned',
   })
   @ApiResponse({ status: 400, description: 'Validation error' })
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized - invalid or missing session',
+  })
   @ApiResponse({
     status: 500,
     description: 'Server error during application creation',
@@ -52,20 +67,8 @@ export class ApplicationController {
     @Req() request: Request,
   ): Promise<{ applicationId: string }> {
     try {
-      const sessionToken = request.cookies?.session as string;
-
-      if (!sessionToken) {
-        throw new UnauthorizedException('No session token provided.');
-      }
-
-      const decoded = jwt.verify(
-        sessionToken,
-        this.jwtSecret,
-      ) as jwt.JwtPayload;
-
-      const mongoUserId = decoded.userId as string;
-
-      return this.applicationService.createApplication(dto, mongoUserId);
+      const userId = this.sessionUtil.extractUserIdFromRequest(request);
+      return this.applicationService.createApplication(dto, userId);
     } catch (error) {
       this.logger.error(
         { error },
@@ -76,6 +79,7 @@ export class ApplicationController {
   }
 
   @Get()
+  @UseGuards(SessionAuthGuard)
   @ApiOperation({ summary: 'Get applications by authenticated user' })
   //@ApiQuery({ name: 'userId', required: true, type: String })
   @ApiResponse({
@@ -83,33 +87,15 @@ export class ApplicationController {
     description: 'List of applications for authenticated user',
     type: [GetApplicationsDto],
   })
-  @UseGuards(SessionAuthGuard)
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized - invalid or missing session',
+  })
   async getApplications(
     @Req() request: Request & { session?: any; user?: any },
   ): Promise<GetApplicationsDto[]> {
-    try {
-      const sessionToken = request.cookies?.session as string;
-
-      if (!sessionToken) {
-        throw new UnauthorizedException('No session token provided');
-      }
-
-      // Decode JWT token
-      const decoded = jwt.verify(
-        sessionToken,
-        this.jwtSecret,
-      ) as jwt.JwtPayload;
-
-      //const userId = decoded.sub;
-      const mongoUserId = decoded.userId as string;
-
-      this.logger.info({ mongoUserId }, 'Fetching applications for user');
-
-      return this.applicationService.getApplicationsByUser(mongoUserId);
-    } catch (error) {
-      this.logger.error({ error }, 'JWT verification error in getApplications');
-      throw new UnauthorizedException('Invalid or expired session');
-    }
+    const userId = this.sessionUtil.extractUserIdFromRequest(request);
+    return this.applicationService.getApplicationsByUser(userId);
   }
 
   @Post(':applicationId/household/:householdMemberId/invite')
@@ -131,7 +117,6 @@ export class ApplicationController {
   async inviteHouseholdMember(
     @Param('applicationId') applicationId: string,
     @Param('householdMemberId') householdMemberId: string,
-    //@Req() req: any,
   ) {
     return await this.applicationService.createHouseholdScreening(
       applicationId,
@@ -152,6 +137,43 @@ export class ApplicationController {
   })
   async submitApplication(@Body() dto: SubmitApplicationDto) {
     return this.applicationService.submitApplication(dto);
+  }
+
+  @Delete(':applicationId')
+  @UseGuards(SessionAuthGuard)
+  @HttpCode(204)
+  @ApiOperation({ summary: 'Delete application data at users request' })
+  @ApiResponse({
+    status: 204,
+    description: 'Application and associated records deleted successfully',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid request or application cannot be deleted',
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized - invalid session',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden - user cannot delete this application',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Application not found',
+  })
+  @ApiResponse({
+    status: 500,
+    description: 'Internal Server Error',
+  })
+  async cancelApplication(
+    @Param('applicationId') applicationId: string,
+    @Req() request: Request,
+  ): Promise<void> {
+    const userId = this.sessionUtil.extractUserIdFromRequest(request);
+    const dto: DeleteApplicationDto = { applicationId };
+    return this.applicationService.cancelApplication(dto, userId);
   }
 
   @Post('access-code/associate')
@@ -176,21 +198,9 @@ export class ApplicationController {
     message: string;
   }> {
     try {
-      const sessionToken = request.cookies?.session as string;
+      const userId = this.sessionUtil.extractUserIdFromRequest(request);
 
-      if (!sessionToken) {
-        throw new UnauthorizedException('No session token provided.');
-      }
-
-      const decoded = jwt.verify(
-        sessionToken,
-        this.jwtSecret,
-      ) as jwt.JwtPayload;
-      const mongoUserId = decoded.userId as string;
-
-      this.logger.debug({ decoded }, 'Associating access code with user');
-
-      const user = await this.userService.findOne(mongoUserId);
+      const user = await this.userService.findOne(userId);
       if (!user) {
         throw new UnauthorizedException('User not found');
       }
@@ -201,13 +211,13 @@ export class ApplicationController {
       };
 
       this.logger.debug(
-        { accessCode: dto.accessCode, mongoUserId, userData },
+        { accessCode: dto.accessCode, userId, userData },
         'Associating access code with user',
       );
 
       const result = await this.applicationService.associateUserWithAccessCode(
         dto.accessCode,
-        mongoUserId,
+        userId,
         userData,
       );
 

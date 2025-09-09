@@ -3,6 +3,7 @@ import {
   Inject,
   Injectable,
   InternalServerErrorException,
+  BadRequestException,
   HttpException,
   NotFoundException,
 } from '@nestjs/common';
@@ -32,6 +33,7 @@ import {
   ScreeningAccessCode,
   ScreeningAccessCodeDocument,
 } from './schemas/screening-access-code.schema';
+import { DeleteApplicationDto } from './dto/delete-application.dto';
 
 @Injectable()
 export class ApplicationService {
@@ -438,5 +440,89 @@ export class ApplicationService {
       this.logger.error('Error submitting application', err);
       throw new InternalServerErrorException('Could not save form data');
     }
+  }
+
+  async cancelApplication(
+    dto: DeleteApplicationDto,
+    userId: string,
+  ): Promise<void> {
+    const { applicationId } = dto;
+
+    this.logger.info(
+      { applicationId, userId },
+      'Starting application cancellation',
+    );
+    // check to see if the user owns the application in question
+    const application = await this.applicationModel
+      .findOne({
+        applicationId,
+        primary_applicantId: userId,
+      })
+      .exec();
+
+    if (!application) {
+      throw new NotFoundException(`Application ${applicationId} not found`);
+    }
+
+    // check if application can be cancelled
+    if (application.status === ApplicationStatus.Submitted) {
+      throw new BadRequestException('Cannot cancel submitted application');
+    }
+    // look for child applications
+    const childApplications = await this.applicationModel
+      .find({ parentApplicationId: applicationId })
+      .exec();
+
+    // delete child applications first
+    if (childApplications.length > 0) {
+      this.logger.info(
+        { applicationId, childCount: childApplications.length },
+        `Deleting ${childApplications.length} child application(s)`,
+      );
+
+      await this.applicationModel
+        .deleteMany({ parentApplicationId: applicationId })
+        .exec();
+    }
+
+    // look for household records
+    const householdMembers =
+      await this.householdService.findAllHouseholdMembers(applicationId);
+
+    if (householdMembers.length > 0) {
+      this.logger.info(
+        { applicationId, householdCount: householdMembers.length },
+        `Deleting ${householdMembers.length} household records`,
+      );
+      // delete household members
+      await this.householdService.deleteAllMembersByApplicationId(
+        applicationId,
+      );
+    }
+
+    // look for application submission records
+    //const submissionRecord = await this.applicationSubmissionService
+    //.findByApplicationId(String(application._id));
+    //if (submissionRecord) {
+    //  this.logger.info({ applicationId }, 'Deleting application submission record');
+    //  await this.applicationSubmissionService
+    //  .deleteSubmission(String(application._id));
+    //}
+
+    // Delete form parameters
+    await this.formParametersModel.deleteMany({ applicationId }).exec();
+
+    // Delete screening access codes
+    await this.screeningAccessCodeModel
+      .deleteMany({ parentApplicationId: applicationId })
+      .exec();
+
+    // Finally, delete the main application
+    await this.applicationModel.findByIdAndDelete(application._id).exec();
+
+    this.logger.info(
+      { applicationId, userId },
+      'Application cancelled successfully',
+    );
   }
 }

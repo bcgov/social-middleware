@@ -28,7 +28,7 @@ import {
 import * as jwt from 'jsonwebtoken';
 import { isValidUserPayload } from 'src/common/utils';
 import { SiebelApiService } from 'src/siebel/siebel-api.service';
-import { SiebelContactResponse } from 'src/siebel/dto/siebel-contact-response.dto';
+//import { SiebelContactResponse } from 'src/siebel/dto/siebel-contact-response.dto';
 import { PinoLogger } from 'nestjs-pino';
 
 interface AuthCallbackRequest {
