@@ -10,7 +10,7 @@ spec:
       type: string
     - name: IMAGE_TAG
       description: Reference of the target image tag.
-      default: latest
+      default: unknown
       type: string
     - name: BUILDAH_IMAGE
       description: Reference the image version of buildah.
@@ -52,8 +52,8 @@ spec:
         set -x
         buildah login -u $IMAGE_REGISTRY_USER -p $IMAGE_REGISTRY_PASS $(params.IMAGE_REGISTRY) 
         buildah --storage-driver=$(params.STORAGE_DRIVER) bud \
-          --no-cache -f $(params.CONTEXT)/Dockerfile -t $(params.IMAGE_REGISTRY)/$(params.IMAGE):latest --isolation chroot $(params.CONTEXT) 
-        buildah --storage-driver=$(params.STORAGE_DRIVER) push $(params.IMAGE_REGISTRY)/$(params.IMAGE):latest 
+          --no-cache -f $(params.CONTEXT)/Dockerfile -t $(params.IMAGE_REGISTRY)/$(params.IMAGE):$(params.IMAGE_TAG) --isolation chroot $(params.CONTEXT) 
+        buildah --storage-driver=$(params.STORAGE_DRIVER) push $(params.IMAGE_REGISTRY)/$(params.IMAGE):$(params.IMAGE_TAG)
         
       workingDir: $(workspaces.source.path)
       securityContext:
@@ -76,7 +76,7 @@ spec:
     - name: trivy-scan
       image: docker.io/aquasec/trivy
       script: |
-        trivy image $(params.IMAGE_REGISTRY)/$(params.IMAGE):latest
+        trivy image $(params.IMAGE_REGISTRY)/$(params.IMAGE):$(params.IMAGE_TAG)
       workingDir: $(workspaces.source.path)
       volumeMounts:
         - name: varlibcontainers
@@ -100,7 +100,7 @@ spec:
         buildah login \
           -u $IMAGE_REGISTRY_USER \
           -p $IMAGE_REGISTRY_PASS $(params.IMAGE_REGISTRY) > /dev/null
-        buildah --storage-driver=$(params.STORAGE_DRIVER) push $(params.IMAGE_REGISTRY)/$(params.IMAGE):latest 
+        buildah --storage-driver=$(params.STORAGE_DRIVER) push $(params.IMAGE_REGISTRY)/$(params.IMAGE):$(params.IMAGE_TAG)
         
       workingDir: $(workspaces.source.path)
       securityContext:

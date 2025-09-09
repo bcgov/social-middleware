@@ -7,3 +7,5 @@ spec:
   params:
     - name: branchName
       value: $(extensions.branchName)
+    - name: imageTag
+      value: $(extensions.imageTag)
