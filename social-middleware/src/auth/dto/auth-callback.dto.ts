@@ -17,6 +17,6 @@ export class AuthCallbackDto {
   })
   @IsString()
   @IsNotEmpty()
-  @IsUrl()
+  @IsUrl({ require_tld: false }) // allow localhost
   redirect_uri!: string;
 }
