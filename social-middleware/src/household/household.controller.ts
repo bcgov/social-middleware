@@ -8,6 +8,7 @@ import {
   HttpStatus,
   Get,
   Delete,
+  ValidationPipe,
 } from '@nestjs/common';
 import { HouseholdService } from './household.service';
 import { CreateHouseholdMemberDto } from './dto/create-household-member.dto';
@@ -38,8 +39,10 @@ export class HouseholdController {
   })
   @ApiResponse({ status: 500, description: 'Internal server error.' })
   async create(
-    @Param('applicationId') applicationId: string,
-    @Body() dto: CreateHouseholdMemberDto,
+    @Param('applicationId', new ValidationPipe({ transform: true }))
+    applicationId: string,
+    @Body(new ValidationPipe({ whitelist: true, transform: true }))
+    dto: CreateHouseholdMemberDto,
   ): Promise<HouseholdMembersDocument> {
     this.logger.log(
       `Received request to create household member for applicationId=${applicationId}`,
@@ -68,7 +71,8 @@ export class HouseholdController {
   })
   @ApiResponse({ status: 500, description: 'Internal server error.' })
   async getAllHouseholdMembers(
-    @Param('applicationId') applicationId: string,
+    @Param('applicationId', new ValidationPipe({ transform: true }))
+    applicationId: string,
   ): Promise<HouseholdMembersDocument[]> {
     try {
       return await this.householdService.findAllHouseholdMembers(applicationId);
@@ -104,7 +108,8 @@ export class HouseholdController {
   @ApiResponse({ status: 404, description: 'Household member not found.' })
   @ApiResponse({ status: 500, description: 'Internal server error.' })
   async deleteHouseholdMember(
-    @Param('householdMemberId') householdMemberId: string,
+    @Param('householdMemberId', new ValidationPipe({ transform: true }))
+    householdMemberId: string,
   ): Promise<{ success: boolean; message: string }> {
     try {
       const result = await this.householdService.remove(householdMemberId);
