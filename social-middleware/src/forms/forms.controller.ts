@@ -1,4 +1,12 @@
-import { Controller, Post, Body, Get, UseGuards, Query } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Body,
+  Get,
+  UseGuards,
+  Query,
+  ValidationPipe,
+} from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiQuery } from '@nestjs/swagger';
 import { FormsService } from './forms.service';
 import { ValidateTokenDto } from './dto/validate-token.dto';
@@ -11,7 +19,10 @@ export class FormsController {
   constructor(private readonly formsService: FormsService) {}
 
   @Post('validateTokenAndGetParameters')
-  validateTokenAndGetParameters(@Body() dto: ValidateTokenDto) {
+  validateTokenAndGetParameters(
+    @Body(new ValidationPipe({ whitelist: true, transform: true }))
+    dto: ValidateTokenDto,
+  ) {
     return this.formsService.validateTokenAndGetParameters(dto);
   }
 
