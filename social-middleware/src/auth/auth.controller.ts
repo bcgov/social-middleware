@@ -10,12 +10,13 @@ import {
   HttpStatus,
   HttpCode,
   BadRequestException,
+  ValidationPipe,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Request, Response } from 'express';
 import { HttpService } from '@nestjs/axios';
 import { firstValueFrom } from 'rxjs';
-import { CreateUserDto } from './dto/create-user.dto';
+import { CreateUserDto, AuthCallbackDto } from './dto';
 import { UserService } from './user.service';
 import {
   ApiOperation,
@@ -30,11 +31,6 @@ import { isValidUserPayload } from 'src/common/utils';
 import { SiebelApiService } from 'src/siebel/siebel-api.service';
 //import { SiebelContactResponse } from 'src/siebel/dto/siebel-contact-response.dto';
 import { PinoLogger } from 'nestjs-pino';
-
-interface AuthCallbackRequest {
-  code: string;
-  redirect_uri: string;
-}
 
 interface UserInfo {
   sub: string;
@@ -83,18 +79,7 @@ export class AuthController {
   @Post('callback')
   @HttpCode(201)
   @ApiOperation({ summary: 'Callback from BC Service Card Authentication' })
-  @ApiBody({
-    description: 'Authorization callback data from BC Services Card',
-    examples: {
-      'successful-callback': {
-        summary: 'Successful authorization callback',
-        value: {
-          code: 'd46c0743-7d28-48f8-a473-394b841c4f35.2ef8f2e8-81a8-48fe-9cb4-67b1da21eec5.c021513a-2b05-4f77-a418-afbd88be4ec0',
-          redirect_uri: 'https://portal-url/auth/callback',
-        },
-      },
-    },
-  })
+  @ApiBody({ type: AuthCallbackDto })
   @ApiResponse({
     status: 201,
     description:
@@ -181,7 +166,8 @@ export class AuthController {
   @ApiCookieAuth('refresh_token')
   @ApiCookieAuth('id_token')
   async authCallback(
-    @Body() body: AuthCallbackRequest,
+    @Body(new ValidationPipe({ whitelist: true, transform: true }))
+    body: AuthCallbackDto,
     @Res({ passthrough: true }) res: Response,
   ) {
     try {
