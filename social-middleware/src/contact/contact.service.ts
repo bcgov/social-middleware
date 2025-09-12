@@ -7,12 +7,13 @@ export class ContactService {
     'https://sieblabp.apps.gov.bc.ca/dev/v1.0/data/ICMContact/ICMContact';
 
   // Replace this with dynamic OAuth token retrieval if needed
+  // eslint-disable-next-line @typescript-eslint/require-await
   private async getAccessToken(): Promise<string> {
     // In production, use refresh token or client credentials flow
     return 'YOUR_ACCESS_TOKEN_HERE';
   }
 
-  async getContactByBirthDate(birthDate: string): Promise<any> {
+  async getContactByBirthDate(birthDate: string): Promise<unknown> {
     const accessToken = await this.getAccessToken();
 
     try {
@@ -27,12 +28,17 @@ export class ContactService {
         },
       });
 
-      return response.data;
+      return response.data as unknown;
     } catch (error) {
       if (error instanceof AxiosError) {
         const status =
           error.response?.status || HttpStatus.INTERNAL_SERVER_ERROR;
-        const message = error.response?.data || 'Failed to retrieve contact';
+        const message: string =
+          typeof error.response?.data === 'string'
+            ? error.response.data
+            : JSON.stringify(error.response?.data) ||
+              'Failed to retrieve contact';
+
         throw new HttpException(message, status);
       }
       // handle non-Axios errors
