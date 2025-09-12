@@ -7,6 +7,7 @@ import {
   NotFoundException,
   Put,
   Param,
+  ValidationPipe,
 } from '@nestjs/common';
 import { ApplicationSubmissionService } from './application-submission.service';
 import { ApiTags } from '@nestjs/swagger';
@@ -18,6 +19,7 @@ import * as jwt from 'jsonwebtoken';
 import { ApplicationService } from '../application/application.service';
 import { UserPayload } from '../common/interfaces/user-payload.interface';
 import { isValidUserPayload, extractUserId } from '../common/utils/';
+import { UpdateSubmissionStatusParamsDto } from './dto/update-submission-status-params.dto';
 
 @ApiTags('Application Submission')
 @Controller('application-submission')
@@ -34,7 +36,8 @@ export class ApplicationSubmissionController {
 
   @Put(':applicationId/status')
   async updateSubmissionStatus(
-    @Param('applicationId') applicationId: string,
+    @Param(new ValidationPipe({ whitelist: true, transform: true }))
+    params: UpdateSubmissionStatusParamsDto,
     @Req() req: Request,
     @Body() updateDto: UpdateSubmissionStatusDto,
   ): Promise<ApplicationSubmission> {
@@ -56,7 +59,7 @@ export class ApplicationSubmissionController {
 
       // verify ownership before proceeding
       const application = await this.applicationService.findByIdAndUser(
-        applicationId,
+        params.applicationId,
         userId,
       );
 
@@ -66,7 +69,7 @@ export class ApplicationSubmissionController {
       // Proceed with updating the submission status
 
       return this.applicationSubmissionService.updateSubmissionStatus(
-        applicationId,
+        params.applicationId,
         updateDto,
       );
     } catch (error) {

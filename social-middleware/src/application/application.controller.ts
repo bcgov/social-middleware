@@ -10,6 +10,7 @@ import {
   UnauthorizedException,
   UseGuards,
   Put,
+  ValidationPipe,
 } from '@nestjs/common';
 import { ApplicationService } from './application.service';
 import { UserService } from 'src/auth/user.service';
@@ -23,6 +24,8 @@ import {
   ApiBearerAuth,
 } from '@nestjs/swagger';
 import { GetApplicationsDto } from './dto/get-applications.dto';
+import { InviteHouseholdMemberParamsDto } from './dto/invite-household-member-params.dto';
+import { AssociateAccessCodeDto } from './dto/associate-access-code.dto';
 import { SessionAuthGuard } from 'src/auth/session-auth.guard';
 import { Request } from 'express';
 import { ConfigService } from '@nestjs/config';
@@ -63,7 +66,8 @@ export class ApplicationController {
     description: 'Server error during application creation',
   })
   async createApplication(
-    @Body() dto: CreateApplicationDto,
+    @Body(new ValidationPipe({ whitelist: true, transform: true }))
+    dto: CreateApplicationDto,
     @Req() request: Request,
   ): Promise<{ applicationId: string }> {
     try {
@@ -115,12 +119,12 @@ export class ApplicationController {
     },
   })
   async inviteHouseholdMember(
-    @Param('applicationId') applicationId: string,
-    @Param('householdMemberId') householdMemberId: string,
+    @Param(new ValidationPipe({ whitelist: true, transform: true }))
+    params: InviteHouseholdMemberParamsDto,
   ) {
     return await this.applicationService.createHouseholdScreening(
-      applicationId,
-      householdMemberId,
+      params.applicationId,
+      params.householdMemberId,
     );
   }
 
@@ -135,7 +139,10 @@ export class ApplicationController {
     status: 500,
     description: 'Server error during application submission',
   })
-  async submitApplication(@Body() dto: SubmitApplicationDto) {
+  async submitApplication(
+    @Body(new ValidationPipe({ whitelist: true, transform: true }))
+    dto: SubmitApplicationDto,
+  ) {
     return this.applicationService.submitApplication(dto);
   }
 
@@ -168,12 +175,12 @@ export class ApplicationController {
     description: 'Internal Server Error',
   })
   async cancelApplication(
-    @Param('applicationId') applicationId: string,
+    @Param(new ValidationPipe({ whitelist: true, transform: true }))
+    params: DeleteApplicationDto,
     @Req() request: Request,
   ): Promise<void> {
     const userId = this.sessionUtil.extractUserIdFromRequest(request);
-    const dto: DeleteApplicationDto = { applicationId };
-    return this.applicationService.cancelApplication(dto, userId);
+    return this.applicationService.cancelApplication(params, userId);
   }
 
   @Post('access-code/associate')
@@ -190,7 +197,8 @@ export class ApplicationController {
     description: 'Server error during access code association',
   })
   async associateWithAccessCode(
-    @Body() dto: { accessCode: string },
+    @Body(new ValidationPipe({ whitelist: true, transform: true }))
+    dto: AssociateAccessCodeDto,
     @Req() request: Request,
   ): Promise<{
     success: boolean;

@@ -1,4 +1,10 @@
-import { BadRequestException, Controller, Get, Query } from '@nestjs/common';
+import {
+  BadRequestException,
+  Controller,
+  Get,
+  Query,
+  ValidationPipe,
+} from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiQuery } from '@nestjs/swagger';
 import { SiebelApiService } from './siebel-api.service';
 import { PinoLogger } from 'nestjs-pino';
@@ -55,7 +61,10 @@ export class SiebelController {
     example:
       'M/F, Row Id, Joined AKA Last Name, Joined AKA First Name, Deceased Flag, Primary Contact Address Id, Employee Flag, Joined AKA Middle Name, Deceased Date, Last Name, Middle Name, First Name',
   })
-  async getICMContact(@Query() query: GetIcmContactQueryDto) {
+  async getICMContact(
+    @Query(new ValidationPipe({ whitelist: true, transform: true }))
+    query: GetIcmContactQueryDto,
+  ) {
     try {
       return await this.siebelApiService.getCaseContacts(query);
     } catch (error: unknown) {
@@ -89,7 +98,10 @@ export class SiebelController {
     description: 'Comma-separated list of fields to return from Siebel',
     example: 'Row Id, Type, Subtype',
   })
-  async getServiceRequests(@Query() query: GetServiceRequestQueryDto) {
+  async getServiceRequests(
+    @Query(new ValidationPipe({ whitelist: true, transform: true }))
+    query: GetServiceRequestQueryDto,
+  ) {
     try {
       return await this.siebelApiService.getServiceRequests(query);
     } catch (error: unknown) {
