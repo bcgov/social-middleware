@@ -18,7 +18,7 @@ export class ScreeningAccessCode {
   householdMemberId!: string; // reference to household member record
 
   @Prop({ required: false })
-  assignedUserId?: string; // reference to user record, one they have authenticated
+  assignedUserId?: string; // reference to user record, once they have authenticated
 
   @Prop({ default: false })
   isUsed!: boolean;
