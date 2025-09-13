@@ -13,6 +13,9 @@ export class ApplicationPackage {
   @Prop({ required: true, unique: true })
   applicationPackageId!: string;
 
+  @Prop({ required: true })
+  userId!: string;
+
   @Prop({
     required: true,
     enum: ApplicationPackageSubType,
