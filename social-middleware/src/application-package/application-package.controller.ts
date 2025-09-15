@@ -1,5 +1,6 @@
 import {
   Controller,
+  Get,
   Post,
   Body,
   UseGuards,
@@ -66,6 +67,39 @@ export class ApplicationPackageController {
       );
     } catch (error) {
       this.logger.error({ error }, 'Failed to create application package');
+      throw error;
+    }
+  }
+  @Get()
+  @ApiOperation({
+    summary: 'Get all application packages for the authenticated user',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Application packages retrieved successfully',
+    type: [ApplicationPackage],
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized - invalid or missing session',
+  })
+  @ApiResponse({
+    status: 500,
+    description: 'Server error during retrieval',
+  })
+  async getApplicationPackages(
+    @Req() request: Request,
+  ): Promise<ApplicationPackage[]> {
+    try {
+      const userId = this.sessionUtil.extractUserIdFromRequest(request);
+
+      this.logger.info({ userId }, 'Fetching application packages');
+
+      return await this.applicationPackageService.getApplicationPackages(
+        userId,
+      );
+    } catch (error) {
+      this.logger.error({ error }, 'Failed to fetch application packages');
       throw error;
     }
   }

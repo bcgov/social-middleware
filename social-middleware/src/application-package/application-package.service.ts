@@ -1,6 +1,6 @@
 // application-submission.service.ts
 
-import { Injectable } from '@nestjs/common';
+import { Injectable, InternalServerErrorException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { v4 as uuidv4 } from 'uuid';
 import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
@@ -24,7 +24,6 @@ export class ApplicationPackageService {
   async createApplicationPackage(
     dto: CreateApplicationPackageDto,
   ): Promise<ApplicationPackage> {
-    //TODO: LOG
     this.logger.info(
       {
         userId: dto.userId,
@@ -67,6 +66,33 @@ export class ApplicationPackageService {
     );
 
     return result;
+  }
+
+  async getApplicationPackages(userId: string): Promise<ApplicationPackage[]> {
+    try {
+      this.logger.info({ userId }, 'Fetching application packages for user');
+
+      const applicationPackages = await this.applicationPackageModel
+        .find({ userId: { $eq: userId } })
+        .sort({ createdAt: -1 }) // most recent first
+        .lean()
+        .exec();
+
+      this.logger.info(
+        { userId, count: applicationPackages.length },
+        `Application packages fetched successfully`,
+      );
+
+      return applicationPackages;
+    } catch (error) {
+      this.logger.error(
+        { error, userId },
+        'Failed to fetch application packages',
+      );
+      throw new InternalServerErrorException(
+        'Failed to fetch application packages',
+      );
+    }
   }
 
   /*
