@@ -10,7 +10,7 @@ export class Application {
   @Prop({ required: true, unique: true })
   applicationId!: string;
 
-  @Prop({ required: false, unique: true })
+  @Prop({ required: false, unique: false })
   parentApplicationId!: string;
 
   @Prop({ required: false })
