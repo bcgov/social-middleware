@@ -67,6 +67,7 @@ export class ApplicationService {
 
       this.logger.info({ applicationId }, 'Saved application form to DB');
 
+      // BONUS: If you can figure out how to remove this you win
       // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
       const formParameters = new this.formParametersModel({
         applicationId,
@@ -86,11 +87,10 @@ export class ApplicationService {
             });
       */
 
+      // BONUS: If you can figure out how to remove this you win
       // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
       await formParameters.save();
       this.logger.info({ formAccessToken }, 'Saved form parameters to DB');
-
-      //const user = await this.userService.findOne(dto.userId);
 
       return { applicationId };
     } catch (error) {
