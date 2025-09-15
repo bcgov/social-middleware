@@ -1,8 +1,7 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { ConfigService } from '@nestjs/config';
 import { firstValueFrom } from 'rxjs';
-import { PinoLogger } from 'nestjs-pino';
 import { AxiosResponse, AxiosError } from 'axios';
 
 @Injectable()
@@ -10,20 +9,19 @@ export class SiebelAuthService {
   private accessToken: string | null = null;
   private tokenExpiry: Date | null = null;
 
+  private readonly logger = new Logger(SiebelAuthService.name);
+
   constructor(
     private readonly httpService: HttpService,
     private readonly configService: ConfigService,
-    private readonly logger: PinoLogger,
-  ) {
-    this.logger.setContext(SiebelAuthService.name);
-  }
+  ) {}
 
   async getAccessToken(): Promise<string> {
     if (this.accessToken && this.tokenExpiry && new Date() < this.tokenExpiry) {
       return this.accessToken;
     }
 
-    return this.refreshToken();
+    return await this.refreshToken();
   }
 
   private async refreshToken(): Promise<string> {
@@ -59,7 +57,7 @@ export class SiebelAuthService {
       const expiresIn = response.data.expires_in || 3600;
       this.tokenExpiry = new Date(Date.now() + (expiresIn - 60) * 1000); // Refresh 1 min before expiry
 
-      this.logger.info('Successfully obtained Siebel access token');
+      this.logger.log('Successfully obtained Siebel access token');
       return this.accessToken;
     } catch (error: unknown) {
       let errorData: unknown = null;
