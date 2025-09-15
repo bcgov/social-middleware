@@ -23,13 +23,13 @@ import { CreateApplicationFormDto } from './dto/create-application-form.dto';
 import { UserService } from 'src/auth/user.service';
 
 @Injectable()
-export class ApplicationService {
+export class ApplicationFormService {
   constructor(
     @InjectModel(ApplicationForm.name)
     private applicationFormModel: Model<ApplicationFormDocument>,
     @InjectModel('FormParameters')
     private formParametersModel: Model<FormParametersDocument>,
-    @InjectPinoLogger(ApplicationService.name)
+    @InjectPinoLogger(ApplicationFormService.name)
     private readonly logger: PinoLogger,
     private readonly userService: UserService,
   ) {}
