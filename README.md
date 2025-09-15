@@ -99,7 +99,7 @@ The middleware requires a MongoDB database to store user data, applications, and
 ### Option 1: Local MongoDB Installation
 
 1. **Install MongoDB Community Edition**:
-   - **macOS**: `brew install mongodb-community`
+   - **macOS**: `brew tap mongodb/brew && brew install mongodb-community`
    - **Ubuntu/Debian**: Follow [MongoDB Ubuntu installation guide](https://docs.mongodb.com/manual/tutorial/install-mongodb-on-ubuntu/)
    - **Windows**: Download from [MongoDB Download Center](https://www.mongodb.com/try/download/community)
 
