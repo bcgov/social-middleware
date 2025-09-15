@@ -14,7 +14,7 @@ import {
   ApplicationFormDocument,
 } from './schemas/application-form.schema';
 //import { ApplicationFormType } from './enums/application-form-types.enum';
-//import { FormType } from './enums/form-type.enum';
+import { FormType } from './enums/form-type.enum';
 import { FormParametersDocument } from './schemas/form-parameters.schema';
 import { CreateApplicationFormDto } from './dto/create-application-form.dto';
 //import { GetApplicationsDto } from './dto/get-applications.dto';
@@ -71,7 +71,7 @@ export class ApplicationFormService {
       // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
       const formParameters = new this.formParametersModel({
         applicationId,
-        type: dto.type,
+        type: FormType.New, // always new for new form parameters
         formId: dto.formId,
         formAccessToken,
         formParameters: dto.formParameters,
