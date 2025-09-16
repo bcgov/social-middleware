@@ -51,12 +51,13 @@ export class DevToolsService {
 
       const applicationIds = applications.map((app) => app.applicationId);
 
-      let totalDeletedHouseholdMembers = 0;
+      const totalDeletedHouseholdMembers = 0;
+      /*
       for (const appId of applicationIds) {
         try {
-          const result =
-            await this.householdService.deleteAllMembersByApplicationId(appId);
-          totalDeletedHouseholdMembers += result.deletedCount || 0;
+          //const result =
+          //  await this.householdService.deleteAllMembersByApplicationId(appId);
+          //totalDeletedHouseholdMembers += result.deletedCount || 0;
         } catch (error) {
           this.logger.warn(
             { appId, error },
@@ -64,6 +65,7 @@ export class DevToolsService {
           );
         }
       }
+        */
 
       const deletedUser = await this.userModel.deleteMany({
         _id: { $eq: userId },

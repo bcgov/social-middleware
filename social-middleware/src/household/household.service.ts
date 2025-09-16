@@ -45,7 +45,7 @@ export class HouseholdService {
 
   // create a household member
   async createMember(
-    applicationId: string,
+    //applicationId: string,
     dto: CreateHouseholdMemberDto,
   ): Promise<HouseholdMembersDocument> {
     try {
@@ -96,13 +96,13 @@ export class HouseholdService {
         .findOneAndUpdate(
           {
             householdMemberId: householdMemberId,
-            applicationId: applicationId,
+            applicationPackageId: dto.applicationPackageId,
           },
           {
             $set: {
               ...memberData,
               householdMemberId,
-              applicationId,
+              applicationPackageId: dto.applicationPackageId,
               requireScreening,
               memberType,
             },
@@ -117,13 +117,13 @@ export class HouseholdService {
         .exec();
 
       this.logger.log(
-        `Successfully upserted household member with ID: ${result.householdMemberId} for applicationId: ${applicationId}`,
+        `Successfully upserted household member with ID: ${result.householdMemberId} for applicationPackageId: ${dto.applicationPackageId}`,
       );
       return result;
     } catch (error: unknown) {
       const err = error as Error;
       this.logger.error(
-        `Failed to upsert household member for applicationId=${applicationId}: ${err.message}`,
+        `Failed to upsert household member for applicationPackageId=${dto.applicationPackageId}: ${err.message}`,
         err.stack,
       );
       throw new InternalServerErrorException(
@@ -263,27 +263,27 @@ export class HouseholdService {
   }
 
   // used by the dev util for clearing out the data
-  async deleteAllMembersByApplicationId(
-    applicationId: string,
+  async deleteAllMembersByApplicationPackageId(
+    applicationPackageId: string,
   ): Promise<{ deletedCount: number }> {
     try {
       this.logger.log(
-        `Deleting all household members for applicationId: ${applicationId}`,
+        `Deleting all household members for applicationPackageId: ${applicationPackageId}`,
       );
 
       const result = await this.householdMemberModel
-        .deleteMany({ applicationId })
+        .deleteMany({ applicationPackageId })
         .exec();
 
       this.logger.log(
-        `Deleted ${result.deletedCount} household members for applicationId: ${applicationId}`,
+        `Deleted ${result.deletedCount} household members for applicationPackageId: ${applicationPackageId}`,
       );
 
       return { deletedCount: result.deletedCount };
     } catch (error: unknown) {
       const err = error as Error;
       this.logger.error(
-        `Failed to delete household members for applicationId=${applicationId}: ${err.message}`,
+        `Failed to delete household members for applicationPackageId=${applicationPackageId}: ${err.message}`,
         err.stack,
       );
       throw new InternalServerErrorException(
