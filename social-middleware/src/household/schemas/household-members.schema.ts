@@ -9,7 +9,7 @@ export type HouseholdMembersDocument = HouseholdMembers & Document;
 @Schema({ timestamps: true })
 export class HouseholdMembers {
   @Prop({ required: true, type: String })
-  applicationId!: string;
+  applicationPackageId!: string;
 
   @Prop({ required: true, unique: true, type: String, default: uuidv4 })
   householdMemberId!: string;
