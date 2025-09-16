@@ -1,11 +1,14 @@
 import {
   Controller,
   Get,
+  Delete,
   Post,
   Body,
   UseGuards,
   Req,
   ValidationPipe,
+  HttpCode,
+  Param,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -102,5 +105,34 @@ export class ApplicationPackageController {
       this.logger.error({ error }, 'Failed to fetch application packages');
       throw error;
     }
+  }
+
+  @Delete(':applicationPackageId')
+  @HttpCode(204)
+  @ApiOperation({ summary: 'Cancel/delete an application package' })
+  @ApiResponse({
+    status: 204,
+    description: 'Application package cancelled successfully',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Application package not found or access denied',
+  })
+  @ApiResponse({
+    status: 500,
+    description: 'Server error during cancellation',
+  })
+  async cancelApplicationPackage(
+    @Param('applicationPackageId') applicationPackageId: string,
+    @Req() request: Request,
+  ): Promise<void> {
+    const userId = this.sessionUtil.extractUserIdFromRequest(request);
+
+    const cancelDto = {
+      userId,
+      applicationPackageId,
+    };
+
+    await this.applicationPackageService.cancelApplicationPackage(cancelDto);
   }
 }
