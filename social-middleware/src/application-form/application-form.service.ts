@@ -494,4 +494,12 @@ Access code generator, move to an access code service
     );
   }
     */
+
+  async deleteByApplicationPackageId(
+    parentApplicationId: string,
+  ): Promise<void> {
+    await this.applicationFormModel
+      .deleteMany({ parentApplicationId: parentApplicationId })
+      .exec();
+  }
 }
