@@ -12,6 +12,10 @@ async function bootstrap() {
     const app = await NestFactory.create(AppModule.register(), {
       bufferLogs: true,
     });
+
+    const logger = app.get(Logger);
+    app.useLogger(logger);
+
     const bullDashboard = app.get(BullDashboardService);
     app.use('/admin/queues', bullDashboard.getRouter());
 
@@ -25,25 +29,25 @@ async function bootstrap() {
     const apiUrl = config.get<string>('API_URL') || 'http://localhost:3001';
     // Enable CORS to handle preflight OPTIONS requests
     const allowedOrigins = [frontendUrl, apiUrl];
-    console.log('🔧 CORS Configuration:');
-    console.log('Allowed origins:', allowedOrigins);
+    logger.log('🔧 CORS Configuration:');
+    logger.log('Allowed origins:', allowedOrigins);
 
     app.enableCors({
       origin: (
         origin: string | undefined,
         callback: (error: Error | null, allow?: boolean) => void,
       ) => {
-        console.log('Incoming request origin:', origin);
-        console.log('Checking against allowed origins:', allowedOrigins);
+        logger.log('Incoming request origin:', origin);
+        logger.log('Checking against allowed origins:', allowedOrigins);
 
         if (!origin) return callback(null, true);
 
         if (allowedOrigins.includes(origin)) {
-          console.log('Origin allowed');
+          logger.log('Origin allowed');
           return callback(null, true);
         }
 
-        console.log('Origin rejected');
+        logger.log('Origin rejected');
         return callback(new Error('Not allowed by CORS'));
       },
       methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
@@ -103,10 +107,8 @@ async function bootstrap() {
       }),
     );
 
-    app.useLogger(app.get(Logger));
-
     await app.listen(port);
-    console.log(`🚀 Server running at http://localhost:${port}/health`);
+    logger.log(`🚀 Server running at http://localhost:${port}/health`);
   } catch (error) {
     console.error('❌ Failed to create NestJS app:', error);
     throw error;

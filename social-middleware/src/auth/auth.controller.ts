@@ -28,7 +28,8 @@ import {
 import * as jwt from 'jsonwebtoken';
 import { isValidUserPayload } from 'src/common/utils';
 import { SiebelApiService } from 'src/siebel/siebel-api.service';
-import { SiebelContactResponse } from 'src/siebel/dto/siebel-contact-response.dto';
+//import { SiebelContactResponse } from 'src/siebel/dto/siebel-contact-response.dto';
+import { PinoLogger } from 'nestjs-pino';
 
 interface AuthCallbackRequest {
   code: string;
@@ -41,6 +42,7 @@ interface UserInfo {
   name?: string;
   given_name: string;
   family_name: string;
+  gender: string;
   birthdate: string;
 }
 interface TokenResponse {
@@ -66,6 +68,7 @@ export class AuthController {
     private readonly userService: UserService,
     private readonly configService: ConfigService,
     private readonly siebelApiService: SiebelApiService,
+    private readonly logger: PinoLogger,
   ) {
     this.bcscClientId = this.configService.get<string>('BCSC_CLIENT_ID')!;
     this.bcscClientSecret =
@@ -74,6 +77,7 @@ export class AuthController {
     this.jwtSecret = this.configService.get<string>('JWT_SECRET')!;
     this.nodeEnv = this.configService.get<string>('NODE_ENV', 'development');
     this.frontendURL = this.configService.get<string>('FRONTEND_URL')!;
+    this.logger.setContext(AuthController.name);
   }
 
   @Post('callback')
@@ -180,30 +184,20 @@ export class AuthController {
     @Body() body: AuthCallbackRequest,
     @Res({ passthrough: true }) res: Response,
   ) {
-    //console.log('=== AUTH CALLBACK DEBUG ===');
-    //console.log('Raw body:', JSON.stringify(body, null, 2));
-    //console.log('Body type:', typeof body);
-    //console.log('Code:', body.code);
-    //console.log('Redirect URI:', body.redirect_uri);
-    //console.log('Code exists:', !!body.code);
-    //console.log('Redirect URI exists:', !!body.redirect_uri);
-
     try {
       const { code, redirect_uri } = body;
 
       if (!code) {
-        console.error('No authorization code provided');
-        console.error('Body was:', body);
+        this.logger.error({ body }, 'No authorization code provided');
         throw new BadRequestException('Authorization code required');
       }
 
       if (!redirect_uri) {
-        console.error('No redirect uri provided');
-        console.error('Body was:', body);
+        this.logger.error({ body }, 'No redirect uri provided');
         throw new BadRequestException('Redirect uri required');
       }
 
-      console.log('Validation passed.. Exchanging code for tokens...');
+      this.logger.info('Validation passed. Exchanging code for tokens...');
 
       // Prepare token exchange request
       const tokenParams = new URLSearchParams({
@@ -228,13 +222,13 @@ export class AuthController {
         ),
       );
 
-      console.log('Token exchange successful');
+      this.logger.info('Token exchange successful');
 
       const tokenData = tokenResponse.data as TokenResponse;
       const { access_token, id_token, refresh_token } = tokenData;
 
       // Get user info from BC Services Card
-      console.log('Fetching user info...');
+      this.logger.info('Fetching user info...');
       const userInfoResponse = await firstValueFrom(
         this.httpService.get(
           `${this.bcscAuthority}/protocol/openid-connect/userinfo`,
@@ -251,10 +245,8 @@ export class AuthController {
 
       const userInfo = userInfoResponse.data as UserInfo;
 
-      console.log(
-        'Full userInfo response: ',
-        JSON.stringify(userInfoResponse.data, null, 2),
-      );
+      this.logger.debug({ userInfo }, 'Full userInfo response');
+
       //console.log('User info received:', { sub: userInfo.sub, email: userInfo.email, first: userInfo.given_name, given: userInfo.given_name, last: userInfo.family_name });
 
       //  Persist user to database
@@ -263,17 +255,19 @@ export class AuthController {
         first_name: userInfo.given_name,
         last_name: userInfo.family_name,
         dateOfBirth: userInfo.birthdate,
+        sex: userInfo.gender,
         email: userInfo.email,
       };
 
-      console.log('Finding or creating user in database...');
+      this.logger.info('Finding or creating user in database...');
       const user = await this.userService.findOrCreate(userData);
-      console.log('User persisted:', { id: user.id, email: user.email });
+      this.logger.info({ id: user.id, email: user.email }, 'User persisted');
 
       // Update last login
       await this.userService.updateLastLogin(user.id);
-      console.log('Last login updated');
+      this.logger.info('Last login updated');
 
+      /*
       // Check for contactId on user record
       console.log('No contactId found. Attempting to fetch from Siebel...');
       try {
@@ -301,6 +295,8 @@ export class AuthController {
         console.error('Error fetching ICM contact:', error);
       }
 
+      */
+
       // Create session token for portal
       const sessionToken = jwt.sign(
         {
@@ -317,7 +313,7 @@ export class AuthController {
         },
       );
 
-      console.log('Setting cookies...');
+      this.logger.info('Setting cookies...');
 
       // Set HTTP-only cookies using NestJS response
       // TO DO: Offload these to OpenShift config
@@ -330,7 +326,7 @@ export class AuthController {
         maxAge: 24 * 60 * 60 * 1000, // 24 hours
       });
 
-      console.log('Session token cookie set');
+      this.logger.info('Session token cookie set');
 
       if (refresh_token) {
         res.cookie('refresh_token', refresh_token, {
@@ -341,7 +337,7 @@ export class AuthController {
           sameSite: 'lax',
           maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
         });
-        console.log('Refresh token cookie set');
+        this.logger.info('Refresh token cookie set');
       }
 
       // Store id_token for logout
@@ -354,7 +350,7 @@ export class AuthController {
           sameSite: 'lax',
           maxAge: 24 * 60 * 60 * 1000, // 24 hours
         });
-        console.log('ID token cookie set');
+        this.logger.info('ID token cookie set');
       }
 
       // Return safe user data to frontend
@@ -373,18 +369,10 @@ export class AuthController {
         error instanceof Error ? error.message : 'Unknown error';
       //const errorStatus = error instanceof Error ? error.response?.status : 'Unknown error';
 
-      console.error('Token exchange error:', {
-        message: errorMessage,
-        //response: error.response?.data,
-        //status: error.response?.status,
-        //config: error.config
-        //  ? {
-        //      url: error.config.url,
-        //      method: error.config.method,
-        //      headers: error.config.headers,
-        //    }
-        //  : undefined,
-      });
+      this.logger.error(
+        { error },
+        'Token exchange error during authentication',
+      );
 
       throw new HttpException(
         {
@@ -466,11 +454,12 @@ export class AuthController {
   })
   getStatus(@Req() req: Request) {
     try {
-      console.log('All cookies:', req.cookies);
+      this.logger.debug(
+        { cookies: req.cookies },
+        'Checking authentication status',
+      );
 
       const sessionToken = req.cookies.session as string;
-
-      console.log('Session token:', sessionToken ? 'Present' : 'Missing');
 
       if (!sessionToken) {
         throw new HttpException(
@@ -498,10 +487,10 @@ export class AuthController {
         error instanceof Error ? error.message : 'Unknown error';
       const errorName = error instanceof Error ? error.name : 'Unknown';
 
-      console.error('Session validation error:', {
-        message: errorMessage,
-        name: errorName,
-      });
+      this.logger.error(
+        { message: errorMessage, name: errorName },
+        'Session validation error',
+      );
 
       if (error instanceof HttpException) {
         throw error;

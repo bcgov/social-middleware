@@ -16,7 +16,7 @@ export class Application {
   @Prop({ required: false })
   primary_applicantId!: string;
 
-  @Prop({ enum: ApplicationTypes, default: ApplicationTypes.Sample })
+  @Prop({ enum: ApplicationTypes, default: ApplicationTypes.FosterCaregiver })
   type!: ApplicationTypes;
 
   @Prop({

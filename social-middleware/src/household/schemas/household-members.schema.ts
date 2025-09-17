@@ -1,6 +1,7 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { v4 as uuidv4 } from 'uuid';
 import { MemberTypes } from '../enums/member-types.enum';
+import { GenderTypes } from '../enums/gender-types.enum';
 import { RelationshipToPrimary } from '../enums/relationship-to-primary.enum';
 
 export type HouseholdMembersDocument = HouseholdMembers & Document;
@@ -34,6 +35,13 @@ export class HouseholdMembers {
     default: MemberTypes.Primary,
   })
   memberType!: MemberTypes;
+
+  @Prop({
+    required: true,
+    enum: Object.values(GenderTypes),
+    default: GenderTypes.Unspecified,
+  })
+  genderType!: GenderTypes;
 
   @Prop({
     required: true,

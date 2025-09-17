@@ -3,6 +3,7 @@ import {
   Inject,
   Injectable,
   InternalServerErrorException,
+  BadRequestException,
   HttpException,
   NotFoundException,
 } from '@nestjs/common';
@@ -20,6 +21,7 @@ import {
 } from './schemas/form-parameters.schema';
 import { CreateApplicationDto } from './dto/create-application.dto';
 import { FormType } from './enums/form-type.enum';
+import { GenderTypes } from 'src/household/enums/gender-types.enum';
 import { GetApplicationsDto } from './dto/get-applications.dto';
 import { SubmitApplicationDto } from './dto/submit-application-dto';
 import { ApplicationStatus } from './enums/application-status.enum';
@@ -31,6 +33,7 @@ import {
   ScreeningAccessCode,
   ScreeningAccessCodeDocument,
 } from './schemas/screening-access-code.schema';
+import { DeleteApplicationDto } from './dto/delete-application.dto';
 
 @Injectable()
 export class ApplicationService {
@@ -54,7 +57,7 @@ export class ApplicationService {
   async createApplication(
     dto: CreateApplicationDto,
     userId: string,
-  ): Promise<{ formAccessToken: string }> {
+  ): Promise<{ applicationId: string }> {
     const applicationId = uuidv4();
     const formAccessToken = uuidv4();
 
@@ -101,6 +104,7 @@ export class ApplicationService {
         lastName: user.last_name,
         dateOfBirth: user.dateOfBirth,
         email: user.email,
+        genderType: this.sexToGenderType(user.sex),
         //memberType: MemberTypes.Primary,
         relationshipToPrimary: RelationshipToPrimary.Self,
         //requireScreening: true,
@@ -114,7 +118,7 @@ export class ApplicationService {
       //this.logger.info(`Queued application creation with jobId ${job.id}`);
       //const result = (await job.finished()) as { formAccessToken: string };
       //return { formAccessToken: result.formAccessToken };
-      return { formAccessToken };
+      return { applicationId };
     } catch (error) {
       this.logger.error({ error }, 'Failed to create application');
       throw new InternalServerErrorException('Application creation failed');
@@ -185,6 +189,19 @@ export class ApplicationService {
       result += chars.charAt(Math.floor(Math.random() * chars.length));
     }
     return result;
+  }
+
+  private sexToGenderType(sex: string): GenderTypes {
+    switch (sex.toLowerCase()) {
+      case 'male':
+        return GenderTypes.ManBoy;
+      case 'female':
+        return GenderTypes.WomanGirl;
+      case 'non-binary':
+        return GenderTypes.NonBinary;
+      default:
+        return GenderTypes.Unspecified;
+    }
   }
 
   async associateUserWithAccessCode(
@@ -423,5 +440,89 @@ export class ApplicationService {
       this.logger.error('Error submitting application', err);
       throw new InternalServerErrorException('Could not save form data');
     }
+  }
+
+  async cancelApplication(
+    dto: DeleteApplicationDto,
+    userId: string,
+  ): Promise<void> {
+    const { applicationId } = dto;
+
+    this.logger.info(
+      { applicationId, userId },
+      'Starting application cancellation',
+    );
+    // check to see if the user owns the application in question
+    const application = await this.applicationModel
+      .findOne({
+        applicationId,
+        primary_applicantId: userId,
+      })
+      .exec();
+
+    if (!application) {
+      throw new NotFoundException(`Application ${applicationId} not found`);
+    }
+
+    // check if application can be cancelled
+    if (application.status === ApplicationStatus.Submitted) {
+      throw new BadRequestException('Cannot cancel submitted application');
+    }
+    // look for child applications
+    const childApplications = await this.applicationModel
+      .find({ parentApplicationId: applicationId })
+      .exec();
+
+    // delete child applications first
+    if (childApplications.length > 0) {
+      this.logger.info(
+        { applicationId, childCount: childApplications.length },
+        `Deleting ${childApplications.length} child application(s)`,
+      );
+
+      await this.applicationModel
+        .deleteMany({ parentApplicationId: applicationId })
+        .exec();
+    }
+
+    // look for household records
+    const householdMembers =
+      await this.householdService.findAllHouseholdMembers(applicationId);
+
+    if (householdMembers.length > 0) {
+      this.logger.info(
+        { applicationId, householdCount: householdMembers.length },
+        `Deleting ${householdMembers.length} household records`,
+      );
+      // delete household members
+      await this.householdService.deleteAllMembersByApplicationId(
+        applicationId,
+      );
+    }
+
+    // look for application submission records
+    //const submissionRecord = await this.applicationSubmissionService
+    //.findByApplicationId(String(application._id));
+    //if (submissionRecord) {
+    //  this.logger.info({ applicationId }, 'Deleting application submission record');
+    //  await this.applicationSubmissionService
+    //  .deleteSubmission(String(application._id));
+    //}
+
+    // Delete form parameters
+    await this.formParametersModel.deleteMany({ applicationId }).exec();
+
+    // Delete screening access codes
+    await this.screeningAccessCodeModel
+      .deleteMany({ parentApplicationId: applicationId })
+      .exec();
+
+    // Finally, delete the main application
+    await this.applicationModel.findByIdAndDelete(application._id).exec();
+
+    this.logger.info(
+      { applicationId, userId },
+      'Application cancelled successfully',
+    );
   }
 }
