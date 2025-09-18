@@ -6,11 +6,17 @@ import { SiebelService } from './siebel.service';
 import { SiebelApiService } from './siebel-api.service';
 import { SiebelPKCEAuthService } from './siebel-pkce-auth.service';
 import { SiebelPKCEAuthController } from './siebel-pkce-auth.controller';
+import { SiebelAuthService } from './siebel-auth.service';
 
 @Module({
   imports: [HttpModule, ConfigModule],
   controllers: [SiebelController, SiebelPKCEAuthController],
-  providers: [SiebelService, SiebelApiService, SiebelPKCEAuthService],
+  providers: [
+    SiebelService,
+    SiebelApiService,
+    SiebelAuthService,
+    SiebelPKCEAuthService,
+  ],
   exports: [SiebelService, SiebelApiService, SiebelPKCEAuthService],
 })
 export class SiebelModule {}

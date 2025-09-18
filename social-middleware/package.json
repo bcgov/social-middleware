@@ -30,6 +30,7 @@
     "@nestjs/mapped-types": "^2.1.0",
     "@nestjs/mongoose": "^10.1.0",
     "@nestjs/platform-express": "^10.4.4",
+    "@nestjs/schedule": "^6.0.0",
     "@nestjs/swagger": "^7.4.2",
     "axios": "^1.10.0",
     "bull": "^4.16.5",
