@@ -1,31 +1,30 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { ConfigService } from '@nestjs/config';
-import { SiebelPKCEAuthService } from './siebel-pkce-auth.service';
 import { firstValueFrom } from 'rxjs';
-import { PinoLogger } from 'nestjs-pino';
 import { AxiosError } from 'axios';
+import { SiebelAuthService } from './siebel-auth.service';
 
 @Injectable()
 export class SiebelApiService {
   private readonly baseUrl: string;
   private readonly trustedUsername: string;
 
+  private readonly logger = new Logger(SiebelApiService.name);
+
   constructor(
     private readonly httpService: HttpService,
     private readonly configService: ConfigService,
-    private readonly siebelPKCEAuthService: SiebelPKCEAuthService,
-    private readonly logger: PinoLogger,
+    private readonly siebelAuthService: SiebelAuthService,
   ) {
     this.baseUrl = this.configService.get<string>('SIEBEL_APS_BASE_URL')!;
     this.trustedUsername = this.configService.get<string>(
       'SIEBEL_TRUSTED_USERNAME',
     )!;
-    this.logger.setContext(SiebelApiService.name);
   }
 
   private async getHeaders(): Promise<Record<string, string>> {
-    const accessToken = await this.siebelPKCEAuthService.getAccessToken();
+    const accessToken = await this.siebelAuthService.getAccessToken();
 
     return {
       Authorization: `Bearer ${accessToken}`,
@@ -62,7 +61,7 @@ export class SiebelApiService {
         this.httpService.get<T>(url, { headers, params }),
       );
 
-      this.logger.info({ endpoint, params }, 'GET request successful');
+      this.logger.log({ endpoint, params }, 'GET request successful');
       return response.data;
     } catch (error: unknown) {
       if (error instanceof AxiosError) {
