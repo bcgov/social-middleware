@@ -22,6 +22,7 @@ import { SessionAuthGuard } from 'src/auth/session-auth.guard';
 import { SessionUtil } from 'src/common/utils/session.util';
 import { Request } from 'express';
 import { ApplicationPackage } from './schema/application-package.schema';
+import { ApplicationForm } from '../application-form/schemas/application-form.schema';
 import { PinoLogger } from 'nestjs-pino';
 
 @ApiBearerAuth()
@@ -62,11 +63,9 @@ export class ApplicationPackageController {
       const userId = this.sessionUtil.extractUserIdFromRequest(request);
       this.logger.info(`creating application package for ${userId}`);
 
-      // Override userId from session (security measure)
-      const createDto = { ...dto, userId };
-
       return await this.applicationPackageService.createApplicationPackage(
-        createDto,
+        dto,
+        userId,
       );
     } catch (error) {
       this.logger.error({ error }, 'Failed to create application package');
@@ -105,6 +104,24 @@ export class ApplicationPackageController {
       this.logger.error({ error }, 'Failed to fetch application packages');
       throw error;
     }
+  }
+  @Get(':applicationPackageId/application-form')
+  @ApiOperation({ summary: 'Get all application forms for a package' })
+  @ApiResponse({
+    status: 200,
+    description: 'Application forms retrieved successfully',
+    type: [ApplicationForm],
+  })
+  async getApplicationForms(
+    @Param('applicationPackageId') applicationPackageId: string,
+    @Req() request: Request,
+  ): Promise<ApplicationForm[]> {
+    const userId = this.sessionUtil.extractUserIdFromRequest(request);
+
+    return await this.applicationPackageService.getApplicationFormsByPackageId(
+      applicationPackageId,
+      userId,
+    );
   }
 
   @Delete(':applicationPackageId')

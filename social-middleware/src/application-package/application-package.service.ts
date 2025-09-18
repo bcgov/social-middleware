@@ -1,6 +1,7 @@
 // application-submission.service.ts
 
 import {
+  BadRequestException,
   Injectable,
   InternalServerErrorException,
   NotFoundException,
@@ -10,7 +11,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
 import { ApplicationPackage } from './schema/application-package.schema';
 import { ApplicationPackageStatus } from './enums/application-package-status.enum';
-//import { ApplicationForm } from '../application-form/schemas/application-form.schema';
+import { ApplicationForm } from '../application-form/schemas/application-form.schema';
 import { ApplicationFormService } from '../application-form/application-form.service';
 import { ApplicationFormType } from '../application-form/enums/application-form-types.enum';
 import { CreateApplicationPackageDto } from './dto/create-application-package.dto';
@@ -38,19 +39,24 @@ export class ApplicationPackageService {
   ) {}
   async createApplicationPackage(
     dto: CreateApplicationPackageDto,
+    userId: string,
   ): Promise<ApplicationPackage> {
     this.logger.info(
       {
-        userId: dto.userId,
+        userId: userId,
         subtype: dto.subtype,
         subsubtype: dto.subsubtype,
       },
       'Starting Application with DTO',
     );
 
+    if (!userId) {
+      throw new BadRequestException(`userId is not provided`);
+    }
+
     const initialPackage = new this.applicationPackageModel({
       applicationPackageId: uuidv4(),
-      userId: dto.userId,
+      userId: userId,
       subtype: dto.subtype,
       subsubtype: dto.subsubtype,
       status: ApplicationPackageStatus.DRAFT,
@@ -62,7 +68,7 @@ export class ApplicationPackageService {
     const referralDto = {
       applicationPackageId: appPackage.applicationPackageId,
       formId: 'CF0001', // TODO: Make data driven
-      userId: dto.userId,
+      userId: userId,
       type: ApplicationFormType.REFERRAL,
       formParameters: {},
     };
@@ -71,11 +77,11 @@ export class ApplicationPackageService {
       await this.applicationFormService.createApplicationForm(referralDto);
 
     // the primary applicant is the first household member
-    const user = await this.userService.findOne(dto.userId);
+    const user = await this.userService.findOne(userId);
 
     const primaryHouseholdMemberDto = {
       applicationPackageId: appPackage.applicationPackageId,
-      userId: dto.userId,
+      userId: userId,
       firstName: user.first_name,
       lastName: user.last_name,
       dateOfBirth: user.dateOfBirth,
@@ -183,6 +189,38 @@ export class ApplicationPackageService {
       );
       throw new InternalServerErrorException(
         'Failed to fetch application packages',
+      );
+    }
+  }
+
+  async getApplicationFormsByPackageId(
+    applicationPackageId: string,
+    userId: string,
+  ): Promise<ApplicationForm[]> {
+    try {
+      this.logger.info(
+        { applicationPackageId, userId },
+        'Fetching application forms for package',
+      );
+
+      const forms = await this.applicationFormService.findByPackageAndUser(
+        applicationPackageId,
+        userId,
+      );
+
+      this.logger.info(
+        { applicationPackageId, userId, count: forms.length },
+        'Application forms fetched successfully',
+      );
+
+      return forms;
+    } catch (error) {
+      this.logger.error(
+        { error, applicationPackageId, userId },
+        'Failed to fetch application forms',
+      );
+      throw new InternalServerErrorException(
+        'Failed to fetch application forms',
       );
     }
   }

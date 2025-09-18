@@ -68,7 +68,7 @@ export class ApplicationFormService {
       this.logger.info({ applicationId }, 'Saved application form to DB');
 
       // BONUS: If you can figure out how to remove this you win
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+
       const formParameters = new this.formParametersModel({
         applicationId,
         type: FormType.New, // always new for new form parameters
@@ -88,7 +88,7 @@ export class ApplicationFormService {
       */
 
       // BONUS: If you can figure out how to remove this you win
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
+
       await formParameters.save();
       this.logger.info({ formAccessToken }, 'Saved form parameters to DB');
 
@@ -494,6 +494,17 @@ Access code generator, move to an access code service
     );
   }
     */
+
+  async findByPackageAndUser(
+    applicationPackageId: string,
+    userId: string,
+  ): Promise<ApplicationForm[]> {
+    return await this.applicationFormModel
+      .find({ applicationPackageId, userId })
+      .sort({ createdAt: 1 })
+      .lean()
+      .exec();
+  }
 
   async deleteByApplicationPackageId(
     parentApplicationId: string,
