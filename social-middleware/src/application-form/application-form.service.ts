@@ -15,7 +15,10 @@ import {
 } from './schemas/application-form.schema';
 //import { ApplicationFormType } from './enums/application-form-types.enum';
 import { FormType } from './enums/form-type.enum';
-import { FormParametersDocument } from './schemas/form-parameters.schema';
+import {
+  FormParameters,
+  FormParametersDocument,
+} from './schemas/form-parameters.schema';
 import { CreateApplicationFormDto } from './dto/create-application-form.dto';
 //import { GetApplicationsDto } from './dto/get-applications.dto';
 //import { SubmitApplicationDto } from './dto/submit-application-dto';
@@ -27,7 +30,7 @@ export class ApplicationFormService {
   constructor(
     @InjectModel(ApplicationForm.name)
     private applicationFormModel: Model<ApplicationFormDocument>,
-    @InjectModel('FormParameters')
+    @InjectModel(FormParameters.name)
     private formParametersModel: Model<FormParametersDocument>,
     @InjectPinoLogger(ApplicationFormService.name)
     private readonly logger: PinoLogger,
@@ -60,7 +63,7 @@ export class ApplicationFormService {
         userId: dto.userId,
         formId: dto.formId,
         type: dto.type,
-        formData: dto.formData ?? null,
+        formData: null,
       });
 
       await applicationForm.save();
@@ -74,7 +77,10 @@ export class ApplicationFormService {
         type: FormType.New, // always new for new form parameters
         formId: dto.formId,
         formAccessToken,
-        formParameters: dto.formParameters,
+        formParameters: {
+          formId: dto.formId,
+          formParameters: { formId: dto.formId, language: 'en' },
+        },
       });
 
       /*
