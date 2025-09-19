@@ -17,7 +17,7 @@ import { CreateApplicationDto } from '../dto/create-application.dto';
 import { PinoLogger } from 'nestjs-pino';
 import { HouseholdService } from 'src/household/household.service';
 import { UserService } from 'src/auth/user.service';
-import { RelationshipToPrimary } from 'src/household/enums/relationship-to-primary.enum';
+//import { RelationshipToPrimary } from 'src/household/enums/relationship-to-primary.enum';
 import { ApplicationSubmissionService } from 'src/application-submission/application-submission.service';
 import { GenderTypes } from 'src/household/enums/gender-types.enum';
 
@@ -79,6 +79,7 @@ export class ApplicationProcessor {
       const user = await this.userService.findOne(userId);
       this.logger.debug({ user }, 'Fetched user data');
 
+      /*
       // create the household with the primary applicant as the first member
       await this.householdService.createMember(applicationId, {
         applicationId,
@@ -92,7 +93,7 @@ export class ApplicationProcessor {
         relationshipToPrimary: RelationshipToPrimary.Self,
         //requireScreening: true,
       });
-
+      */
       this.logger.info(`Application created via queue: ${applicationId}`);
 
       return { formAccessToken };

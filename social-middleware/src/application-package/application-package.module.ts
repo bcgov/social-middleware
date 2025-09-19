@@ -7,6 +7,8 @@ import {
   ApplicationPackageSchema,
 } from './schema/application-package.schema';
 import { ApplicationFormModule } from '../application-form/application-form.module';
+import { HouseholdModule } from '../household/household.module';
+import { AuthModule } from '../auth/auth.module';
 import { SessionUtil } from 'src/common/utils/session.util';
 
 @Module({
@@ -17,10 +19,12 @@ import { SessionUtil } from 'src/common/utils/session.util';
         schema: ApplicationPackageSchema,
       },
     ]),
-    ApplicationFormModule, // Since you're using ApplicationFormService
+    ApplicationFormModule,
+    HouseholdModule,
+    AuthModule,
   ],
-  controllers: [ApplicationPackageController], // Make sure this is here
-  providers: [ApplicationPackageService, SessionUtil], // Make sure SessionUtil is here
+  controllers: [ApplicationPackageController],
+  providers: [ApplicationPackageService, SessionUtil],
   exports: [ApplicationPackageService],
 })
 export class ApplicationPackageModule {}

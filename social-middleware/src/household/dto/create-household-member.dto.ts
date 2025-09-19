@@ -4,18 +4,14 @@ import { RelationshipToPrimary } from '../enums/relationship-to-primary.enum';
 import { GenderTypes } from '../enums/gender-types.enum';
 
 export class CreateHouseholdMemberDto {
-  @ApiProperty({ example: 'user_456' })
+  @ApiProperty({ example: 'f47ac10b-58cc-4372-a567-0e02b2c3d479' })
   @IsString()
-  applicationId!: string; // ID of the application this member belongs to
+  applicationPackageId!: string;
+  //@ApiProperty({ example: 'user_456' })
+  //@IsString()
+  //applicationId!: string; // ID of the application this member belongs to
 
-  // @ApiProperty({ example: 'user_456' })
-  // @IsOptional()
-  // @IsString()
-  // screeningId!: string; // ID of the screening application for this member
-
-  @ApiProperty({
-    example: 'f47ac10b-58cc-4372-a567-0e02b2c3d479',
-  })
+  @ApiProperty({ example: 'f47ac10b-58cc-4372-a567-0e02b2c3d479' })
   @IsOptional() // will be auto-generated if not provided
   @IsString()
   householdMemberId?: string; // Unique ID for the household member (UUID)
@@ -35,10 +31,6 @@ export class CreateHouseholdMemberDto {
   @IsOptional()
   email!: string;
 
-  //@ApiProperty({ enum: MemberTypes })
-  //@IsEnum(MemberTypes)
-  //memberType!: MemberTypes;
-
   @ApiProperty({ enum: RelationshipToPrimary })
   @IsEnum(RelationshipToPrimary)
   relationshipToPrimary!: RelationshipToPrimary;
@@ -46,21 +38,4 @@ export class CreateHouseholdMemberDto {
   @ApiProperty({ enum: GenderTypes })
   @IsEnum(GenderTypes)
   genderType!: GenderTypes;
-
-  //@ApiProperty({ default: true, required: false })
-  //@IsOptional()
-  //@IsBoolean()
-  //requireScreening?: boolean;
-
-  //@ApiProperty({ default: false, required: false })
-  //@IsBoolean()
-  //invited?: boolean;
-
-  //@ApiProperty({ default: null, required: false })
-  //@IsDate()
-  //invitationLastSent?: Date;
-
-  //@ApiProperty({ default: 0, required: false })
-  //@IsNumber()
-  //numberOfInvitationsSent?: number;
 }
