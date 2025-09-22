@@ -31,7 +31,7 @@ export class HouseholdController {
 
   @Post()
   @ApiOperation({ summary: 'Create a new household member' })
-  @ApiParam({ name: 'applicationId', type: String })
+  @ApiParam({ name: 'applicationPackageId', type: String })
   @ApiBody({ type: CreateHouseholdMemberDto })
   @ApiResponse({
     status: 201,
@@ -39,16 +39,16 @@ export class HouseholdController {
   })
   @ApiResponse({ status: 500, description: 'Internal server error.' })
   async create(
-    @Param('applicationId', new ValidationPipe({ transform: true }))
-    applicationId: string,
+    @Param('applicationPackageId', new ValidationPipe({ transform: true }))
+    applicationPackageId: string,
     @Body(new ValidationPipe({ whitelist: true, transform: true }))
     dto: CreateHouseholdMemberDto,
   ): Promise<HouseholdMembersDocument> {
     this.logger.log(
-      `Received request to create household member for applicationId=${applicationId}`,
+      `Received request to create household member for applicationPackageId=${applicationPackageId}`,
     );
     try {
-      return await this.householdService.createMember(applicationId, dto);
+      return await this.householdService.createMember(dto);
     } catch (error: unknown) {
       const err = error as Error;
       this.logger.error(

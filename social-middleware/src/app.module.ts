@@ -6,7 +6,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { HealthModule } from './health/health.module';
 import { DatabaseModule } from './database/database.module';
 import { FormsModule } from './forms/forms.module';
-import { ApplicationModule } from './application/application.module';
+//import { ApplicationModule } from './application/application.module';
 import { ApplicationFormModule } from './application-form/application-form.module';
 import { ApplicationPackageModule } from './application-package/application-package.module';
 import { ApplicationSubmissionModule } from './application-submission/application-submission.module';
@@ -55,7 +55,7 @@ export class AppModule {
         ContactModule,
         FormsModule,
         DatabaseModule,
-        ApplicationModule,
+        //ApplicationModule,
         ApplicationSubmissionModule,
         ApplicationFormModule,
         ApplicationPackageModule,

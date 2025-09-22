@@ -26,7 +26,7 @@ import { GetApplicationsDto } from './dto/get-applications.dto';
 import { SubmitApplicationDto } from './dto/submit-application-dto';
 import { ApplicationStatus } from './enums/application-status.enum';
 import { HouseholdService } from 'src/household/household.service';
-import { RelationshipToPrimary } from 'src/household/enums/relationship-to-primary.enum';
+//import { RelationshipToPrimary } from 'src/household/enums/relationship-to-primary.enum';
 import { UserService } from 'src/auth/user.service';
 import { ApplicationSubmissionService } from 'src/application-submission/application-submission.service';
 import {
@@ -94,8 +94,8 @@ export class ApplicationService {
       await formParameters.save();
       this.logger.info({ formAccessToken }, 'Saved form parameters to DB');
 
-      const user = await this.userService.findOne(userId);
-
+      //const user = await this.userService.findOne(userId);
+      /*
       // create the household with the primary applicant as the first member
       await this.householdService.createMember(applicationId, {
         applicationId,
@@ -109,6 +109,7 @@ export class ApplicationService {
         relationshipToPrimary: RelationshipToPrimary.Self,
         //requireScreening: true,
       });
+      */
 
       //const job = await this.applicationQueue.add('create', {
       //  dto,
@@ -495,9 +496,9 @@ export class ApplicationService {
         `Deleting ${householdMembers.length} household records`,
       );
       // delete household members
-      await this.householdService.deleteAllMembersByApplicationId(
-        applicationId,
-      );
+      //await this.householdService.deleteAllMembersByApplicationPackageId(
+      //  applicationPackageId,
+      //);
     }
 
     // look for application submission records
