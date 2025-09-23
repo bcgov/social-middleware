@@ -152,4 +152,49 @@ export class ApplicationPackageController {
 
     await this.applicationPackageService.cancelApplicationPackage(cancelDto);
   }
+
+  @Post(':applicationPackageId/submit')
+  @ApiOperation({ summary: 'Submit application package to Siebel' })
+  @ApiResponse({
+    status: 200,
+    description: 'Application package submitted successfully',
+    schema: {
+      type: 'object',
+      properties: {
+        serviceRequestId: { type: 'string' },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Application package not found or already submitted',
+  })
+  @ApiResponse({
+    status: 500,
+    description: 'Server error during submission',
+  })
+  async submitApplicationPackage(
+    @Param('applicationPackageId') applicationPackageId: string,
+    @Req() request: Request,
+  ): Promise<{ serviceRequestId: string }> {
+    try {
+      const userId = this.sessionUtil.extractUserIdFromRequest(request);
+
+      this.logger.info(
+        { applicationPackageId, userId },
+        'Submitting application package to Siebel',
+      );
+
+      return await this.applicationPackageService.submitApplicationPackage(
+        applicationPackageId,
+        userId,
+      );
+    } catch (error) {
+      this.logger.error(
+        { error, applicationPackageId },
+        'Failed to submit application package',
+      );
+      throw error;
+    }
+  }
 }
