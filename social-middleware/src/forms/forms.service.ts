@@ -15,6 +15,9 @@ import {
 import { Model } from 'mongoose';
 import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
 import { ApplicationService } from 'src/application/application.service';
+import { ApplicationFormService } from '../application-form/application-form.service';
+
+// TODO: cleanup old tokens
 
 @Injectable()
 export class FormsService {
@@ -23,6 +26,7 @@ export class FormsService {
     @InjectModel(FormParameters.name)
     private formParametersModel: Model<FormParametersDocument>,
     @InjectPinoLogger(ApplicationService.name)
+    private applicationFormService: ApplicationFormService,
     private readonly logger: PinoLogger,
   ) {}
   async validateTokenAndGetParameters(dto: ValidateTokenDto): Promise<any> {

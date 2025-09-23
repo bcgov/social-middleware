@@ -3,7 +3,7 @@ import {
   InternalServerErrorException,
   //BadRequestException,
   //HttpException,
-  //NotFoundException,
+  NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
@@ -20,6 +20,7 @@ import {
   FormParametersDocument,
 } from './schemas/form-parameters.schema';
 import { CreateApplicationFormDto } from './dto/create-application-form.dto';
+import { NewTokenDto } from './dto/new-token.dto';
 //import { GetApplicationsDto } from './dto/get-applications.dto';
 //import { SubmitApplicationDto } from './dto/submit-application-dto';
 //import { ApplicationStatus } from './enums/application-status.enum';
@@ -70,7 +71,17 @@ export class ApplicationFormService {
 
       this.logger.info({ applicationId }, 'Saved application form to DB');
 
-      // BONUS: If you can figure out how to remove this you win
+      const newFormDto = {
+        applicationId: applicationId,
+        type: FormType.New,
+        formId: dto.formId,
+        formParameters: {
+          formId: dto.formId,
+          language: 'en',
+        },
+      };
+
+      await this.newFormAccessToken(newFormDto, dto.userId);
 
       const formParameters = new this.formParametersModel({
         applicationId,
@@ -79,21 +90,9 @@ export class ApplicationFormService {
         formAccessToken,
         formParameters: {
           formId: dto.formId,
-          formParameters: { formId: dto.formId, language: 'en' },
+          language: 'en',
         },
       });
-
-      /*
-            const formParameters = new this.formParametersModel({
-              applicationId,
-              type: FormType.New,
-              formId: dto.formId,
-              formAccessToken,
-              formParameters: dto.formParameters,
-            });
-      */
-
-      // BONUS: If you can figure out how to remove this you win
 
       await formParameters.save();
       this.logger.info({ formAccessToken }, 'Saved form parameters to DB');
@@ -104,6 +103,76 @@ export class ApplicationFormService {
       //this.logger.error(err.name, 'Failed to create application');
       this.logger.error({ error }, 'Failed to create application');
       throw new InternalServerErrorException('Application creation failed.');
+    }
+  }
+
+  async newFormAccessToken(dto: NewTokenDto, userId: string): Promise<string> {
+    this.logger.info('Creating a new Form Access Token for user:', userId);
+    this.logger.debug('Passed applicationId:', dto.applicationId);
+
+    try {
+      // check to see if the user owns the applicationForm
+      const ownsForm = await this.confirmOwnership(dto.applicationId, userId);
+
+      if (ownsForm) {
+        // Get the latest form parameters for this application
+        const latestFormParameters = await this.formParametersModel
+          .findOne({ applicationId: dto.applicationId })
+          .sort({ createdAt: -1 })
+          .lean()
+          .exec();
+
+        const formAccessToken = uuidv4();
+
+        if (latestFormParameters) {
+          // Reuse existing parameters but with new token
+          this.logger.info('Re-using form parameters');
+          const formParamters = new this.formParametersModel({
+            applicationId: dto.applicationId,
+            type: latestFormParameters.type,
+            formId: latestFormParameters.formId,
+            formAccessToken: formAccessToken,
+            formParameters: latestFormParameters.formParameters, // Reuse existing
+          });
+          await formParamters.save();
+        } else {
+          // Create new parameters using the dto
+          this.logger.info('Creating new form parameters');
+          if (dto.type && dto.formId && dto.formParameters) {
+            const formParamters = new this.formParametersModel({
+              applicationId: dto.applicationId,
+              type: dto.type,
+              formId: dto.formId,
+              formAccessToken: formAccessToken,
+              formParameters: dto.formParameters, // Reuse existing
+            });
+            await formParamters.save();
+          } else {
+            this.logger.error('Cannot create new token without form meta data');
+            throw new InternalServerErrorException(
+              'Failed to create new form access token',
+            );
+          }
+        }
+        return formAccessToken;
+      } else {
+        throw new InternalServerErrorException(
+          'Invalid applicationForm or unauthorized access',
+        );
+      }
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        // Re-throw NotFoundException (from the !formParameters check)
+        throw error;
+      }
+      // Log and handle unexpected database errors
+      this.logger.error(
+        { error },
+        `Error generating formAccessToken for application: ${dto.applicationId}`,
+      );
+      throw new InternalServerErrorException(
+        'Failed to generate form access token',
+      );
     }
   }
 
@@ -510,6 +579,17 @@ Access code generator, move to an access code service
       .sort({ createdAt: 1 })
       .lean()
       .exec();
+  }
+
+  async confirmOwnership(
+    applicationId: string,
+    userId: string,
+  ): Promise<boolean> {
+    const applicationForm = await this.applicationFormModel
+      .findOne({ applicationId, userId })
+      .lean()
+      .exec();
+    return !!applicationForm;
   }
 
   async deleteByApplicationPackageId(

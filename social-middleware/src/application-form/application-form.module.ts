@@ -10,6 +10,8 @@ import {
   FormParametersSchema,
 } from './schemas/form-parameters.schema';
 import { AuthModule } from 'src/auth/auth.module';
+import { ApplicationFormsController } from './application-form.controller';
+import { SessionUtil } from '../common/utils/session.util';
 
 @Module({
   imports: [
@@ -19,7 +21,8 @@ import { AuthModule } from 'src/auth/auth.module';
     ]),
     AuthModule, // For UserService dependency
   ],
-  providers: [ApplicationFormService],
+  controllers: [ApplicationFormsController],
+  providers: [ApplicationFormService, SessionUtil],
   exports: [ApplicationFormService], // Export so other modules can use it
 })
 export class ApplicationFormModule {}
