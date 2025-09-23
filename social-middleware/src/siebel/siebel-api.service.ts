@@ -85,6 +85,51 @@ export class SiebelApiService {
     }
   }
 
+  async createServicerequest(serviceRequestData: unknown) {
+    const endpoint = '/ServiceRequest/ServiceRequest';
+    return await this.put(endpoint, serviceRequestData);
+  }
+
+  async put<T>(
+    endpoint: string,
+    data?: unknown,
+    params?: Record<string, any>,
+  ): Promise<T> {
+    try {
+      const headers = await this.getHeaders();
+      const url = `${this.baseUrl}${endpoint}`;
+
+      const response = await firstValueFrom(
+        this.httpService.put<T>(url, data, { headers, params }),
+      );
+
+      this.logger.log({ endpoint, data, params }, 'PUT request successful');
+      return response.data;
+    } catch (error: unknown) {
+      if (error instanceof AxiosError) {
+        const errorData = error.response?.data as unknown;
+
+        this.logger.error(
+          {
+            endpoint,
+            data,
+            params,
+            status: error.response?.status,
+            errorData,
+          },
+          'PUT request failed',
+        );
+
+        throw this.handleError(error, errorData);
+      }
+      this.logger.error(
+        { endpoint, data, params, error },
+        'PUT request failed',
+      );
+      throw new Error('Unexpected error during Siebel PUT request');
+    }
+  }
+
   private handleError(error: AxiosError, errorData: unknown): Error {
     if (error.response?.status === 401) {
       return new Error(
