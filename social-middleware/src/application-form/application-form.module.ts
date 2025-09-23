@@ -20,6 +20,8 @@ import {
   ScreeningAccessCodeSchema,
 } from './schemas/screening-access-code.schema';
 import { HouseholdModule } from 'src/household/household.module';
+import { ApplicationFormsController } from './application-form.controller';
+import { SessionUtil } from '../common/utils/session.util';
 
 @Module({
   imports: [
@@ -32,7 +34,8 @@ import { HouseholdModule } from 'src/household/household.module';
     AuthModule, // For UserService dependency
     HouseholdModule,
   ],
-  providers: [ApplicationFormService, AccessCodeService],
   exports: [ApplicationFormService, AccessCodeService], // Export so other modules can use it
+  controllers: [ApplicationFormsController],
+  providers: [ApplicationFormService, SessionUtil, AccessCodeService],
 })
 export class ApplicationFormModule {}
