@@ -21,6 +21,9 @@ import {
   ScreeningAccessCode,
   ScreeningAccessCodeSchema,
 } from '../application-form/schemas/screening-access-code.schema';
+import { ApplicationFormModule } from '../application-form/application-form.module';
+import { SiebelModule } from '../siebel/siebel.module';
+import { SessionUtil } from 'src/common/utils/session.util';
 
 @Module({
   imports: [
@@ -32,8 +35,10 @@ import {
     ]),
     AuthModule,
     HouseholdModule,
+    SiebelModule,
+    ApplicationFormModule,
   ],
-  providers: [ApplicationFormService, AccessCodeService],
+  providers: [ApplicationFormService, AccessCodeService, SessionUtil],
   exports: [
     ApplicationFormService,
     AccessCodeService,
