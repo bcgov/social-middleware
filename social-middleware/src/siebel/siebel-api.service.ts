@@ -90,6 +90,32 @@ export class SiebelApiService {
     return await this.put(endpoint, serviceRequestData);
   }
 
+  async createAttachment(
+    serviceRequestId: string,
+    attachmentData: {
+      fileName: string;
+      fileContent: string; // base64 encoded string
+      fileType: string;
+    },
+  ) {
+    const endpoint = '/Attachment/Attachment';
+    const payload = {
+      'SR Id': serviceRequestId,
+      'Memo Id': 'NULL',
+      'Memo Number': '',
+      Categorie: 'Attachment',
+      Category: 'Decision',
+      Status: 'Complete',
+      FileExt: attachmentData.fileType,
+      FileName: attachmentData.fileName,
+      'Attachment Id': attachmentData.fileContent,
+    };
+    this.logger.debug(
+      `Creating attachment for Service Request: ${serviceRequestId}`,
+    );
+    return await this.put(endpoint, payload);
+  }
+
   async put<T>(
     endpoint: string,
     data?: unknown,
