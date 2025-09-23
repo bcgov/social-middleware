@@ -85,7 +85,7 @@ export class SiebelApiService {
     }
   }
 
-  async createServicerequest(serviceRequestData: unknown) {
+  async createServiceRequest(serviceRequestData: unknown) {
     const endpoint = '/ServiceRequest/ServiceRequest';
     return await this.put(endpoint, serviceRequestData);
   }
