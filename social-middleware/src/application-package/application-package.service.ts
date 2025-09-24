@@ -23,6 +23,7 @@ import { GenderTypes } from '../household/enums/gender-types.enum';
 import { Model } from 'mongoose';
 import { RelationshipToPrimary } from '../household/enums/relationship-to-primary.enum';
 import { SiebelApiService } from '../siebel/siebel-api.service';
+import { ReferralState } from './enums/application-package-subtypes.enum';
 
 @Injectable()
 export class ApplicationPackageService {
@@ -344,6 +345,7 @@ export class ApplicationPackageService {
         { applicationPackageId },
         {
           status: ApplicationPackageStatus.SUBMITTED,
+          referralstate: ReferralState.REQUESTED,
           submittedAt: new Date(),
           srId: siebelResponse.Id,
         },

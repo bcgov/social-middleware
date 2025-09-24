@@ -52,6 +52,16 @@ export class SiebelApiService {
     return await this.get(endpoint, query);
   }
 
+  async getServiceRequestsByBcscId(bcscId: string) {
+    const endpoint = '/ServiceRequest/ServiceRequest';
+
+    const params = {
+      'Icm Bcsc Did': bcscId,
+      Type: 'Caregiver Application',
+    };
+    return await this.get(endpoint, params);
+  }
+
   async get<T>(endpoint: string, params?: Record<string, any>): Promise<T> {
     try {
       const headers = await this.getHeaders();
