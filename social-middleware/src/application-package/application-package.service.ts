@@ -249,11 +249,11 @@ export class ApplicationPackageService {
         );
       }
       // get all application forms for this package
-      //const applicationForms =
-      //  await this.applicationFormService.findByPackageAndUser(
-      //    applicationPackageId,
-      //    userId,
-      //  );
+      const applicationForms =
+        await this.applicationFormService.findByPackageAndUser(
+          applicationPackageId,
+          userId,
+        );
 
       // get the primary user
       const primaryUser = await this.userService.findOne(userId);
@@ -279,6 +279,66 @@ export class ApplicationPackageService {
       const siebelResponse = (await this.siebelApiService.createServiceRequest(
         payload,
       )) as { Id: string };
+
+      // attach the forms
+
+      const attachmentResults = [];
+      for (const form of applicationForms) {
+        try {
+          if (form.formData) {
+            const fileName = form.type;
+            const fileContent = Buffer.from(
+              JSON.stringify(form.formData),
+            ).toString('base64');
+            const description = `Caregiver Application ${form.type} form`;
+
+            const attachmentResult =
+              (await this.siebelApiService.createAttachment(siebelResponse.Id, {
+                fileName: fileName,
+                fileContent: fileContent,
+                fileType: 'json',
+                description: description,
+              })) as { Id: string };
+
+            attachmentResults.push({
+              applicationId: form.applicationId,
+              attachmentId: attachmentResult.Id,
+            });
+
+            this.logger.info(
+              {
+                serviceRequestId: siebelResponse.Id,
+                applicationId: form.applicationId,
+                fileName: fileName,
+              },
+              'Attachment created successfully for form',
+            );
+          } else {
+            this.logger.warn(
+              { applicationId: form.applicationId },
+              'Skipping form with no data for attachment',
+            );
+          }
+        } catch (error) {
+          this.logger.error(
+            {
+              error,
+              applicationId: form.applicationId,
+              serviceRequestId: siebelResponse.Id,
+            },
+            'Failed to create attachment for form',
+          );
+        }
+      }
+
+      this.logger.info(
+        {
+          serviceRequestId: siebelResponse.Id,
+          totalForms: applicationForms.length,
+          successfulAttachments: attachmentResults.length,
+        },
+        'Completed attachment creation for all forms',
+      );
 
       await this.applicationPackageModel.findOneAndUpdate(
         { applicationPackageId },

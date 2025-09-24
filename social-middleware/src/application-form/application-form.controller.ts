@@ -1,4 +1,4 @@
-import { Controller, Query, Req, Get, UseGuards } from '@nestjs/common';
+import { Controller, Query, Req, Get, Put, UseGuards } from '@nestjs/common';
 import {
   ApiTags,
   ApiOperation,
@@ -8,6 +8,7 @@ import {
 } from '@nestjs/swagger';
 import { Request } from 'express';
 import { NewTokenDto } from './dto/new-token.dto';
+import { SubmitApplicationFormDto } from './dto/submit-application-form.dto';
 import { SessionAuthGuard } from 'src/auth/session-auth.guard';
 import { ApplicationFormService } from './application-form.service';
 import { SessionUtil } from 'src/common/utils/session.util';
@@ -23,26 +24,21 @@ export class ApplicationFormsController {
     private readonly logger: PinoLogger,
   ) {}
 
-  // need equivalent for
-  // application/submit to have FF update the forms data
-  /*
   @Put('submit')
-  @ApiOperation({ summary: 'Submit application and update form data' })
+  @ApiOperation({ summary: 'Update application form data' })
   @ApiResponse({
     status: 200,
-    description: 'Application data successfully updated',
+    description: 'Application Form data successfully updated',
   })
   @ApiResponse({ status: 404, description: 'Token or application not found' })
   @ApiResponse({
     status: 500,
     description: 'Server error during application submission',
   })
-  async submitApplication(
-    @Body(new ValidationPipe({ whitelist: true, transform: true }))
-    dto: SubmitApplicationDto,
-  ) {
-    return this.applicationService.submitApplication(dto);
-*/
+  async submitApplicationForm(dto: SubmitApplicationFormDto) {
+    return await this.applicationFormsService.submitApplicationForm(dto);
+  }
+
   @Get('token')
   @UseGuards(SessionAuthGuard)
   @ApiOperation({ summary: 'Get form access token by application ID' })

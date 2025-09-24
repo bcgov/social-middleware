@@ -96,6 +96,7 @@ export class SiebelApiService {
       fileName: string;
       fileContent: string; // base64 encoded string
       fileType: string;
+      description: string;
     },
   ) {
     const endpoint = '/Attachment/Attachment';
@@ -109,6 +110,7 @@ export class SiebelApiService {
       FileExt: attachmentData.fileType,
       FileName: attachmentData.fileName,
       'Attachment Id': attachmentData.fileContent,
+      Description: attachmentData.description,
     };
     this.logger.debug(
       `Creating attachment for Service Request: ${serviceRequestId}`,
