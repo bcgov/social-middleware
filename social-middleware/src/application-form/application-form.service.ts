@@ -2,7 +2,7 @@ import {
   Injectable,
   InternalServerErrorException,
   //BadRequestException,
-  //HttpException,
+  HttpException,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
@@ -20,7 +20,9 @@ import {
   FormParametersDocument,
 } from './schemas/form-parameters.schema';
 import { CreateApplicationFormDto } from './dto/create-application-form.dto';
+import { SubmitApplicationFormDto } from './dto/submit-application-form.dto';
 import { NewTokenDto } from './dto/new-token.dto';
+import { ApplicationFormStatus } from './enums/application-form-status.enum';
 //import { GetApplicationsDto } from './dto/get-applications.dto';
 //import { SubmitApplicationDto } from './dto/submit-application-dto';
 //import { ApplicationStatus } from './enums/application-status.enum';
@@ -569,6 +571,49 @@ Access code generator, move to an access code service
     );
   }
     */
+
+  async submitApplicationForm(dto: SubmitApplicationFormDto): Promise<void> {
+    try {
+      this.logger.info('Saving application form');
+      this.logger.debug('Saving application for token', dto.token);
+
+      const record = await this.formParametersModel
+        .findOne({ formAccessToken: { $eq: dto.token } })
+        .select('applicationId')
+        .lean()
+        .exec();
+
+      if (!record) {
+        throw new NotFoundException(`Token ${dto.token} not found`);
+      }
+      const updated = await this.applicationFormModel
+        .findOneAndUpdate(
+          { applicationId: record.applicationId },
+          {
+            $set: {
+              formData: dto.formJson,
+              status: ApplicationFormStatus.DRAFT,
+            },
+          },
+          { new: true },
+        )
+        .exec();
+      if (!updated) {
+        throw new NotFoundException(
+          `ApplicationForm ${record.applicationId} not found`,
+        );
+      }
+      this.logger.info('ApplicationForm saved  to DB ', record.applicationId);
+    } catch (err) {
+      if (err instanceof HttpException) {
+        // Re-throw known HTTP exceptions (404, 400)
+        throw err;
+      }
+      // Log internal errors
+      this.logger.error('Error submitting application form', err);
+      throw new InternalServerErrorException('Could not save form data');
+    }
+  }
 
   async findByPackageAndUser(
     applicationPackageId: string,
