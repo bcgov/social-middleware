@@ -9,6 +9,7 @@ import {
 import { ApplicationFormModule } from '../application-form/application-form.module';
 import { HouseholdModule } from '../household/household.module';
 import { AuthModule } from '../auth/auth.module';
+import { SiebelModule } from '../siebel/siebel.module';
 import { SessionUtil } from 'src/common/utils/session.util';
 
 @Module({
@@ -22,6 +23,7 @@ import { SessionUtil } from 'src/common/utils/session.util';
     ApplicationFormModule,
     HouseholdModule,
     AuthModule,
+    SiebelModule,
   ],
   controllers: [ApplicationPackageController],
   providers: [ApplicationPackageService, SessionUtil],

@@ -52,6 +52,16 @@ export class SiebelApiService {
     return await this.get(endpoint, query);
   }
 
+  async getServiceRequestsByBcscId(bcscId: string) {
+    const endpoint = '/ServiceRequest/ServiceRequest';
+
+    const params = {
+      'Icm Bcsc Did': bcscId,
+      Type: 'Caregiver Application',
+    };
+    return await this.get(endpoint, params);
+  }
+
   async get<T>(endpoint: string, params?: Record<string, any>): Promise<T> {
     try {
       const headers = await this.getHeaders();
@@ -82,6 +92,79 @@ export class SiebelApiService {
 
       this.logger.error({ endpoint, params, error }, 'GET request failed');
       throw new Error('Unexpected error during Siebel GET request');
+    }
+  }
+
+  async createServiceRequest(serviceRequestData: unknown) {
+    const endpoint = '/ServiceRequest/ServiceRequest';
+    return await this.put(endpoint, serviceRequestData);
+  }
+
+  async createAttachment(
+    serviceRequestId: string,
+    attachmentData: {
+      fileName: string;
+      fileContent: string; // base64 encoded string
+      fileType: string;
+      description: string;
+    },
+  ) {
+    const endpoint = '/Attachment/Attachment';
+    const payload = {
+      'SR Id': serviceRequestId,
+      'Memo Id': 'NULL',
+      'Memo Number': '',
+      Categorie: 'Attachment',
+      Category: 'Decision',
+      Status: 'Complete',
+      FileExt: attachmentData.fileType,
+      FileName: attachmentData.fileName,
+      'Attachment Id': attachmentData.fileContent,
+      Description: attachmentData.description,
+    };
+    this.logger.debug(
+      `Creating attachment for Service Request: ${serviceRequestId}`,
+    );
+    return await this.put(endpoint, payload);
+  }
+
+  async put<T>(
+    endpoint: string,
+    data?: unknown,
+    params?: Record<string, any>,
+  ): Promise<T> {
+    try {
+      const headers = await this.getHeaders();
+      const url = `${this.baseUrl}${endpoint}`;
+
+      const response = await firstValueFrom(
+        this.httpService.put<T>(url, data, { headers, params }),
+      );
+
+      this.logger.log({ endpoint, data, params }, 'PUT request successful');
+      return response.data;
+    } catch (error: unknown) {
+      if (error instanceof AxiosError) {
+        const errorData = error.response?.data as unknown;
+
+        this.logger.error(
+          {
+            endpoint,
+            data,
+            params,
+            status: error.response?.status,
+            errorData,
+          },
+          'PUT request failed',
+        );
+
+        throw this.handleError(error, errorData);
+      }
+      this.logger.error(
+        { endpoint, data, params, error },
+        'PUT request failed',
+      );
+      throw new Error('Unexpected error during Siebel PUT request');
     }
   }
 

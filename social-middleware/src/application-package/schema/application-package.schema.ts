@@ -3,6 +3,7 @@ import { Document } from 'mongoose';
 import {
   ApplicationPackageSubType,
   ApplicationPackageSubSubType,
+  ReferralState,
 } from '../enums/application-package-subtypes.enum';
 import { ApplicationPackageStatus } from '../enums/application-package-status.enum';
 
@@ -38,6 +39,13 @@ export class ApplicationPackage {
     enum: ApplicationPackageStatus,
   })
   status!: ApplicationPackageStatus;
+
+  @Prop({
+    required: true,
+    enum: ReferralState,
+    default: ReferralState.NEW,
+  })
+  referralstate!: ReferralState;
 
   @Prop({ required: false, default: () => Date() })
   createdAt!: Date;

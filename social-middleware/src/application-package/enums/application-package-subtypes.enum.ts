@@ -12,3 +12,9 @@ export enum ApplicationPackageSubSubType {
   FIFTYFOURPOINT1 = '54.1',
   FIFTYFOURPOINT01 = '54.01',
 }
+
+export enum ReferralState {
+  NEW = 'New',
+  REQUESTED = 'Requested',
+  COMPLETE = 'COMPLETE',
+}

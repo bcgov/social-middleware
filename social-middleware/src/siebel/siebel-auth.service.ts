@@ -43,6 +43,8 @@ export class SiebelAuthService implements OnModuleInit {
         params.append('client_secret', clientSecret);
       }
 
+      params.append('scope', 'openid data');
+
       interface TokenResponse {
         access_token: string;
         expires_in?: number;

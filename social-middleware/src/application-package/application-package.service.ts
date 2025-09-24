@@ -22,6 +22,8 @@ import { UserService } from '../auth/user.service';
 import { GenderTypes } from '../household/enums/gender-types.enum';
 import { Model } from 'mongoose';
 import { RelationshipToPrimary } from '../household/enums/relationship-to-primary.enum';
+import { SiebelApiService } from '../siebel/siebel-api.service';
+import { ReferralState } from './enums/application-package-subtypes.enum';
 
 @Injectable()
 export class ApplicationPackageService {
@@ -34,6 +36,7 @@ export class ApplicationPackageService {
     //private householdModel: Model<HouseholdMembers>,
     private readonly householdService: HouseholdService,
     private readonly userService: UserService,
+    private readonly siebelApiService: SiebelApiService,
     @InjectPinoLogger(ApplicationFormService.name)
     private readonly logger: PinoLogger,
   ) {}
@@ -225,42 +228,153 @@ export class ApplicationPackageService {
     }
   }
 
-  /*
-  async updateSubmissionStatus(
-    applicationId: string,
-    updateDto: UpdateSubmissionStatusDto,
-  ): Promise<ApplicationSubmission> {
-    // verify ownership before proceeding
-*/
-  /*
-    const application = await this.applicationService.findByIdAndUser(
-      applicationId,
-      userId,
-    );
+  async submitApplicationPackage(
+    applicationPackageId: string,
+    userId: string,
+  ): Promise<{ serviceRequestId: string }> {
+    try {
+      this.logger.info(
+        { applicationPackageId, userId },
+        'Starting application package submission to Siebel',
+      );
 
-    if (!application) {
-      throw new NotFoundException(`Application not found.`);
-    } */
-  /*
-    const submission = await this.applicationSubmissionModel.findOneAndUpdate(
-      { applicationId },
-      {
-        ...updateDto,
-        updatedAt: new Date(),
-      },
-      { new: true, runValidators: true },
-    );
+      // get the applicationPackage
+      const applicationPackage = await this.applicationPackageModel
+        .findOne({ applicationPackageId, userId })
+        .lean()
+        .exec();
 
-    if (!submission) {
-      throw new NotFoundException(
-        `Submission not found for application ID: ${applicationId}`,
+      if (!applicationPackage) {
+        throw new NotFoundException(
+          'Application package not found or already submitted',
+        );
+      }
+      // get all application forms for this package
+      const applicationForms =
+        await this.applicationFormService.findByPackageAndUser(
+          applicationPackageId,
+          userId,
+        );
+
+      // get the primary user
+      const primaryUser = await this.userService.findOne(userId);
+
+      // TODO: Get household
+
+      const payload = {
+        Id: 'NULL',
+        Status: 'Open',
+        Priority: '3-Standard',
+        'Contact Method': 'Client Portal',
+        Type: 'Caregiver Application',
+        'Sub Type': applicationPackage.subtype,
+        'Sub Sub Type': applicationPackage.subsubtype,
+        'ICM Stage': 'Application',
+        'Icm Bcsc Did': primaryUser.bc_services_card_id,
+        'First Name': primaryUser.first_name,
+        'Service Office': 'MCFD',
+        'SR Memo': 'Created By Portal',
+      };
+
+      // create the service request
+      const siebelResponse = (await this.siebelApiService.createServiceRequest(
+        payload,
+      )) as { Id: string };
+
+      // attach the forms
+
+      const attachmentResults = [];
+      for (const form of applicationForms) {
+        try {
+          if (form.formData) {
+            const fileName = form.type;
+            const fileContent = Buffer.from(
+              JSON.stringify(form.formData),
+            ).toString('base64');
+            const description = `Caregiver Application ${form.type} form`;
+
+            const attachmentResult =
+              (await this.siebelApiService.createAttachment(siebelResponse.Id, {
+                fileName: fileName,
+                fileContent: fileContent,
+                fileType: 'json',
+                description: description,
+              })) as { Id: string };
+
+            attachmentResults.push({
+              applicationId: form.applicationId,
+              attachmentId: attachmentResult.Id,
+            });
+
+            this.logger.info(
+              {
+                serviceRequestId: siebelResponse.Id,
+                applicationId: form.applicationId,
+                fileName: fileName,
+              },
+              'Attachment created successfully for form',
+            );
+          } else {
+            this.logger.warn(
+              { applicationId: form.applicationId },
+              'Skipping form with no data for attachment',
+            );
+          }
+        } catch (error) {
+          this.logger.error(
+            {
+              error,
+              applicationId: form.applicationId,
+              serviceRequestId: siebelResponse.Id,
+            },
+            'Failed to create attachment for form',
+          );
+        }
+      }
+
+      this.logger.info(
+        {
+          serviceRequestId: siebelResponse.Id,
+          totalForms: applicationForms.length,
+          successfulAttachments: attachmentResults.length,
+        },
+        'Completed attachment creation for all forms',
+      );
+
+      await this.applicationPackageModel.findOneAndUpdate(
+        { applicationPackageId },
+        {
+          status: ApplicationPackageStatus.SUBMITTED,
+          referralstate: ReferralState.REQUESTED,
+          submittedAt: new Date(),
+          srId: siebelResponse.Id,
+        },
+      );
+
+      this.logger.info(
+        {
+          applicationPackageId,
+          serviceRequestId: siebelResponse.Id,
+        },
+        'Application package submitted successfully to Siebel',
+      );
+
+      return {
+        serviceRequestId: siebelResponse.Id,
+      };
+    } catch (error) {
+      this.logger.error(
+        { error, applicationPackageId, userId },
+        'Failed to submit application package to Siebel',
+      );
+
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+
+      throw new InternalServerErrorException(
+        'Failed to submit application package',
       );
     }
-
-    //if (application.userId !== submission.userId) {
-
-    return submission;
   }
-
-*/
 }
