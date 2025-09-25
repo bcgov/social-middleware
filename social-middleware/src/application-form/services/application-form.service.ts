@@ -384,7 +384,7 @@ export class ApplicationFormService {
     }
   }
 
-  async submitApplication(dto: SubmitApplicationFormDto): Promise<void> {
+  async submitApplicationForm(dto: SubmitApplicationFormDto): Promise<void> {
     try {
       this.logger.info('Saving application');
       this.logger.debug('Saving application for token', dto.token);
