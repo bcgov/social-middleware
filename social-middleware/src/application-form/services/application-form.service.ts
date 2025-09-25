@@ -4,9 +4,6 @@ import {
   Injectable,
   InternalServerErrorException,
   NotFoundException,
-  //BadRequestException,
-  //HttpException,
-  //NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
@@ -16,17 +13,12 @@ import {
   ApplicationForm,
   ApplicationFormDocument,
 } from '../schemas/application-form.schema';
-//import { ApplicationFormType } from './enums/application-form-types.enum';
 import { FormType } from '../enums/form-type.enum';
 import {
   FormParameters,
   FormParametersDocument,
 } from '../schemas/form-parameters.schema';
 import { CreateApplicationFormDto } from '../dto/create-application-form.dto';
-//import { GetApplicationsDto } from './dto/get-applications.dto';
-//import { SubmitApplicationDto } from './dto/submit-application-dto';
-//import { ApplicationStatus } from './enums/application-status.enum';
-import { UserService } from 'src/auth/user.service';
 import {
   ApplicationFormType,
   getFormIdForFormType,
@@ -53,7 +45,6 @@ export class ApplicationFormService {
     private applicationPackageModel: Model<ApplicationPackageDocument>,
     @InjectPinoLogger(ApplicationFormService.name)
     private readonly logger: PinoLogger,
-    private readonly userService: UserService,
     private readonly accessCodeService: AccessCodeService,
   ) {}
 
@@ -113,16 +104,6 @@ export class ApplicationFormService {
         },
       });
 
-      /*
-            const formParameters = new this.formParametersModel({
-              applicationId,
-              type: FormType.New,
-              formId: dto.formId,
-              formAccessToken,
-              formParameters: dto.formParameters,
-            });
-      */
-
       await formParameters.save();
       this.logger.info({ formAccessToken }, 'Saved form parameters to DB');
 
@@ -132,12 +113,6 @@ export class ApplicationFormService {
       throw new InternalServerErrorException('Application creation failed.');
     }
   }
-
-  // service to create a screening application record, it should be the simlar to above
-  // but the main difference is that userId is optional; the primary applicant may be creating
-  // applicationForms for users who have not logged in yet:
-  // note that it creates an access code record that a new users can use to authorize their
-  // access to this form
 
   async createScreeningForm(
     parentApplicationId: string,
