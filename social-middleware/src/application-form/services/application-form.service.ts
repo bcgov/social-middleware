@@ -498,7 +498,7 @@ export class ApplicationFormService {
     userId: string,
   ): Promise<boolean> {
     const applicationForm = await this.applicationFormModel
-      .findOne({ applicationId, userId })
+      .findOne({ applicationId: { $eq: applicationId }, userId })
       .lean()
       .exec();
     return !!applicationForm;
