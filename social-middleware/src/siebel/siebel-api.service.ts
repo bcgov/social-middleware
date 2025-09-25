@@ -128,6 +128,12 @@ export class SiebelApiService {
     return await this.put(endpoint, payload);
   }
 
+  async createProspect() {
+    const endpoint = '/Prospects/SRProspects/';
+    const payload = {};
+    return await this.put(endpoint, payload);
+  }
+
   async put<T>(
     endpoint: string,
     data?: unknown,
