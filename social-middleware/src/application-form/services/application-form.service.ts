@@ -193,7 +193,7 @@ export class ApplicationFormService {
       if (ownsForm) {
         // Get the latest form parameters for this application
         const latestFormParameters = await this.formParametersModel
-          .findOne({ applicationId: dto.applicationId })
+          .findOne({ applicationId: { $eq: dto.applicationId } })
           .sort({ createdAt: -1 })
           .lean()
           .exec();
