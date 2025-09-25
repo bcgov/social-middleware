@@ -33,6 +33,9 @@ export class ApplicationForm {
   formData!: Record<string, unknown> | null;
 
   @Prop({ default: Date.now })
+  submittedAt!: Date;
+
+  @Prop({ default: Date.now })
   createdAt!: Date;
 
   @Prop({ default: Date.now })

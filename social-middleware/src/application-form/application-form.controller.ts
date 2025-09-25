@@ -10,7 +10,7 @@ import { Request } from 'express';
 import { NewTokenDto } from './dto/new-token.dto';
 import { SubmitApplicationFormDto } from './dto/submit-application-form.dto';
 import { SessionAuthGuard } from 'src/auth/session-auth.guard';
-import { ApplicationFormService } from './application-form.service';
+import { ApplicationFormService } from './services/application-form.service';
 import { SessionUtil } from 'src/common/utils/session.util';
 import { PinoLogger } from 'nestjs-pino';
 
