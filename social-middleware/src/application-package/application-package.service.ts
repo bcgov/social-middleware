@@ -12,7 +12,7 @@ import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
 import { ApplicationPackage } from './schema/application-package.schema';
 import { ApplicationPackageStatus } from './enums/application-package-status.enum';
 import { ApplicationForm } from '../application-form/schemas/application-form.schema';
-import { ApplicationFormService } from '../application-form/application-form.service';
+import { ApplicationFormService } from '../application-form/services/application-form.service';
 import { ApplicationFormType } from '../application-form/enums/application-form-types.enum';
 import { CreateApplicationPackageDto } from './dto/create-application-package.dto';
 import { CancelApplicationPackageDto } from './dto/cancel-application-package.dto';
@@ -22,12 +22,19 @@ import { UserService } from '../auth/user.service';
 import { GenderTypes } from '../household/enums/gender-types.enum';
 import { Model } from 'mongoose';
 import { RelationshipToPrimary } from '../household/enums/relationship-to-primary.enum';
+import {
+  ScreeningAccessCode,
+  ScreeningAccessCodeDocument,
+} from 'src/application-form/schemas/screening-access-code.schema';
 
 @Injectable()
 export class ApplicationPackageService {
   constructor(
     @InjectModel(ApplicationPackage.name)
     private applicationPackageModel: Model<ApplicationPackage>,
+
+    @InjectModel(ScreeningAccessCode.name)
+    private screeningAccessCodeModel: Model<ScreeningAccessCodeDocument>,
     //@InjectModel(ApplicationForm.name)
     //private applicationFormModel: Model<ApplicationForm>,
     private readonly applicationFormService: ApplicationFormService,
@@ -124,6 +131,11 @@ export class ApplicationPackageService {
       await this.applicationFormService.deleteByApplicationPackageId(
         dto.applicationPackageId,
       );
+
+      // Delete all screening access codes associated with this package
+      await this.screeningAccessCodeModel
+        .deleteMany({ parentApplicationId: dto.applicationPackageId })
+        .exec();
 
       // Delete all household members for this package
       await this.householdService.deleteAllMembersByApplicationPackageId(

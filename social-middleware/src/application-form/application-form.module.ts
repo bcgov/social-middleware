@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
-import { ApplicationFormService } from './application-form.service';
+import { ApplicationFormService } from './services/application-form.service';
 import {
   ApplicationForm,
   ApplicationFormSchema,
@@ -10,16 +10,29 @@ import {
   FormParametersSchema,
 } from './schemas/form-parameters.schema';
 import { AuthModule } from 'src/auth/auth.module';
+import { AccessCodeService } from './services/access-code.service';
+import {
+  ApplicationPackage,
+  ApplicationPackageSchema,
+} from 'src/application-package/schema/application-package.schema';
+import {
+  ScreeningAccessCode,
+  ScreeningAccessCodeSchema,
+} from './schemas/screening-access-code.schema';
+import { HouseholdModule } from 'src/household/household.module';
 
 @Module({
   imports: [
     MongooseModule.forFeature([
       { name: ApplicationForm.name, schema: ApplicationFormSchema },
       { name: FormParameters.name, schema: FormParametersSchema },
+      { name: ApplicationPackage.name, schema: ApplicationPackageSchema },
+      { name: ScreeningAccessCode.name, schema: ScreeningAccessCodeSchema },
     ]),
     AuthModule, // For UserService dependency
+    HouseholdModule,
   ],
-  providers: [ApplicationFormService],
-  exports: [ApplicationFormService], // Export so other modules can use it
+  providers: [ApplicationFormService, AccessCodeService],
+  exports: [ApplicationFormService, AccessCodeService], // Export so other modules can use it
 })
 export class ApplicationFormModule {}
