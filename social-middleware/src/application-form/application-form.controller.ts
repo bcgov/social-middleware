@@ -1,4 +1,13 @@
-import { Controller, Query, Req, Get, Put, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Query,
+  Req,
+  Get,
+  Put,
+  UseGuards,
+  Body,
+  ValidationPipe,
+} from '@nestjs/common';
 import {
   ApiTags,
   ApiOperation,
@@ -33,9 +42,12 @@ export class ApplicationFormsController {
   @ApiResponse({ status: 404, description: 'Token or application not found' })
   @ApiResponse({
     status: 500,
-    description: 'Server error during application submission',
+    description: 'Server error during application form submission',
   })
-  async submitApplicationForm(dto: SubmitApplicationFormDto) {
+  async submitApplicationForm(
+    @Body(new ValidationPipe({ whitelist: true, transform: true }))
+    dto: SubmitApplicationFormDto,
+  ) {
     return await this.applicationFormsService.submitApplicationForm(dto);
   }
 
