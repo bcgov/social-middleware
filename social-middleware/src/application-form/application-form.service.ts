@@ -620,6 +620,7 @@ Access code generator, move to an access code service
   ): Promise<ApplicationForm[]> {
     return await this.applicationFormModel
       .find({ applicationPackageId, userId })
+      .select('applicationId type status createdAt updatedAt')
       .sort({ createdAt: 1 })
       .lean()
       .exec();
