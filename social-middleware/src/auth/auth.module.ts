@@ -7,6 +7,7 @@ import { UserService } from './user.service';
 import { HttpModule } from '@nestjs/axios';
 import { User, UserSchema } from './schemas/user.schema';
 import { SiebelModule } from 'src/siebel/siebel.module';
+import { UserUtil } from '../common/utils/user.util';
 
 @Module({
   imports: [
@@ -15,7 +16,7 @@ import { SiebelModule } from 'src/siebel/siebel.module';
     SiebelModule,
   ],
   controllers: [AuthController],
-  providers: [UserService],
+  providers: [UserService, UserUtil],
   exports: [UserService],
 })
 export class AuthModule {}

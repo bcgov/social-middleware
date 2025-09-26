@@ -575,7 +575,6 @@ Access code generator, move to an access code service
   async submitApplicationForm(dto: SubmitApplicationFormDto): Promise<void> {
     try {
       this.logger.info('Saving application form');
-      this.logger.debug('Saving application for token', dto.token);
 
       const record = await this.formParametersModel
         .findOne({ formAccessToken: { $eq: dto.token } })

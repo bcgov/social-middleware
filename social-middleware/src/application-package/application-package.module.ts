@@ -11,6 +11,7 @@ import { HouseholdModule } from '../household/household.module';
 import { AuthModule } from '../auth/auth.module';
 import { SiebelModule } from '../siebel/siebel.module';
 import { SessionUtil } from 'src/common/utils/session.util';
+import { UserUtil } from '../common/utils/user.util';
 
 @Module({
   imports: [
@@ -26,7 +27,7 @@ import { SessionUtil } from 'src/common/utils/session.util';
     SiebelModule,
   ],
   controllers: [ApplicationPackageController],
-  providers: [ApplicationPackageService, SessionUtil],
+  providers: [ApplicationPackageService, SessionUtil, UserUtil],
   exports: [ApplicationPackageService],
 })
 export class ApplicationPackageModule {}

@@ -139,7 +139,7 @@ export class SiebelApiService {
     Prov: string;
     PostalCode: string;
     EmailAddress: string;
-    PrimaryPhone: string;
+    //PrimaryPhone: string;
     Gender: string;
     Relationship: string;
   }) {
@@ -152,16 +152,17 @@ export class SiebelApiService {
       'Last Name': prospectData.LastName,
       'Date of Birth': prospectData.DateofBirth,
       'Street Address': prospectData.StreetAddress,
-      City: prospectData.StreetAddress,
+      City: prospectData.City,
       Prov: prospectData.Prov,
       'Postal Code': prospectData.PostalCode,
       'Email Address': prospectData.EmailAddress,
-      'Primary Phone #': prospectData.PrimaryPhone,
+      //'Primary Phone #': prospectData.PrimaryPhone,
       Gender: prospectData.Gender,
       Relationship: prospectData.Relationship,
     };
     this.logger.debug(
       `Creating prospect for Service Request: ${prospectData.ServiceRequestId}`,
+      payload,
     );
     return await this.put(endpoint, payload);
   }

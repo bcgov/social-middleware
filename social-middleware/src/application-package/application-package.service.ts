@@ -19,11 +19,18 @@ import { CancelApplicationPackageDto } from './dto/cancel-application-package.dt
 //import { HouseholdMembers } from '../household/schemas/household-members.schema';
 import { HouseholdService } from '../household/household.service';
 import { UserService } from '../auth/user.service';
-import { GenderTypes } from '../household/enums/gender-types.enum';
+import { UserUtil } from '../common/utils/user.util';
 import { Model } from 'mongoose';
 import { RelationshipToPrimary } from '../household/enums/relationship-to-primary.enum';
 import { SiebelApiService } from '../siebel/siebel-api.service';
 import { ReferralState } from './enums/application-package-subtypes.enum';
+
+interface SiebelServiceRequestResponse {
+  items?: {
+    Id?: string;
+    [key: string]: unknown;
+  };
+}
 
 @Injectable()
 export class ApplicationPackageService {
@@ -37,6 +44,7 @@ export class ApplicationPackageService {
     private readonly householdService: HouseholdService,
     private readonly userService: UserService,
     private readonly siebelApiService: SiebelApiService,
+    private readonly userUtil: UserUtil,
     @InjectPinoLogger(ApplicationFormService.name)
     private readonly logger: PinoLogger,
   ) {}
@@ -90,7 +98,7 @@ export class ApplicationPackageService {
       dateOfBirth: user.dateOfBirth,
       email: user.email,
       relationshipToPrimary: RelationshipToPrimary.Self,
-      genderType: this.sexToGenderType(user.sex),
+      genderType: this.userUtil.sexToGenderType(user.sex),
     };
 
     await this.householdService.createMember(primaryHouseholdMemberDto);
@@ -103,20 +111,6 @@ export class ApplicationPackageService {
       'Created referral form for application package',
     );
     return appPackage;
-  }
-
-  //TODO: Move to a Util function
-  private sexToGenderType(sex: string): GenderTypes {
-    switch (sex.toLowerCase()) {
-      case 'male':
-        return GenderTypes.ManBoy;
-      case 'female':
-        return GenderTypes.WomanGirl;
-      case 'non-binary':
-        return GenderTypes.NonBinary;
-      default:
-        return GenderTypes.Unspecified;
-    }
   }
 
   async cancelApplicationPackage(
@@ -261,7 +255,8 @@ export class ApplicationPackageService {
 
       // TODO: Get household
 
-      const payload = {
+      // create the service request
+      const srPayload = {
         Id: 'NULL',
         Status: 'Open',
         Priority: '3-Standard',
@@ -276,10 +271,49 @@ export class ApplicationPackageService {
         'SR Memo': 'Created By Portal',
       };
 
-      // create the service request
-      const siebelResponse = (await this.siebelApiService.createServiceRequest(
-        payload,
-      )) as { Id: string };
+      const siebelResponse =
+        await this.siebelApiService.createServiceRequest(srPayload);
+
+      if (!siebelResponse) {
+        throw new InternalServerErrorException();
+      }
+
+      const serviceRequestId = (siebelResponse as SiebelServiceRequestResponse)
+        .items?.Id;
+
+      if (!serviceRequestId) {
+        this.logger.error(
+          { siebelResponse },
+          'No service request ID in response.',
+        );
+        throw new InternalServerErrorException(
+          'Failed to get service request Id',
+        );
+      }
+
+      const primaryUserProspectPayload = {
+        ServiceRequestId: serviceRequestId, //TODO
+        IcmBcscDid: primaryUser.bc_services_card_id,
+        FirstName: primaryUser.first_name,
+        LastName: primaryUser.last_name,
+        DateofBirth: primaryUser.dateOfBirth,
+        StreetAddress: primaryUser.street_address,
+        City: primaryUser.city,
+        Prov: primaryUser.region,
+        PostalCode: primaryUser.postal_code,
+        EmailAddress: primaryUser.email,
+        Gender: this.userUtil.sexToGenderType(primaryUser.sex),
+        Relationship: 'Key player',
+      };
+
+      const siebelProspectResponse =
+        (await this.siebelApiService.createProspect(
+          primaryUserProspectPayload,
+        )) as { Id: string };
+
+      if (!siebelProspectResponse.Id) {
+        console.log('failed to create prospect');
+      }
 
       // attach the forms
 
@@ -294,7 +328,7 @@ export class ApplicationPackageService {
             const description = `Caregiver Application ${form.type} form`;
 
             const attachmentResult =
-              (await this.siebelApiService.createAttachment(siebelResponse.Id, {
+              (await this.siebelApiService.createAttachment(serviceRequestId, {
                 fileName: fileName,
                 fileContent: fileContent,
                 fileType: 'json',
@@ -308,7 +342,7 @@ export class ApplicationPackageService {
 
             this.logger.info(
               {
-                serviceRequestId: siebelResponse.Id,
+                serviceRequestId: serviceRequestId,
                 applicationId: form.applicationId,
                 fileName: fileName,
               },
@@ -325,7 +359,7 @@ export class ApplicationPackageService {
             {
               error,
               applicationId: form.applicationId,
-              serviceRequestId: siebelResponse.Id,
+              serviceRequestId: serviceRequestId,
             },
             'Failed to create attachment for form',
           );
@@ -334,7 +368,7 @@ export class ApplicationPackageService {
 
       this.logger.info(
         {
-          serviceRequestId: siebelResponse.Id,
+          serviceRequestId: serviceRequestId,
           totalForms: applicationForms.length,
           successfulAttachments: attachmentResults.length,
         },
@@ -347,20 +381,20 @@ export class ApplicationPackageService {
           status: ApplicationPackageStatus.SUBMITTED,
           referralstate: ReferralState.REQUESTED,
           submittedAt: new Date(),
-          srId: siebelResponse.Id,
+          srId: serviceRequestId,
         },
       );
 
       this.logger.info(
         {
           applicationPackageId,
-          serviceRequestId: siebelResponse.Id,
+          serviceRequestId: serviceRequestId,
         },
         'Application package submitted successfully to Siebel',
       );
 
       return {
-        serviceRequestId: siebelResponse.Id,
+        serviceRequestId: serviceRequestId,
       };
     } catch (error) {
       this.logger.error(

@@ -25,6 +25,21 @@ export class User {
   dateOfBirth!: string;
 
   @Prop({ required: true })
+  street_address!: string;
+
+  @Prop({ required: true })
+  city!: string;
+
+  @Prop({ required: true })
+  country!: string;
+
+  @Prop({ required: true })
+  region!: string;
+
+  @Prop({ required: true })
+  postal_code!: string;
+
+  @Prop({ required: true })
   sex!: string;
 
   @Prop({ required: false })

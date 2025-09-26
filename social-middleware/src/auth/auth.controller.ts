@@ -31,6 +31,7 @@ import { isValidUserPayload } from 'src/common/utils';
 import { SiebelApiService } from 'src/siebel/siebel-api.service';
 //import { SiebelContactResponse } from 'src/siebel/dto/siebel-contact-response.dto';
 import { PinoLogger } from 'nestjs-pino';
+import { UserUtil } from '../common/utils/user.util';
 
 interface UserInfo {
   sub: string;
@@ -40,6 +41,13 @@ interface UserInfo {
   family_name: string;
   gender: string;
   birthdate: string;
+  address: {
+    street_address: string;
+    country: string;
+    region: string;
+    locality: string;
+    postal_code: string;
+  };
 }
 interface TokenResponse {
   access_token: string;
@@ -65,6 +73,7 @@ export class AuthController {
     private readonly configService: ConfigService,
     private readonly siebelApiService: SiebelApiService,
     private readonly logger: PinoLogger,
+    private readonly userUtil: UserUtil,
   ) {
     this.bcscClientId = this.configService.get<string>('BCSC_CLIENT_ID')!;
     this.bcscClientSecret =
@@ -240,12 +249,18 @@ export class AuthController {
         bc_services_card_id: userInfo.sub,
         first_name: userInfo.given_name,
         last_name: userInfo.family_name,
-        dateOfBirth: userInfo.birthdate,
+        dateOfBirth: this.userUtil.icmDateFormat(userInfo.birthdate),
         sex: userInfo.gender,
+        gender: this.userUtil.sexToGenderType(userInfo.gender),
         email: userInfo.email,
+        street_address: userInfo.address.street_address,
+        city: userInfo.address.locality,
+        country: userInfo.address.country,
+        region: userInfo.address.region,
+        postal_code: userInfo.address.postal_code,
       };
 
-      this.logger.info('Finding or creating user in database...');
+      this.logger.info(userData, 'Finding or creating user in database...');
       const user = await this.userService.findOrCreate(userData);
       this.logger.info({ id: user.id, email: user.email }, 'User persisted');
 
