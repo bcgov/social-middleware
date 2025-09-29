@@ -15,7 +15,7 @@ import {
 import { Model } from 'mongoose';
 import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
 import { ApplicationService } from 'src/application/application.service';
-import { ApplicationFormService } from '../application-form/application-form.service';
+import { ApplicationFormService } from '../application-form/services/application-form.service';
 
 // TODO: cleanup old tokens
 

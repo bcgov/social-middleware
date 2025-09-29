@@ -1,14 +1,27 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
-import { ApplicationPackageController } from './application-package.controller';
-import { ApplicationPackageService } from './application-package.service';
+import { ApplicationFormService } from '../application-form/services/application-form.service';
+import { AccessCodeService } from '../application-form/services/access-code.service';
+import { AuthModule } from 'src/auth/auth.module';
+import { HouseholdModule } from 'src/household/household.module';
+
+import {
+  ApplicationForm,
+  ApplicationFormSchema,
+} from '../application-form/schemas/application-form.schema';
+import {
+  FormParameters,
+  FormParametersSchema,
+} from '../application-form/schemas/form-parameters.schema';
 import {
   ApplicationPackage,
   ApplicationPackageSchema,
-} from './schema/application-package.schema';
+} from 'src/application-package/schema/application-package.schema';
+import {
+  ScreeningAccessCode,
+  ScreeningAccessCodeSchema,
+} from '../application-form/schemas/screening-access-code.schema';
 import { ApplicationFormModule } from '../application-form/application-form.module';
-import { HouseholdModule } from '../household/household.module';
-import { AuthModule } from '../auth/auth.module';
 import { SiebelModule } from '../siebel/siebel.module';
 import { SessionUtil } from 'src/common/utils/session.util';
 import { UserUtil } from '../common/utils/user.util';
@@ -16,14 +29,13 @@ import { UserUtil } from '../common/utils/user.util';
 @Module({
   imports: [
     MongooseModule.forFeature([
-      {
-        name: ApplicationPackage.name,
-        schema: ApplicationPackageSchema,
-      },
+      { name: ApplicationForm.name, schema: ApplicationFormSchema },
+      { name: FormParameters.name, schema: FormParametersSchema },
+      { name: ApplicationPackage.name, schema: ApplicationPackageSchema },
+      { name: ScreeningAccessCode.name, schema: ScreeningAccessCodeSchema },
     ]),
-    ApplicationFormModule,
-    HouseholdModule,
     AuthModule,
+    HouseholdModule,
     SiebelModule,
   ],
   controllers: [ApplicationPackageController],
