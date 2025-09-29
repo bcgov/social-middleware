@@ -153,4 +153,11 @@ export class AccessCodeService {
       throw new InternalServerErrorException('Failed to process access code');
     }
   }
+  async deleteByApplicationPackageId(
+    applicationPackageId: string,
+  ): Promise<void> {
+    await this.screeningAccessCodeModel
+      .deleteMany({ parentApplicationId: applicationPackageId })
+      .exec();
+  }
 }

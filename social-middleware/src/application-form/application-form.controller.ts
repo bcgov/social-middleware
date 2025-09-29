@@ -1,4 +1,12 @@
-import { Controller, Query, Req, Get, Put, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Query,
+  Req,
+  Get,
+  Put,
+  UseGuards,
+  Body,
+} from '@nestjs/common';
 import {
   ApiTags,
   ApiOperation,
@@ -35,7 +43,7 @@ export class ApplicationFormsController {
     status: 500,
     description: 'Server error during application submission',
   })
-  async submitApplicationForm(dto: SubmitApplicationFormDto) {
+  async submitApplicationForm(@Body() dto: SubmitApplicationFormDto) {
     return await this.applicationFormsService.submitApplicationForm(dto);
   }
 
