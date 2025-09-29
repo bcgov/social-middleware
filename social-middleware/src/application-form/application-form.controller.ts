@@ -3,10 +3,10 @@ import {
   Query,
   Req,
   Get,
-  Put,
   UseGuards,
   Body,
   ValidationPipe,
+  Post,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -33,7 +33,7 @@ export class ApplicationFormsController {
     private readonly logger: PinoLogger,
   ) {}
 
-  @Put('submit')
+  @Post('submit')
   @ApiOperation({ summary: 'Update application form data' })
   @ApiResponse({
     status: 200,
