@@ -1,5 +1,6 @@
 // auth/dto/create-user.dto.ts
 import { IsString, IsEmail, IsNotEmpty } from 'class-validator';
+import { GenderTypes } from '../../household/enums/gender-types.enum';
 
 export class CreateUserDto {
   @IsString()
@@ -18,6 +19,10 @@ export class CreateUserDto {
   @IsNotEmpty()
   sex!: string;
 
+  @IsString()
+  @IsNotEmpty()
+  gender!: GenderTypes;
+
   @IsEmail()
   @IsNotEmpty()
   email!: string;
@@ -25,4 +30,24 @@ export class CreateUserDto {
   @IsString()
   @IsNotEmpty()
   dateOfBirth!: string;
+
+  @IsString()
+  @IsNotEmpty()
+  street_address!: string;
+
+  @IsString()
+  @IsNotEmpty()
+  city!: string;
+
+  @IsString()
+  @IsNotEmpty()
+  country!: string;
+
+  @IsString()
+  @IsNotEmpty()
+  region!: string;
+
+  @IsString()
+  @IsNotEmpty()
+  postal_code!: string;
 }

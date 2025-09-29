@@ -105,6 +105,47 @@ export class ApplicationPackageController {
       throw error;
     }
   }
+  @Get(':applicationPackageId')
+  @ApiOperation({
+    summary: 'Get application package by ID for the authenticated user',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Application package retrieved successfully',
+    type: ApplicationPackage,
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Application package not found or access denied',
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized - invalid or missing session',
+  })
+  async getApplicationPackage(
+    @Param('applicationPackageId') applicationPackageId: string,
+    @Req() request: Request,
+  ): Promise<ApplicationPackage> {
+    try {
+      const userId = this.sessionUtil.extractUserIdFromRequest(request);
+
+      this.logger.info(
+        { applicationPackageId, userId },
+        'Fetching application package',
+      );
+
+      return await this.applicationPackageService.getApplicationPackage(
+        applicationPackageId,
+        userId,
+      );
+    } catch (error) {
+      this.logger.error(
+        { error, applicationPackageId },
+        'Failed to fetch application package',
+      );
+      throw error;
+    }
+  }
   @Get(':applicationPackageId/application-form')
   @ApiOperation({ summary: 'Get all application forms for a package' })
   @ApiResponse({

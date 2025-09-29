@@ -128,6 +128,45 @@ export class SiebelApiService {
     return await this.put(endpoint, payload);
   }
 
+  async createProspect(prospectData: {
+    ServiceRequestId: string;
+    IcmBcscDid: string;
+    FirstName: string;
+    LastName: string;
+    DateofBirth: string;
+    StreetAddress: string;
+    City: string;
+    Prov: string;
+    PostalCode: string;
+    EmailAddress: string;
+    //PrimaryPhone: string;
+    Gender: string;
+    Relationship: string;
+  }) {
+    const endpoint = '/Prospects/SRProspects/';
+    const payload = {
+      Id: 'NULL',
+      'Service Request Id': prospectData.ServiceRequestId,
+      'Icm Bcsc Did': prospectData.IcmBcscDid,
+      'First Name': prospectData.FirstName,
+      'Last Name': prospectData.LastName,
+      'Date of Birth': prospectData.DateofBirth,
+      'Street Address': prospectData.StreetAddress,
+      City: prospectData.City,
+      Prov: prospectData.Prov,
+      'Postal Code': prospectData.PostalCode,
+      'Email Address': prospectData.EmailAddress,
+      //'Primary Phone #': prospectData.PrimaryPhone,
+      Gender: prospectData.Gender,
+      Relationship: prospectData.Relationship,
+    };
+    this.logger.debug(
+      `Creating prospect for Service Request: ${prospectData.ServiceRequestId}`,
+      payload,
+    );
+    return await this.put(endpoint, payload);
+  }
+
   async put<T>(
     endpoint: string,
     data?: unknown,
