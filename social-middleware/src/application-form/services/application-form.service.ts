@@ -26,13 +26,13 @@ import {
 import { ApplicationFormStatus } from '../enums/application-form-status.enum';
 import { AccessCodeService } from './access-code.service';
 import { GetApplicationFormDto } from '../dto/get-application-form.dto';
-import { SubmitApplicationFormDto } from '../dto/submit-application-form-dto';
 import { DeleteApplicationFormDto } from '../dto/delete-application-form.dto';
 import {
   ApplicationPackage,
   ApplicationPackageDocument,
 } from 'src/application-package/schema/application-package.schema';
 import { NewTokenDto } from '../dto/new-token.dto';
+import { SubmitApplicationFormDto } from '../dto/submit-application-form.dto';
 
 @Injectable()
 export class ApplicationFormService {
@@ -403,8 +403,8 @@ export class ApplicationFormService {
           { applicationId: record.applicationId },
           {
             $set: {
-              formData: dto.formJson,
-              status: ApplicationFormStatus.SUBMITTED,
+              formData: dto.jsonToSave,
+              status: ApplicationFormStatus.DRAFT,
             },
           },
           { new: true },

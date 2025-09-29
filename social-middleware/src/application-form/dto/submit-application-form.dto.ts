@@ -14,5 +14,5 @@ export class SubmitApplicationFormDto {
     type: String,
   })
   @IsString()
-  readonly formJson!: string;
+  readonly jsonToSave!: string;
 }
