@@ -162,7 +162,50 @@ export class ApplicationPackageService {
       );
     }
   }
+  async getApplicationPackage(
+    applicationPackageId: string,
+    userId: string,
+  ): Promise<ApplicationPackage> {
+    try {
+      this.logger.info(
+        { applicationPackageId, userId },
+        'Fetching application package',
+      );
 
+      const applicationPackage = await this.applicationPackageModel
+        .findOne({
+          applicationPackageId: { $eq: applicationPackageId },
+          userId: { $eq: userId },
+        })
+        .lean()
+        .exec();
+
+      if (!applicationPackage) {
+        throw new NotFoundException(
+          'Application package not found or access denied',
+        );
+      }
+
+      this.logger.info(
+        { applicationPackageId, userId },
+        'Application package fetched successfully',
+      );
+
+      return applicationPackage;
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+
+      this.logger.error(
+        { error, applicationPackageId, userId },
+        'Failed to fetch application package',
+      );
+      throw new InternalServerErrorException(
+        'Failed to fetch application package',
+      );
+    }
+  }
   async getApplicationPackages(userId: string): Promise<ApplicationPackage[]> {
     try {
       this.logger.info({ userId }, 'Fetching application packages for user');

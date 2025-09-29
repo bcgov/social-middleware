@@ -13,7 +13,6 @@ import {
   ApplicationForm,
   ApplicationFormDocument,
 } from './schemas/application-form.schema';
-//import { ApplicationFormType } from './enums/application-form-types.enum';
 import { FormType } from './enums/form-type.enum';
 import {
   FormParameters,
@@ -23,9 +22,6 @@ import { CreateApplicationFormDto } from './dto/create-application-form.dto';
 import { SubmitApplicationFormDto } from './dto/submit-application-form.dto';
 import { NewTokenDto } from './dto/new-token.dto';
 import { ApplicationFormStatus } from './enums/application-form-status.enum';
-//import { GetApplicationsDto } from './dto/get-applications.dto';
-//import { SubmitApplicationDto } from './dto/submit-application-dto';
-//import { ApplicationStatus } from './enums/application-status.enum';
 import { UserService } from 'src/auth/user.service';
 
 @Injectable()
@@ -620,7 +616,7 @@ Access code generator, move to an access code service
   ): Promise<ApplicationForm[]> {
     return await this.applicationFormModel
       .find({ applicationPackageId, userId })
-      .select('applicationId type status createdAt updatedAt')
+      //.select('applicationId type status createdAt updatedAt')
       .sort({ createdAt: 1 })
       .lean()
       .exec();
