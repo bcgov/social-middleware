@@ -16,16 +16,12 @@ import { ApplicationFormService } from '../application-form/services/application
 import { ApplicationFormType } from '../application-form/enums/application-form-types.enum';
 import { CreateApplicationPackageDto } from './dto/create-application-package.dto';
 import { CancelApplicationPackageDto } from './dto/cancel-application-package.dto';
-//import { HouseholdMembers } from '../household/schemas/household-members.schema';
 import { HouseholdService } from '../household/household.service';
+import { AccessCodeService } from '../application-form/services/access-code.service';
 import { UserService } from '../auth/user.service';
 import { UserUtil } from '../common/utils/user.util';
 import { Model } from 'mongoose';
 import { RelationshipToPrimary } from '../household/enums/relationship-to-primary.enum';
-import {
-  ScreeningAccessCode,
-  ScreeningAccessCodeDocument,
-} from 'src/application-form/schemas/screening-access-code.schema';
 import { SiebelApiService } from '../siebel/siebel-api.service';
 import { ReferralState } from './enums/application-package-subtypes.enum';
 
@@ -41,13 +37,8 @@ export class ApplicationPackageService {
   constructor(
     @InjectModel(ApplicationPackage.name)
     private applicationPackageModel: Model<ApplicationPackage>,
-
-    @InjectModel(ScreeningAccessCode.name)
-    private screeningAccessCodeModel: Model<ScreeningAccessCodeDocument>,
-    //@InjectModel(ApplicationForm.name)
-    //private applicationFormModel: Model<ApplicationForm>,
     private readonly applicationFormService: ApplicationFormService,
-    //private householdModel: Model<HouseholdMembers>,
+    private readonly accessCodeService: AccessCodeService,
     private readonly householdService: HouseholdService,
     private readonly userService: UserService,
     private readonly siebelApiService: SiebelApiService,
@@ -130,10 +121,9 @@ export class ApplicationPackageService {
       );
 
       // Delete all screening access codes associated with this package
-      await this.screeningAccessCodeModel
-        .deleteMany({ parentApplicationId: dto.applicationPackageId })
-        .exec();
-
+      await this.accessCodeService.deleteByApplicationPackageId(
+        dto.applicationPackageId,
+      );
       // Delete all household members for this package
       await this.householdService.deleteAllMembersByApplicationPackageId(
         dto.applicationPackageId,
@@ -300,7 +290,7 @@ export class ApplicationPackageService {
       }
       // get all application forms for this package
       const applicationForms =
-        await this.applicationFormService.findByPackageAndUser(
+        await this.applicationFormService.findShortByPackageAndUser(
           applicationPackageId,
           userId,
         );

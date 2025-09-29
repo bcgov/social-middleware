@@ -485,6 +485,19 @@ export class ApplicationFormService {
       .exec();
   }
 
+  // returns application form metadata, without formData
+  async findShortByPackageAndUser(
+    applicationPackageId: string,
+    userId: string,
+  ): Promise<ApplicationForm[]> {
+    return await this.applicationFormModel
+      .find({ applicationPackageId, userId })
+      .select('-formData')
+      .sort({ createdAt: 1 })
+      .lean()
+      .exec();
+  }
+
   async deleteByApplicationPackageId(
     parentApplicationId: string,
   ): Promise<void> {
