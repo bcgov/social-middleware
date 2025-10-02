@@ -3,6 +3,7 @@ import {
   Query,
   Req,
   Get,
+  Param,
   Put,
   UseGuards,
   Body,
@@ -10,12 +11,14 @@ import {
 import {
   ApiTags,
   ApiOperation,
+  ApiParam,
   ApiResponse,
   ApiQuery,
   ApiBearerAuth,
 } from '@nestjs/swagger';
 import { Request } from 'express';
 import { NewTokenDto } from './dto/new-token.dto';
+import { GetApplicationFormDto } from './dto/get-application-form.dto';
 import { SubmitApplicationFormDto } from './dto/submit-application-form.dto';
 import { SessionAuthGuard } from 'src/auth/session-auth.guard';
 import { ApplicationFormService } from './services/application-form.service';
@@ -31,6 +34,51 @@ export class ApplicationFormsController {
     private readonly sessionUtil: SessionUtil,
     private readonly logger: PinoLogger,
   ) {}
+
+  @Get(':applicationId')
+  @UseGuards(SessionAuthGuard)
+  @ApiOperation({ summary: 'Get application form metadata by application ID' })
+  @ApiParam({
+    name: 'applicationId',
+    required: true,
+    description: 'The application ID to retrieve',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Application form metadata retrieved successfully',
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized - invalid or missing session',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Application form not found or access denied',
+  })
+  @ApiResponse({
+    status: 500,
+    description: 'Internal server error',
+  })
+  async getApplicationFormById(
+    @Param('applicationId') applicationId: string,
+    @Req() request: Request,
+  ): Promise<GetApplicationFormDto> {
+    const userId = this.sessionUtil.extractUserIdFromRequest(request);
+
+    const applicationForm =
+      await this.applicationFormsService.getApplicationFormById(
+        applicationId,
+        userId,
+      );
+
+    if (!applicationForm) {
+      throw new NotFoundException(
+        'Application form not found or access denied',
+      );
+    }
+
+    return applicationForm;
+  }
 
   @Put('submit')
   @ApiOperation({ summary: 'Update application form data' })

@@ -384,6 +384,70 @@ export class ApplicationFormService {
     }
   }
 
+  // used by front end to determine the current state of the applicationForm
+  async getApplicationFormById(
+    applicationId: string,
+    userId: string,
+  ): Promise<GetApplicationFormDto | null> {
+    try {
+      this.logger.info(
+        { applicationId, userId },
+        'Fetching application form by ID',
+      );
+
+      // Find the application form (without formData to keep response light)
+      const form = await this.applicationFormModel
+        .findOne(
+          {
+            applicationId: { $eq: applicationId },
+            userId: { $eq: userId },
+          },
+          { formData: 0 },
+        )
+        .lean()
+        .exec();
+
+      if (!form) {
+        this.logger.info(
+          { applicationId, userId },
+          'Application form not found or access denied',
+        );
+        return null;
+      }
+
+      // Get the corresponding formId from FormParameters
+      const formParameters = await this.formParametersModel
+        .findOne({ applicationId: { $eq: applicationId } }, { formId: 1 })
+        .lean()
+        .exec();
+
+      const result: GetApplicationFormDto = {
+        applicationId: form.applicationId,
+        formId: formParameters?.formId ?? '',
+        userId: form.userId,
+        type: form.type,
+        status: form.status,
+        submittedAt: form.submittedAt ?? null,
+        updatedAt: form.updatedAt,
+      };
+
+      this.logger.info(
+        { applicationId, userId },
+        'Application form fetched successfully',
+      );
+
+      return result;
+    } catch (error) {
+      this.logger.error(
+        { error, applicationId, userId },
+        'Failed to fetch application form by ID',
+      );
+      throw new InternalServerErrorException(
+        'Failed to fetch application form',
+      );
+    }
+  }
+
   async submitApplicationForm(dto: SubmitApplicationFormDto): Promise<void> {
     try {
       this.logger.info('Saving application');
