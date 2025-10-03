@@ -7,6 +7,9 @@ export class GetApplicationFormDto {
   applicationId!: string;
 
   @ApiProperty()
+  applicationPackageId!: string;
+
+  @ApiProperty()
   formId!: string;
 
   @ApiProperty()

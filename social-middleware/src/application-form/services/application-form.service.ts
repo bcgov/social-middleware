@@ -271,6 +271,7 @@ export class ApplicationFormService {
       // Build final DTO array
       const results: GetApplicationFormDto[] = forms.map((form) => ({
         applicationId: form.applicationId,
+        applicationPackageId: form.applicationPackageId,
         formId: formIdMap.get(form.applicationId) ?? '',
         userId: form.userId,
         type: form.type,
@@ -346,6 +347,7 @@ export class ApplicationFormService {
 
       const results: GetApplicationFormDto[] = forms.map((form) => ({
         applicationId: form.applicationId,
+        applicationPackageId: form.applicationPackageId,
         formId: formIdMap.get(form.applicationId) ?? '',
         userId: form.userId,
         type: form.type,
@@ -409,6 +411,7 @@ export class ApplicationFormService {
 
       const result: GetApplicationFormDto = {
         applicationId: form.applicationId,
+        applicationPackageId: form.applicationPackageId,
         formId: formParameters?.formId ?? '',
         userId: form.userId,
         type: form.type,
