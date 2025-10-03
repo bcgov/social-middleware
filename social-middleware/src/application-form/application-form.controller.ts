@@ -37,6 +37,45 @@ export class ApplicationFormsController {
     private readonly logger: PinoLogger,
   ) {}
 
+  @Get('token')
+  @UseGuards(SessionAuthGuard)
+  @ApiOperation({ summary: 'Get form access token by application ID' })
+  @ApiQuery({
+    name: 'applicationId',
+    required: true,
+    description: 'The application ID to get the form access token for',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Form access token retrieved successfully',
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized - invalid or missing session',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'No form parameters found for the given application ID',
+  })
+  @ApiResponse({
+    status: 500,
+    description: 'Internal server error',
+  })
+  async getFormAccessToken(
+    @Query('applicationId') applicationId: string,
+    @Req() request: Request,
+  ): Promise<{ formAccessToken: string }> {
+    const userId = this.sessionUtil.extractUserIdFromRequest(request);
+
+    const dto: NewTokenDto = {
+      applicationId,
+    };
+
+    const formAccessToken =
+      await this.applicationFormsService.newFormAccessToken(dto, userId);
+    return { formAccessToken };
+  }
+
   @Get(':applicationId')
   @UseGuards(SessionAuthGuard)
   @ApiOperation({ summary: 'Get application form metadata by application ID' })
@@ -98,44 +137,5 @@ export class ApplicationFormsController {
     dto: SubmitApplicationFormDto,
   ) {
     return await this.applicationFormsService.submitApplicationForm(dto);
-  }
-
-  @Get('token')
-  @UseGuards(SessionAuthGuard)
-  @ApiOperation({ summary: 'Get form access token by application ID' })
-  @ApiQuery({
-    name: 'applicationId',
-    required: true,
-    description: 'The application ID to get the form access token for',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Form access token retrieved successfully',
-  })
-  @ApiResponse({
-    status: 401,
-    description: 'Unauthorized - invalid or missing session',
-  })
-  @ApiResponse({
-    status: 404,
-    description: 'No form parameters found for the given application ID',
-  })
-  @ApiResponse({
-    status: 500,
-    description: 'Internal server error',
-  })
-  async getFormAccessToken(
-    @Query('applicationId') applicationId: string,
-    @Req() request: Request,
-  ): Promise<{ formAccessToken: string }> {
-    const userId = this.sessionUtil.extractUserIdFromRequest(request);
-
-    const dto: NewTokenDto = {
-      applicationId,
-    };
-
-    const formAccessToken =
-      await this.applicationFormsService.newFormAccessToken(dto, userId);
-    return { formAccessToken };
   }
 }
