@@ -3,20 +3,24 @@ import {
   Query,
   Req,
   Get,
+  Param,
   UseGuards,
   Body,
   ValidationPipe,
+  NotFoundException,
   Post,
 } from '@nestjs/common';
 import {
   ApiTags,
   ApiOperation,
+  ApiParam,
   ApiResponse,
   ApiQuery,
   ApiBearerAuth,
 } from '@nestjs/swagger';
 import { Request } from 'express';
 import { NewTokenDto } from './dto/new-token.dto';
+import { GetApplicationFormDto } from './dto/get-application-form.dto';
 import { SubmitApplicationFormDto } from './dto/submit-application-form.dto';
 import { SessionAuthGuard } from 'src/auth/session-auth.guard';
 import { ApplicationFormService } from './services/application-form.service';
@@ -32,24 +36,6 @@ export class ApplicationFormsController {
     private readonly sessionUtil: SessionUtil,
     private readonly logger: PinoLogger,
   ) {}
-
-  @Post('submit')
-  @ApiOperation({ summary: 'Update application form data' })
-  @ApiResponse({
-    status: 200,
-    description: 'Application Form data successfully updated',
-  })
-  @ApiResponse({ status: 404, description: 'Token or application not found' })
-  @ApiResponse({
-    status: 500,
-    description: 'Server error during application form submission',
-  })
-  async submitApplicationForm(
-    @Body(new ValidationPipe({ whitelist: true, transform: true }))
-    dto: SubmitApplicationFormDto,
-  ) {
-    return await this.applicationFormsService.submitApplicationForm(dto);
-  }
 
   @Get('token')
   @UseGuards(SessionAuthGuard)
@@ -88,5 +74,68 @@ export class ApplicationFormsController {
     const formAccessToken =
       await this.applicationFormsService.newFormAccessToken(dto, userId);
     return { formAccessToken };
+  }
+
+  @Get(':applicationId')
+  @UseGuards(SessionAuthGuard)
+  @ApiOperation({ summary: 'Get application form metadata by application ID' })
+  @ApiParam({
+    name: 'applicationId',
+    required: true,
+    description: 'The application ID to retrieve',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Application form metadata retrieved successfully',
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized - invalid or missing session',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Application form not found or access denied',
+  })
+  @ApiResponse({
+    status: 500,
+    description: 'Internal server error',
+  })
+  async getApplicationFormById(
+    @Param('applicationId') applicationId: string,
+    @Req() request: Request,
+  ): Promise<GetApplicationFormDto> {
+    const userId = this.sessionUtil.extractUserIdFromRequest(request);
+
+    const applicationForm =
+      await this.applicationFormsService.getApplicationFormById(
+        applicationId,
+        userId,
+      );
+
+    if (!applicationForm) {
+      throw new NotFoundException(
+        'Application form not found or access denied',
+      );
+    }
+
+    return applicationForm;
+  }
+
+  @Post('submit')
+  @ApiOperation({ summary: 'Update application form data' })
+  @ApiResponse({
+    status: 200,
+    description: 'Application Form data successfully updated',
+  })
+  @ApiResponse({ status: 404, description: 'Token or application not found' })
+  @ApiResponse({
+    status: 500,
+    description: 'Server error during application form submission',
+  })
+  async submitApplicationForm(
+    @Body(new ValidationPipe({ whitelist: true, transform: true }))
+    dto: SubmitApplicationFormDto,
+  ) {
+    return await this.applicationFormsService.submitApplicationForm(dto);
   }
 }

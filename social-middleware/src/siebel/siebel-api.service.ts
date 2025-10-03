@@ -1,26 +1,37 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { ConfigService } from '@nestjs/config';
 import { firstValueFrom } from 'rxjs';
 import { AxiosError } from 'axios';
 import { SiebelAuthService } from './siebel-auth.service';
+import { PinoLogger } from 'nestjs-pino';
 
+interface SiebelContactResponse {
+  items?: {
+    Id?: string;
+    'Icm Bcsc Did'?: string;
+    [key: string]: unknown;
+  };
+  [key: string]: unknown;
+}
 @Injectable()
 export class SiebelApiService {
   private readonly baseUrl: string;
   private readonly trustedUsername: string;
 
-  private readonly logger = new Logger(SiebelApiService.name);
+  //private readonly logger = new Logger(SiebelApiService.name);
 
   constructor(
     private readonly httpService: HttpService,
     private readonly configService: ConfigService,
     private readonly siebelAuthService: SiebelAuthService,
+    private readonly logger: PinoLogger,
   ) {
     this.baseUrl = this.configService.get<string>('SIEBEL_APS_BASE_URL')!;
     this.trustedUsername = this.configService.get<string>(
       'SIEBEL_TRUSTED_USERNAME',
     )!;
+    this.logger.setContext(SiebelApiService.name);
   }
 
   private async getHeaders(): Promise<Record<string, string>> {
@@ -52,6 +63,39 @@ export class SiebelApiService {
     return await this.get(endpoint, query);
   }
 
+  async getContactByBcscId(
+    bcscId: string,
+  ): Promise<SiebelContactResponse | null> {
+    const endpoint = '/ICMContact/ICMContact';
+
+    const params = {
+      'Icm Bcsc Did': bcscId,
+    };
+    this.logger.debug(`Searching for contact with BCSC ID: ${bcscId}`);
+
+    try {
+      const result = await this.get<SiebelContactResponse>(endpoint, params);
+
+      // Check if contact exists
+      if (
+        result &&
+        (Array.isArray(result) ? result.length > 0 : result.items)
+      ) {
+        this.logger.info({ bcscId }, 'Contact found for BCSC ID');
+        return result;
+      } else {
+        this.logger.info({ bcscId }, 'No contact found for BCSC ID');
+        return null;
+      }
+    } catch (error) {
+      this.logger.error(
+        { error, bcscId },
+        'Failed to search for contact by BCSC ID',
+      );
+      throw error;
+    }
+  }
+
   async getServiceRequestsByBcscId(bcscId: string) {
     const endpoint = '/ServiceRequest/ServiceRequest';
 
@@ -71,7 +115,7 @@ export class SiebelApiService {
         this.httpService.get<T>(url, { headers, params }),
       );
 
-      this.logger.log({ endpoint, params }, 'GET request successful');
+      this.logger.debug({ endpoint, params }, 'GET request successful');
       return response.data;
     } catch (error: unknown) {
       if (error instanceof AxiosError) {
@@ -180,7 +224,7 @@ export class SiebelApiService {
         this.httpService.put<T>(url, data, { headers, params }),
       );
 
-      this.logger.log({ endpoint, data, params }, 'PUT request successful');
+      this.logger.debug({ endpoint, data, params }, 'PUT request successful');
       return response.data;
     } catch (error: unknown) {
       if (error instanceof AxiosError) {
