@@ -93,22 +93,6 @@ export class ApplicationFormService {
 
       await this.newFormAccessToken(newFormDto, dto.userId);
 
-      /*
-      const formParameters = new this.formParametersModel({
-        applicationId,
-        type: FormType.New, // always new for new form parameters
-        formId: dto.formId,
-        formAccessToken,
-        formParameters: {
-          formId: dto.formId,
-          formParameters: { formId: dto.formId, language: 'en' },
-        },
-      });
-
-      await formParameters.save();
-      this.logger.info({ formAccessToken }, 'Saved form parameters to DB');
-      */
-
       return { applicationId };
     } catch (error) {
       this.logger.error({ error }, 'Failed to create application');
