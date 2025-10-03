@@ -93,6 +93,7 @@ export class ApplicationFormService {
 
       await this.newFormAccessToken(newFormDto, dto.userId);
 
+      /*
       const formParameters = new this.formParametersModel({
         applicationId,
         type: FormType.New, // always new for new form parameters
@@ -106,6 +107,7 @@ export class ApplicationFormService {
 
       await formParameters.save();
       this.logger.info({ formAccessToken }, 'Saved form parameters to DB');
+      */
 
       return { applicationId };
     } catch (error) {
