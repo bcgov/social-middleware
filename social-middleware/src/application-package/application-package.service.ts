@@ -290,7 +290,7 @@ export class ApplicationPackageService {
       }
       // get all application forms for this package
       const applicationForms =
-        await this.applicationFormService.findShortByPackageAndUser(
+        await this.applicationFormService.findByPackageAndUser(
           applicationPackageId,
           userId,
         );
@@ -310,9 +310,10 @@ export class ApplicationPackageService {
         'Sub Type': applicationPackage.subtype,
         'Sub Sub Type': applicationPackage.subsubtype,
         'ICM Stage': 'Application',
-        'Icm Bcsc Did': primaryUser.bc_services_card_id,
+        'ICM BCSC DID': primaryUser.bc_services_card_id,
         'First Name': primaryUser.first_name,
         'Service Office': 'MCFD',
+        'Comm Method': 'Email',
         'SR Memo': 'Created By Portal',
       };
 
@@ -325,6 +326,10 @@ export class ApplicationPackageService {
 
       const serviceRequestId = (siebelResponse as SiebelServiceRequestResponse)
         .items?.Id;
+
+      const serviceRequestStage = (
+        siebelResponse as SiebelServiceRequestResponse
+      ).items?.['ICM Stage'] as string;
 
       if (!serviceRequestId) {
         this.logger.error(
@@ -427,6 +432,7 @@ export class ApplicationPackageService {
           referralstate: ReferralState.REQUESTED,
           submittedAt: new Date(),
           srId: serviceRequestId,
+          srStage: serviceRequestStage,
         },
       );
 
