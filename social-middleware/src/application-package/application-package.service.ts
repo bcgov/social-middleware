@@ -46,6 +46,10 @@ export class ApplicationPackageService {
     @InjectPinoLogger(ApplicationFormService.name)
     private readonly logger: PinoLogger,
   ) {}
+
+  // create a new application package, which includes creating the initial referral form
+  // and the primary household member
+  // returns the created application package
   async createApplicationPackage(
     dto: CreateApplicationPackageDto,
     userId: string,
@@ -111,6 +115,9 @@ export class ApplicationPackageService {
     return appPackage;
   }
 
+  // cancel an application package, which includes deleting all associated forms,
+  // household members, and access codes
+  // only allowed if the package is in DRAFT or IN_PROGRESS status
   async cancelApplicationPackage(
     dto: CancelApplicationPackageDto,
   ): Promise<void> {
@@ -164,6 +171,9 @@ export class ApplicationPackageService {
       );
     }
   }
+
+  // get the applicationPackage details for a given packageId and userId
+  // used to view the package details and status
   async getApplicationPackage(
     applicationPackageId: string,
     userId: string,
@@ -208,6 +218,9 @@ export class ApplicationPackageService {
       );
     }
   }
+
+  // get all application packages for a user
+  // used on dashboard to list all packages for possible interaction
   async getApplicationPackages(userId: string): Promise<ApplicationPackage[]> {
     try {
       this.logger.info({ userId }, 'Fetching application packages for user');
@@ -245,7 +258,7 @@ export class ApplicationPackageService {
         'Fetching application forms for package',
       );
 
-      const forms = await this.applicationFormService.findByPackageAndUser(
+      const forms = await this.applicationFormService.findShortByPackageAndUser(
         applicationPackageId,
         userId,
       );
@@ -327,9 +340,13 @@ export class ApplicationPackageService {
       const serviceRequestId = (siebelResponse as SiebelServiceRequestResponse)
         .items?.Id;
 
-      const serviceRequestStage = (
-        siebelResponse as SiebelServiceRequestResponse
-      ).items?.['ICM Stage'] as string;
+      // the referral stage has not been implemented in ICM yet; on creation
+      // of a service request, it will default to Application, which will actually
+      // be the second step in the process. We will create a seperate endpoint
+      // to track the status and stage.
+      //const serviceRequestStage = (
+      //  siebelResponse as SiebelServiceRequestResponse
+      //).items?.['ICM Stage'] as string;
 
       if (!serviceRequestId) {
         this.logger.error(
@@ -431,8 +448,9 @@ export class ApplicationPackageService {
           status: ApplicationPackageStatus.SUBMITTED,
           referralstate: ReferralState.REQUESTED,
           submittedAt: new Date(),
+          updatedAt: new Date(),
           srId: serviceRequestId,
-          srStage: serviceRequestStage,
+          //srStage: serviceRequestStage,
         },
       );
 
