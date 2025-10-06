@@ -9,7 +9,7 @@ import { PinoLogger } from 'nestjs-pino';
 interface SiebelContactResponse {
   items?: {
     Id?: string;
-    'Icm Bcsc Did'?: string;
+    'ICM BCSC DID'?: string;
     [key: string]: unknown;
   };
   [key: string]: unknown;
@@ -69,7 +69,7 @@ export class SiebelApiService {
     const endpoint = '/ICMContact/ICMContact';
 
     const params = {
-      'Icm Bcsc Did': bcscId,
+      'ICM BCSC DID': bcscId,
     };
     this.logger.debug(`Searching for contact with BCSC ID: ${bcscId}`);
 
@@ -100,7 +100,7 @@ export class SiebelApiService {
     const endpoint = '/ServiceRequest/ServiceRequest';
 
     const params = {
-      'Icm Bcsc Did': bcscId,
+      'ICM BCSC DID': bcscId,
       Type: 'Caregiver Application',
     };
     return await this.get(endpoint, params);
@@ -141,7 +141,32 @@ export class SiebelApiService {
 
   async createServiceRequest(serviceRequestData: unknown) {
     const endpoint = '/ServiceRequest/ServiceRequest';
-    return await this.put(endpoint, serviceRequestData);
+    try {
+      return await this.put(endpoint, serviceRequestData);
+    } catch (error: unknown) {
+      // Log the raw error first
+      this.logger.error('Raw error object:', error);
+
+      // Try different error structure patterns
+      if (error && typeof error === 'object') {
+        this.logger.error('Error keys:', Object.keys(error));
+
+        // Axios error structure
+        if ('response' in error) {
+          const axiosError = error as any;
+          this.logger.error('Axios response:', axiosError.response);
+          this.logger.error('Axios status:', axiosError.response?.status);
+          this.logger.error('Axios data:', axiosError.response?.data);
+        }
+
+        // Other error patterns
+        if ('message' in error) {
+          this.logger.error('Error message:', (error as any).message);
+        }
+      }
+
+      throw error;
+    }
   }
 
   async createAttachment(
@@ -191,17 +216,17 @@ export class SiebelApiService {
     const payload = {
       Id: 'NULL',
       'Service Request Id': prospectData.ServiceRequestId,
-      'Icm Bcsc Did': prospectData.IcmBcscDid,
+      'ICM BCSC DID': prospectData.IcmBcscDid,
       'First Name': prospectData.FirstName,
       'Last Name': prospectData.LastName,
-      'Date of Birth': prospectData.DateofBirth,
+      'Birth Date': prospectData.DateofBirth,
       'Street Address': prospectData.StreetAddress,
       City: prospectData.City,
       Prov: prospectData.Prov,
       'Postal Code': prospectData.PostalCode,
       'Email Address': prospectData.EmailAddress,
       //'Primary Phone #': prospectData.PrimaryPhone,
-      Gender: prospectData.Gender,
+      'M/F': prospectData.Gender,
       Relationship: prospectData.Relationship,
     };
     this.logger.debug(
