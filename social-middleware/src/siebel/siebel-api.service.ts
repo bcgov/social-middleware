@@ -14,6 +14,16 @@ interface SiebelContactResponse {
   };
   [key: string]: unknown;
 }
+
+export interface SiebelSRResponse {
+  items?: {
+    Id?: string;
+    'ICM BCSC DID'?: string;
+    'ICM Stage'?: string;
+    [key: string]: unknown;
+  };
+  [key: string]: unknown;
+}
 @Injectable()
 export class SiebelApiService {
   private readonly baseUrl: string;
@@ -96,7 +106,9 @@ export class SiebelApiService {
     }
   }
 
-  async getServiceRequestsByBcscId(bcscId: string) {
+  async getServiceRequestsByBcscId(
+    bcscId: string,
+  ): Promise<SiebelSRResponse[]> {
     const endpoint = '/ServiceRequest/ServiceRequest';
 
     const params = {
