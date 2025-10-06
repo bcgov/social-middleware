@@ -24,6 +24,11 @@ export interface SiebelSRResponse {
   };
   [key: string]: unknown;
 }
+
+export interface SiebelSRsResponse {
+  items: SiebelSRResponse[];
+  [key: string]: unknown;
+}
 @Injectable()
 export class SiebelApiService {
   private readonly baseUrl: string;
@@ -106,9 +111,7 @@ export class SiebelApiService {
     }
   }
 
-  async getServiceRequestsByBcscId(
-    bcscId: string,
-  ): Promise<SiebelSRResponse[]> {
+  async getServiceRequestsByBcscId(bcscId: string): Promise<SiebelSRsResponse> {
     const endpoint = '/ServiceRequest/ServiceRequest';
 
     const params = {

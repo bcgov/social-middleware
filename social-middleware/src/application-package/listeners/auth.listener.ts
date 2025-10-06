@@ -6,7 +6,8 @@ import {
 } from '../../common/events/auth-events.service';
 import {
   SiebelApiService,
-  SiebelSRResponse,
+  //SiebelSRResponse,
+  SiebelSRsResponse,
 } from '../../siebel/siebel-api.service';
 import { ApplicationPackageService } from '../application-package.service';
 
@@ -40,15 +41,25 @@ export class AuthListener implements OnModuleInit {
 
       // get service requests from Siebel
 
-      const serviceRequests: SiebelSRResponse[] | null =
+      //    const serviceRequestsResponse: SiebelSRsResponse =
+      //      await this.siebelApiService.getServiceRequestsByBcscId(
+      //        userData.bc_services_card_id,
+      //      );
+
+      const serviceRequests: SiebelSRsResponse =
         await this.siebelApiService.getServiceRequestsByBcscId(
           userData.bc_services_card_id,
         );
 
+      //      serviceRequestsResponse?.items ?? [];
+
+      this.logger.debug(`Service Requests: ${JSON.stringify(serviceRequests)}`);
+
       this.logger.info(
-        `Fetched ${serviceRequests?.length} service requests for userId: ${userData.userId}`,
+        `Fetched ${serviceRequests?.items?.length || 0} service requests for userId: ${userData.userId}`,
       );
-      if (serviceRequests && serviceRequests.length === 0) {
+
+      if (serviceRequests && (serviceRequests.items?.length || 0) > 0) {
         await this.syncUserApplicationPackages(userData, serviceRequests);
       }
     } catch (error) {
@@ -65,7 +76,7 @@ export class AuthListener implements OnModuleInit {
 
   private async syncUserApplicationPackages(
     userData: UserLoggedInEvent,
-    serviceRequests: SiebelSRResponse[],
+    serviceRequestsResponse: SiebelSRsResponse,
   ) {
     // get all existing application packages for the user
     const applicationPackages =
@@ -78,6 +89,8 @@ export class AuthListener implements OnModuleInit {
     // creating new ones is required for OOC type applications and screening activities.
 
     try {
+      const serviceRequests = serviceRequestsResponse.items ?? [];
+
       for (const sr of serviceRequests) {
         const srId = sr.Id as string;
         const srStage = sr['ICM Stage'] as string;
@@ -110,9 +123,12 @@ export class AuthListener implements OnModuleInit {
           continue;
         }
       }
-    } catch (error) {
+    } catch (error: unknown) {
       this.logger.error(
-        { error, userId: userData.userId },
+        {
+          error: error instanceof Error ? error.message : String(error),
+          userId: userData.userId,
+        },
         'Error syncing application package for service request',
       );
       throw error;
