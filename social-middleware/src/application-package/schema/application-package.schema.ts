@@ -34,6 +34,9 @@ export class ApplicationPackage {
   @Prop({ required: false })
   srId!: string;
 
+  @Prop({ required: false })
+  srStage!: string;
+
   @Prop({
     required: true,
     enum: ApplicationPackageStatus,
