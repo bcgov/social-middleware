@@ -18,6 +18,7 @@ import { HttpService } from '@nestjs/axios';
 import { firstValueFrom } from 'rxjs';
 import { CreateUserDto, AuthCallbackDto } from './dto';
 import { UserService } from './user.service';
+import { AuthService } from './auth.service';
 import {
   ApiOperation,
   ApiResponse,
@@ -72,6 +73,7 @@ export class AuthController {
     private readonly userService: UserService,
     private readonly configService: ConfigService,
     private readonly siebelApiService: SiebelApiService,
+    private readonly authService: AuthService,
     private readonly logger: PinoLogger,
     private readonly userUtil: UserUtil,
   ) {
@@ -175,6 +177,7 @@ export class AuthController {
   @ApiCookieAuth('refresh_token')
   @ApiCookieAuth('id_token')
   async authCallback(
+    // TO DO:Move logic to AuthService
     @Body(new ValidationPipe({ whitelist: true, transform: true }))
     body: AuthCallbackDto,
     @Res({ passthrough: true }) res: Response,
@@ -236,13 +239,9 @@ export class AuthController {
         ),
       );
 
-      //const userInfo: UserInfo = userInfoResponse.data;
-
       const userInfo = userInfoResponse.data as UserInfo;
 
       this.logger.debug({ userInfo }, 'Full userInfo response');
-
-      //console.log('User info received:', { sub: userInfo.sub, email: userInfo.email, first: userInfo.given_name, given: userInfo.given_name, last: userInfo.family_name });
 
       //  Persist user to database
       const userData: CreateUserDto = {
@@ -267,36 +266,6 @@ export class AuthController {
       // Update last login
       await this.userService.updateLastLogin(user.id);
       this.logger.info('Last login updated');
-
-      /*
-      // Check for contactId on user record
-      console.log('No contactId found. Attempting to fetch from Siebel...');
-      try {
-        const contactQuery = {
-          lastName: user.last_name,
-          dateOfBirth: user.dateOfBirth,
-        };
-
-        const response = (await this.siebelApiService.getCaseContacts(
-          contactQuery,
-        )) as SiebelContactResponse;
-        const icmContact = response.items?.[0];
-        if (icmContact?.rowId) {
-          console.log('ICM contact found:', icmContact.rowId);
-
-          await this.userService.updateUser(user.id, {
-            contactId: icmContact.rowId,
-          });
-
-          console.log('User contactId updated');
-        } else {
-          console.warn('No matching ICM contact found');
-        }
-      } catch (error) {
-        console.error('Error fetching ICM contact:', error);
-      }
-
-      */
 
       // Create session token for portal
       const sessionToken = jwt.sign(
@@ -341,6 +310,7 @@ export class AuthController {
         this.logger.info('Refresh token cookie set');
       }
 
+      this.authService.login(userData);
       // Store id_token for logout
       if (id_token) {
         res.cookie('id_token', id_token, {
