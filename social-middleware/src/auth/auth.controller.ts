@@ -310,7 +310,7 @@ export class AuthController {
         this.logger.info('Refresh token cookie set');
       }
 
-      this.authService.login(userData);
+      this.authService.login(user, userData);
       // Store id_token for logout
       if (id_token) {
         res.cookie('id_token', id_token, {

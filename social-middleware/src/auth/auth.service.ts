@@ -8,6 +8,7 @@ import { ConfigService } from '@nestjs/config';
 import { CreateUserDto } from './dto';
 import { AuthEventsService } from '../common/events/auth-events.service';
 import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
+import { User } from './schemas/user.schema';
 
 // this service is for handling OAuth2 authentication with a code verifier;
 // it is used for ICM Siebel Labs Integration
@@ -31,11 +32,11 @@ export class AuthService {
     private readonly logger: PinoLogger,
   ) {}
 
-  login(userData: CreateUserDto): void {
+  login(user: User, userData: CreateUserDto): void {
     // Emit user logged in event
-    this.logger.info(`User logged in: ${userData.bc_services_card_id}`);
+    //this.logger.info(`User logged in: ${userData.bc_services_card_id}`);
     this.authEventsService.emitUserLoggedInEvent({
-      userId: userData.bc_services_card_id,
+      userId: user.id,
       bc_services_card_id: userData.bc_services_card_id,
       timestamp: new Date(),
       firstName: userData.first_name,
