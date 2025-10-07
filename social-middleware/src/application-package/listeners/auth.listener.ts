@@ -84,6 +84,10 @@ export class AuthListener implements OnModuleInit {
         userData.userId,
       );
 
+    //this.logger.info(
+    //  `Syncing application packages for userId: ${userData.userId}, found ${applicationPackages.length} existing packages`,
+    //);
+
     // loop through service requests to see what's found in applicationPackages;
     // we will update ones that exist, and potentially create new ones otherwise;
     // creating new ones is required for OOC type applications and screening activities.
@@ -94,17 +98,18 @@ export class AuthListener implements OnModuleInit {
       for (const sr of serviceRequests) {
         const srId = sr.Id as string;
         const srStage = sr['ICM Stage'] as string;
-        this.logger.info(
-          `Syncing application package for service request ID: ${srId}, stage: ${srStage}`,
-        );
-        // see if we have an application package for this service request already
+
+        //        this.logger.info(`ID: ${srId}`);
+        //        this.logger.info(`ICM Stage value: "${srStage}"`);
+        //        this.logger.info(`ICM Stage type: ${typeof srStage}`);
+
         const existingPackage = applicationPackages.find(
           (app) => app.srId === srId,
         );
 
         if (existingPackage) {
           this.logger.info(
-            `Application package found for service request ID: ${srId}, synching stage if needed`,
+            `Application package found for srId: ${srId} srStage:${srStage}, applicationPackage stage: ${existingPackage.srStage}`,
           );
           // update the stage if it has changed
 
@@ -112,13 +117,15 @@ export class AuthListener implements OnModuleInit {
             this.logger.info(
               `Updating application package stage for service request ID: ${srId} from ${existingPackage.srStage} to ${srStage}`,
             );
-            existingPackage.srStage = srStage;
-            existingPackage.updatedAt = new Date();
+            await this.applicationPackageService.updateApplicationPackageStage(
+              existingPackage.applicationPackageId,
+              srStage,
+            );
             continue;
           }
         } else {
           this.logger.info(
-            `No application package found for service request ID: ${srId}, creating new package`,
+            `No application package found for service request ID: ${srId}`,
           );
           continue;
         }

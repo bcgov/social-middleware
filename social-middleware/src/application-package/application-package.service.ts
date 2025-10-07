@@ -219,6 +219,50 @@ export class ApplicationPackageService {
     }
   }
 
+  async updateApplicationPackageStage(
+    applicationPackageId: string,
+    newStage: string,
+  ): Promise<ApplicationPackage> {
+    try {
+      this.logger.info(
+        { applicationPackageId, newStage },
+        'Updating application package stage',
+      );
+
+      const updatedPackage = await this.applicationPackageModel
+        .findOneAndUpdate(
+          { applicationPackageId },
+          { srStage: newStage, updatedAt: new Date() },
+          { new: true },
+        )
+        .lean()
+        .exec();
+
+      if (!updatedPackage) {
+        throw new NotFoundException('Application package not found');
+      }
+
+      this.logger.info(
+        { applicationPackageId, newStage },
+        'Application package stage updated successfully',
+      );
+
+      return updatedPackage;
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+
+      this.logger.error(
+        { error, applicationPackageId, newStage },
+        'Failed to update application package stage',
+      );
+      throw new InternalServerErrorException(
+        'Failed to update application package stage',
+      );
+    }
+  }
+
   // get all application packages for a user
   // used on dashboard to list all packages for possible interaction
   async getApplicationPackages(userId: string): Promise<ApplicationPackage[]> {
