@@ -318,16 +318,14 @@ export class ApplicationPackageService {
         Id: 'NULL',
         Status: 'Open',
         Priority: '3-Standard',
-        'Contact Method': 'Client Portal',
         Type: 'Caregiver Application',
-        'Sub Type': applicationPackage.subtype,
-        'Sub Sub Type': applicationPackage.subsubtype,
+        'SR Sub Type': applicationPackage.subtype,
+        'SR Sub Sub Type': applicationPackage.subsubtype,
         'ICM Stage': 'Application',
         'ICM BCSC DID': primaryUser.bc_services_card_id,
-        'First Name': primaryUser.first_name,
         'Service Office': 'MCFD',
-        'Comm Method': 'Email',
-        'SR Memo': 'Created By Portal',
+        'Comm Method': 'Client Portal',
+        Memo: 'Created By Portal',
       };
 
       const siebelResponse =
@@ -450,7 +448,7 @@ export class ApplicationPackageService {
           submittedAt: new Date(),
           updatedAt: new Date(),
           srId: serviceRequestId,
-          //srStage: serviceRequestStage,
+          // srStage: serviceRequestStage,
         },
       );
 
