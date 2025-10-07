@@ -16,12 +16,9 @@ interface SiebelContactResponse {
 }
 
 export interface SiebelSRResponse {
-  items?: {
-    Id?: string;
-    'ICM BCSC DID'?: string;
-    'ICM Stage'?: string;
-    [key: string]: unknown;
-  };
+  Id?: string;
+  'ICM BCSC DID'?: string;
+  'ICM Stage'?: string;
   [key: string]: unknown;
 }
 
@@ -113,10 +110,13 @@ export class SiebelApiService {
 
   async getServiceRequestsByBcscId(bcscId: string): Promise<SiebelSRsResponse> {
     const endpoint = '/ServiceRequest/ServiceRequest';
+    //const encodedBcscId = encodeURIComponent(bcscId); // get around special characters
 
     const params = {
-      'ICM BCSC DID': bcscId,
-      Type: 'Caregiver Application',
+      searchspec: `[ICM BCSC DID]='${bcscId}' AND [SR Type]='Caregiver Application'`,
+      ViewMode: 'Organization',
+      //'ICM BCSC DID': bcscId,
+      //'SR Type': 'Caregiver Application',
     };
     return await this.get(endpoint, params);
   }
@@ -237,12 +237,12 @@ export class SiebelApiService {
       'Birth Date': prospectData.DateofBirth,
       'Street Address': prospectData.StreetAddress,
       City: prospectData.City,
-      Prov: prospectData.Prov,
+      State: prospectData.Prov,
       'Postal Code': prospectData.PostalCode,
       'Email Address': prospectData.EmailAddress,
       //'Primary Phone #': prospectData.PrimaryPhone,
       'M/F': prospectData.Gender,
-      Relationship: prospectData.Relationship,
+      'Portal Role': prospectData.Relationship,
     };
     this.logger.debug(
       `Creating prospect for Service Request: ${prospectData.ServiceRequestId}`,
