@@ -21,7 +21,7 @@ export class AuthEventsService {
   async emitUserLoggedInEvent(userData: UserLoggedInEvent): Promise<void> {
     const listenerPromise = new Promise<void>((resolve) => {
       this.activeListeners.set(userData.userId, resolve);
-      // Timeout as safety net (optional)
+      // Timeout as safety net
       setTimeout(() => {
         if (this.activeListeners.has(userData.userId)) {
           //this.logger.warn(`User sync timeout for userId: ${userData.userId}`);
