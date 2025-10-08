@@ -10,7 +10,10 @@ import { InjectModel } from '@nestjs/mongoose';
 import { v4 as uuidv4 } from 'uuid';
 import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
 import { ApplicationPackage } from './schema/application-package.schema';
-import { ApplicationPackageStatus } from './enums/application-package-status.enum';
+import {
+  ApplicationPackageStatus,
+  ServiceRequestStage,
+} from './enums/application-package-status.enum';
 import { ApplicationForm } from '../application-form/schemas/application-form.schema';
 import { ApplicationFormService } from '../application-form/services/application-form.service';
 import { ApplicationFormType } from '../application-form/enums/application-form-types.enum';
@@ -220,18 +223,31 @@ export class ApplicationPackageService {
   }
 
   async updateApplicationPackageStage(
-    applicationPackageId: string,
-    newStage: string,
+    applicationPackage: ApplicationPackage,
+    newStage: ServiceRequestStage,
   ): Promise<ApplicationPackage> {
     try {
       this.logger.info(
-        { applicationPackageId, newStage },
+        { applicationPackage, newStage },
         'Updating application package stage',
       );
 
+      // TO DO: compare against previous stage to ensure valid transition
+      if (newStage === ServiceRequestStage.APPLICATION) {
+        // create aboutme as the first application Form
+        const aboutMeDto = {
+          applicationPackageId: applicationPackage.applicationPackageId,
+          formId: 'CF0001_AboutMe', // TODO: Make data driven
+          userId: applicationPackage.userId,
+          type: ApplicationFormType.ABOUTME,
+          formParameters: {},
+        };
+        await this.applicationFormService.createApplicationForm(aboutMeDto);
+      }
+
       const updatedPackage = await this.applicationPackageModel
         .findOneAndUpdate(
-          { applicationPackageId },
+          { applicationPackageId: applicationPackage.applicationPackageId },
           { srStage: newStage, updatedAt: new Date() },
           { new: true },
         )
@@ -243,7 +259,10 @@ export class ApplicationPackageService {
       }
 
       this.logger.info(
-        { applicationPackageId, newStage },
+        {
+          applicationPackageId: applicationPackage.applicationPackageId,
+          newStage,
+        },
         'Application package stage updated successfully',
       );
 
@@ -254,7 +273,11 @@ export class ApplicationPackageService {
       }
 
       this.logger.error(
-        { error, applicationPackageId, newStage },
+        {
+          error,
+          applicationPackageId: applicationPackage.applicationPackageId,
+          newStage,
+        },
         'Failed to update application package stage',
       );
       throw new InternalServerErrorException(

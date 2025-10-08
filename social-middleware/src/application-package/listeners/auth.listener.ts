@@ -10,6 +10,7 @@ import {
   SiebelSRsResponse,
 } from '../../siebel/siebel-api.service';
 import { ApplicationPackageService } from '../application-package.service';
+import { ServiceRequestStage } from '../enums/application-package-status.enum';
 
 @Injectable()
 export class AuthListener implements OnModuleInit {
@@ -99,7 +100,7 @@ export class AuthListener implements OnModuleInit {
 
       for (const sr of serviceRequests) {
         const srId = sr.Id as string;
-        const srStage = sr['ICM Stage'] as string;
+        const srStage = sr['ICM Stage'] as ServiceRequestStage;
 
         //        this.logger.info(`ID: ${srId}`);
         //        this.logger.info(`ICM Stage value: "${srStage}"`);
@@ -120,7 +121,7 @@ export class AuthListener implements OnModuleInit {
               `Updating application package stage for service request ID: ${srId} from ${existingPackage.srStage} to ${srStage}`,
             );
             await this.applicationPackageService.updateApplicationPackageStage(
-              existingPackage.applicationPackageId,
+              existingPackage,
               srStage,
             );
             continue;
