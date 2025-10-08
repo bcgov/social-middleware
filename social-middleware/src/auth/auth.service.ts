@@ -32,10 +32,10 @@ export class AuthService {
     private readonly logger: PinoLogger,
   ) {}
 
-  login(user: User, userData: CreateUserDto): void {
+  async login(user: User, userData: CreateUserDto): Promise<void> {
     // Emit user logged in event
     //this.logger.info(`User logged in: ${userData.bc_services_card_id}`);
-    this.authEventsService.emitUserLoggedInEvent({
+    await this.authEventsService.emitUserLoggedInEvent({
       userId: user.id,
       bc_services_card_id: userData.bc_services_card_id,
       timestamp: new Date(),

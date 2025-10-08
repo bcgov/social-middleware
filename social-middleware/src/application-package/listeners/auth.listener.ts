@@ -62,6 +62,7 @@ export class AuthListener implements OnModuleInit {
       if (serviceRequests && (serviceRequests.items?.length || 0) > 0) {
         await this.syncUserApplicationPackages(userData, serviceRequests);
       }
+      this.authEventsService.completeUserSync(userData.userId);
     } catch (error) {
       this.logger.error(
         {
@@ -71,6 +72,7 @@ export class AuthListener implements OnModuleInit {
         },
         'Error handling user login event',
       );
+      this.authEventsService.completeUserSync(userData.userId);
     }
   }
 
