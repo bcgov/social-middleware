@@ -7,3 +7,10 @@ export enum ApplicationPackageStatus {
   WITHDRAWN = 'Withdrawn',
   ARCHIVED = 'Archived',
 }
+
+export enum ServiceRequestStage {
+  REFERRAL = 'Referral',
+  APPLICATION = 'Application',
+  SCREENING = 'Screening',
+  ASSESSMENT = 'Assessment',
+}
