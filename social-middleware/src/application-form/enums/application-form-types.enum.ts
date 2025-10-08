@@ -5,7 +5,7 @@ export enum ApplicationFormType {
 
 export const FormId: Record<ApplicationFormType, string> = {
   [ApplicationFormType.REFERRAL]: 'CF0001_Referral',
-  [ApplicationFormType.ABOUTME]: 'CF0001_Aboutme',
+  [ApplicationFormType.ABOUTME]: 'CF0001_AboutMe',
 };
 
 // helper
