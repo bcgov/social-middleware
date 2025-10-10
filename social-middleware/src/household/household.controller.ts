@@ -23,7 +23,9 @@ import {
 } from '@nestjs/swagger';
 
 @ApiTags('Household Members')
-@Controller('applications/:applicationId/household-members')
+@Controller(
+  'application-package/:applicationPackageId/household-members/:applicationId',
+)
 export class HouseholdController {
   private readonly logger = new Logger(HouseholdController.name);
 
@@ -63,19 +65,21 @@ export class HouseholdController {
   }
 
   @Get()
-  @ApiOperation({ summary: 'Get household members by applicationId' })
-  @ApiParam({ name: 'applicationId', type: String })
+  @ApiOperation({ summary: 'Get household members by applicationPackageId' })
+  @ApiParam({ name: 'applicationPackageId', type: String })
   @ApiOkResponse({
     description: 'List of household members associated with the application',
     type: [CreateHouseholdMemberDto],
   })
   @ApiResponse({ status: 500, description: 'Internal server error.' })
   async getAllHouseholdMembers(
-    @Param('applicationId', new ValidationPipe({ transform: true }))
-    applicationId: string,
+    @Param('applicationPackageId', new ValidationPipe({ transform: true }))
+    applicationPackageId: string,
   ): Promise<HouseholdMembersDocument[]> {
     try {
-      return await this.householdService.findAllHouseholdMembers(applicationId);
+      return await this.householdService.findAllHouseholdMembers(
+        applicationPackageId,
+      );
     } catch (error: unknown) {
       const err = error as Error;
       this.logger.error(

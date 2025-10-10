@@ -16,7 +16,10 @@ import {
 } from './enums/application-package-status.enum';
 import { ApplicationForm } from '../application-form/schemas/application-form.schema';
 import { ApplicationFormService } from '../application-form/services/application-form.service';
-import { ApplicationFormType } from '../application-form/enums/application-form-types.enum';
+import {
+  ApplicationFormType,
+  getFormIdForFormType,
+} from '../application-form/enums/application-form-types.enum';
 import { CreateApplicationPackageDto } from './dto/create-application-package.dto';
 import { CancelApplicationPackageDto } from './dto/cancel-application-package.dto';
 import { HouseholdService } from '../household/household.service';
@@ -237,12 +240,25 @@ export class ApplicationPackageService {
         // create aboutme as the first application Form
         const aboutMeDto = {
           applicationPackageId: applicationPackage.applicationPackageId,
-          formId: 'CF0001_AboutMe', // TODO: Make data driven
+          formId: getFormIdForFormType(ApplicationFormType.ABOUTME),
           userId: applicationPackage.userId,
           type: ApplicationFormType.ABOUTME,
           formParameters: {},
         };
         await this.applicationFormService.createApplicationForm(aboutMeDto);
+
+        // note, household is handled differently from the other forms;
+        // we use the applicationForm table to track the status of the household data,
+        // but there is no actual form to fill out; the data is collected
+        // via the household API endpoints
+        const householdDto = {
+          applicationPackageId: applicationPackage.applicationPackageId,
+          formId: getFormIdForFormType(ApplicationFormType.HOUSEHOLD),
+          userId: applicationPackage.userId,
+          type: ApplicationFormType.HOUSEHOLD,
+          formParameters: {},
+        };
+        await this.applicationFormService.createApplicationForm(householdDto);
       }
 
       const updatedPackage = await this.applicationPackageModel

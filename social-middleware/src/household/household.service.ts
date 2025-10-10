@@ -201,17 +201,17 @@ export class HouseholdService {
 
   // list all household members for an applicationID
   async findAllHouseholdMembers(
-    applicationId: string,
+    applicationPackageId: string,
   ): Promise<HouseholdMembersDocument[]> {
     try {
       const members = await this.householdMemberModel
-        .find({ applicationId })
+        .find({ applicationPackageId })
         .exec();
       return members;
     } catch (error: unknown) {
       const err = error as Error;
       this.logger.error(
-        `Error fetching household members for applicationId=${applicationId}: ${err.message}`,
+        `Error fetching household members for applicationId=${applicationPackageId}: ${err.message}`,
         err.stack,
       );
       throw new InternalServerErrorException(

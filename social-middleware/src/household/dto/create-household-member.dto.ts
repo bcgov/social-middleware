@@ -7,9 +7,6 @@ export class CreateHouseholdMemberDto {
   @ApiProperty({ example: 'f47ac10b-58cc-4372-a567-0e02b2c3d479' })
   @IsString()
   applicationPackageId!: string;
-  //@ApiProperty({ example: 'user_456' })
-  //@IsString()
-  //applicationId!: string; // ID of the application this member belongs to
 
   @ApiProperty({ example: 'f47ac10b-58cc-4372-a567-0e02b2c3d479' })
   @IsOptional() // will be auto-generated if not provided
@@ -29,7 +26,7 @@ export class CreateHouseholdMemberDto {
   dateOfBirth!: string; // ISO date string
   @IsString()
   @IsOptional()
-  email!: string;
+  email?: string;
 
   @ApiProperty({ enum: RelationshipToPrimary })
   @IsEnum(RelationshipToPrimary)
@@ -37,5 +34,6 @@ export class CreateHouseholdMemberDto {
 
   @ApiProperty({ enum: GenderTypes })
   @IsEnum(GenderTypes)
+  @IsOptional()
   genderType!: GenderTypes;
 }

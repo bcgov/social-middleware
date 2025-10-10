@@ -3,6 +3,7 @@ export enum RelationshipToPrimary {
   Spouse = 'Spouse',
   Child = 'Child',
   Parent = 'Parent',
+  CommonLaw = 'Common law',
   Sibling = 'Sibling',
   Grandparent = 'Grandparent',
   Grandchild = 'Grandchild',
