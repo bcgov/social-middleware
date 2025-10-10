@@ -3,6 +3,7 @@ import {
   Get,
   Delete,
   Post,
+  Patch,
   Body,
   UseGuards,
   Req,
@@ -18,6 +19,7 @@ import {
 } from '@nestjs/swagger';
 import { ApplicationPackageService } from './application-package.service';
 import { CreateApplicationPackageDto } from './dto/create-application-package.dto';
+import { UpdateApplicationPackageDto } from './dto/update-application-package.dto';
 import { SessionAuthGuard } from 'src/auth/session-auth.guard';
 import { SessionUtil } from 'src/common/utils/session.util';
 import { Request } from 'express';
@@ -72,6 +74,52 @@ export class ApplicationPackageController {
       throw error;
     }
   }
+  @Patch(':applicationPackageId')
+  @ApiOperation({
+    summary: 'Update the status elements of an application package',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Application package status updated successfully',
+    type: ApplicationPackage,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Bad Request - validation failed',
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized - invalid or missing session',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Application package not found',
+  })
+  @ApiResponse({
+    status: 500,
+    description: 'Server error during application package update',
+  })
+  async updateApplicationPackage(
+    @Param('applicationPackageId') applicationPackageId: string,
+    @Body(new ValidationPipe({ whitelist: true, transform: true }))
+    dto: UpdateApplicationPackageDto,
+    @Req() request: Request,
+  ): Promise<ApplicationPackage> {
+    try {
+      const userId = this.sessionUtil.extractUserIdFromRequest(request);
+      this.logger.info(`patching application package for ${userId}`);
+
+      return await this.applicationPackageService.updateApplicationPackage(
+        applicationPackageId,
+        dto,
+        userId,
+      );
+    } catch (error) {
+      this.logger.error({ error }, 'Failed to update application package');
+      throw error;
+    }
+  }
+
   @Get()
   @ApiOperation({
     summary: 'Get all application packages for the authenticated user',

@@ -21,6 +21,7 @@ import {
   getFormIdForFormType,
 } from '../application-form/enums/application-form-types.enum';
 import { CreateApplicationPackageDto } from './dto/create-application-package.dto';
+import { UpdateApplicationPackageDto } from './dto/update-application-package.dto';
 import { CancelApplicationPackageDto } from './dto/cancel-application-package.dto';
 import { HouseholdService } from '../household/household.service';
 import { AccessCodeService } from '../application-form/services/access-code.service';
@@ -174,6 +175,46 @@ export class ApplicationPackageService {
       );
       throw new InternalServerErrorException(
         'Failed to cancel application package',
+      );
+    }
+  }
+
+  async updateApplicationPackage(
+    applicationPackageId: string,
+    dto: UpdateApplicationPackageDto,
+    userId: string,
+  ): Promise<ApplicationPackage> {
+    try {
+      const updatedPackage = await this.applicationPackageModel
+        .findOneAndUpdate(
+          {
+            applicationPackageId: { $eq: applicationPackageId },
+            userId: { $eq: userId },
+          },
+          { $set: dto },
+          { new: true, runValidators: true },
+        )
+        .exec();
+      if (!updatedPackage) {
+        throw new NotFoundException(
+          `Application package with ID ${applicationPackageId} not found or access denied`,
+        );
+      }
+
+      this.logger.info(
+        { applicationPackageId, userId },
+        'Application package updated successfully',
+      );
+
+      return updatedPackage;
+    } catch (error: unknown) {
+      const err = error as Error;
+      this.logger.error(
+        `Failed to update application package ${applicationPackageId}: ${err.message}`,
+        err.stack,
+      );
+      throw new InternalServerErrorException(
+        'Could not update application package',
       );
     }
   }

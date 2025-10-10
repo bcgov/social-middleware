@@ -53,6 +53,15 @@ export class ApplicationPackage {
   })
   referralstate!: ReferralState;
 
+  @Prop({ required: false, default: null })
+  hasPartner!: string;
+
+  @Prop({ required: false, default: null })
+  hasHousehold!: string;
+
+  @Prop({ required: false, default: null })
+  hasSupportNetwork!: string;
+
   @Prop({ required: false, default: () => Date() })
   createdAt!: Date;
 
