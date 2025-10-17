@@ -24,6 +24,7 @@ export class HouseholdService {
     private householdMemberModel: Model<HouseholdMembersDocument>,
   ) {}
 
+  // TO DO: Move to UTIL function
   // helper method to make some decisions off of
   private calculateAge(dateOfBirth: string): number {
     const today = new Date();
@@ -290,6 +291,127 @@ export class HouseholdService {
         'Could not delete household members',
       );
     }
+  }
+
+  async validateHouseholdCompletion(
+    applicationPackageId: string,
+    hasPartner: string,
+    hasHousehold: string,
+  ): Promise<{
+    isComplete: boolean;
+    errors: string[];
+    summary: {
+      partnersRequired: number;
+      partnersFound: number;
+      householdMembersRequired: boolean;
+      householdMembersFound: number;
+      incompleteRecords: string[];
+    };
+  }> {
+    const errors: string[] = [];
+    const incompleteRecords: string[] = [];
+
+    // get all household members for this application package
+    const householdMembers = await this.householdMemberModel
+      .find({ applicationPackageId })
+      .lean();
+
+    // helper function to check if a household member record is complete
+    // TODO: handle email & gender checking if situations require.
+    const isRecordComplete = (member: HouseholdMembers): boolean => {
+      const hasValue = (value: any) =>
+        value != null && value !== undefined && value !== '';
+
+      return (
+        hasValue(member.firstName) &&
+        hasValue(member.lastName) &&
+        hasValue(member.dateOfBirth) &&
+        hasValue(member.relationshipToPrimary)
+      );
+    };
+
+    const partnersRequired = hasPartner === 'true' ? 1 : 0;
+
+    const partnerTypes = [
+      RelationshipToPrimary.Spouse,
+      RelationshipToPrimary.Partner,
+      RelationshipToPrimary.CommonLaw,
+    ];
+
+    const partners = householdMembers.filter((member) =>
+      partnerTypes.includes(member.relationshipToPrimary),
+    );
+
+    const partnersFound = partners.length;
+
+    if (partnersRequired) {
+      if (partnersFound === 0) {
+        errors.push(
+          'Partner is required but no spouse/partner/common-law record found',
+        );
+      } else if (partnersFound > 1) {
+        errors.push(`Only 1 partner record allowed, found ${partnersFound}`);
+      } else {
+        // check if partner record is complete
+        const partner = partners[0];
+        if (!isRecordComplete(partner)) {
+          incompleteRecords.push(
+            `Partner/spouse: ${partner.firstName} ${partner.lastName}`,
+          );
+          errors.push('Partner record is incomplete');
+        }
+      }
+    } else {
+      if (partnersFound > 0) {
+        errors.push('Partner data is corrupted');
+      }
+    }
+
+    const householdMembersRequired = hasHousehold === 'true' ? true : false;
+
+    const nonSpouseNonSelfMembers = householdMembers.filter(
+      (member) =>
+        member.relationshipToPrimary !== RelationshipToPrimary.Self &&
+        member.relationshipToPrimary !== RelationshipToPrimary.Spouse &&
+        member.relationshipToPrimary !== RelationshipToPrimary.Partner &&
+        member.relationshipToPrimary !== RelationshipToPrimary.CommonLaw,
+    );
+
+    const householdMembersFound = nonSpouseNonSelfMembers.length;
+
+    if (householdMembersRequired) {
+      if (householdMembersFound === 0) {
+        errors.push('Household members are required but none were found');
+      } else {
+        // check if all household member records are complete
+        for (const member of nonSpouseNonSelfMembers) {
+          if (!isRecordComplete(member)) {
+            incompleteRecords.push(
+              `${member.relationshipToPrimary}: ${member.firstName} ${member.lastName}`,
+            );
+            errors.push(
+              `Household member record incomplete: ${member.firstName} ${member.lastName}`,
+            );
+          }
+        }
+      }
+    } else {
+      if (householdMembersFound > 0) {
+        errors.push('Household data is corrupted');
+      }
+    }
+
+    return {
+      isComplete: errors.length === 0,
+      errors: errors,
+      summary: {
+        partnersRequired: partnersRequired,
+        partnersFound: partnersFound,
+        householdMembersRequired: householdMembersRequired,
+        householdMembersFound: householdMembersFound,
+        incompleteRecords: incompleteRecords,
+      },
+    };
   }
 
   // used by household invitation process, when we attempt to lookup a household member and don't have a user record yet.
