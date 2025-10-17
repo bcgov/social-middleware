@@ -1,4 +1,4 @@
-import { forwardRef, Inject } from '@nestjs/common';
+//import { forwardRef, Inject } from '@nestjs/common';
 import { Processor, Process } from '@nestjs/bull';
 import { Job } from 'bull';
 import { v4 as uuidv4 } from 'uuid';
@@ -18,7 +18,7 @@ import { PinoLogger } from 'nestjs-pino';
 import { HouseholdService } from 'src/household/household.service';
 import { UserService } from 'src/auth/user.service';
 //import { RelationshipToPrimary } from 'src/household/enums/relationship-to-primary.enum';
-import { ApplicationSubmissionService } from 'src/application-submission/application-submission.service';
+//import { ApplicationSubmissionService } from 'src/application-submission/application-submission.service';
 import { GenderTypes } from 'src/household/enums/gender-types.enum';
 
 @Processor('applicationQueue')
@@ -26,8 +26,8 @@ export class ApplicationProcessor {
   constructor(
     @InjectModel(Application.name)
     private readonly applicationModel: Model<ApplicationDocument>,
-    @Inject(forwardRef(() => ApplicationSubmissionService))
-    private readonly applicationSubmissionService: ApplicationSubmissionService,
+    //@Inject(forwardRef(() => ApplicationSubmissionService))
+    //private readonly applicationSubmissionService: ApplicationSubmissionService,
     @InjectModel(FormParameters.name)
     private readonly formParametersModel: Model<FormParametersDocument>,
     private readonly logger: PinoLogger,
@@ -57,13 +57,13 @@ export class ApplicationProcessor {
         formData: dto.formData ?? null,
       });
 
-      const savedApplication = await application.save();
+      await application.save();
       this.logger.info({ applicationId }, 'Saved application to DB');
 
       // create initial submission
-      await this.applicationSubmissionService.createInitialSubmission(
-        String(savedApplication._id),
-      );
+      //await this.applicationSubmissionService.createInitialSubmission(
+      //  String(savedApplication._id),
+      //);
 
       const formParameters = new this.formParametersModel({
         applicationId,

@@ -11,11 +11,11 @@ import {
 } from '../schemas/form-parameters.schema';
 import { HouseholdModule } from 'src/household/household.module';
 import { AuthModule } from 'src/auth/auth.module';
-import {
-  ApplicationSubmission,
-  ApplicationSubmissionSchema,
-} from 'src/application-submission/schemas/application-submission.schema';
-import { ApplicationSubmissionModule } from 'src/application-submission/application-submission.module';
+//import {
+//  ApplicationSubmission,
+//  ApplicationSubmissionSchema,
+//} from 'src/application-submission/schemas/application-submission.schema';
+//import { ApplicationSubmissionModule } from 'src/application-submission/application-submission.module';
 
 @Module({
   imports: [
@@ -40,11 +40,11 @@ import { ApplicationSubmissionModule } from 'src/application-submission/applicat
     MongooseModule.forFeature([
       { name: Application.name, schema: ApplicationSchema },
       { name: FormParameters.name, schema: FormParametersSchema },
-      { name: ApplicationSubmission.name, schema: ApplicationSubmissionSchema },
+      //{ name: ApplicationSubmission.name, schema: ApplicationSubmissionSchema },
     ]),
     HouseholdModule,
     AuthModule,
-    ApplicationSubmissionModule,
+    //ApplicationSubmissionModule,
   ],
   providers: [ApplicationQueueService, ApplicationProcessor],
   exports: [ApplicationQueueService, BullModule],

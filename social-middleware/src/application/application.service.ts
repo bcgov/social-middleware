@@ -1,6 +1,4 @@
 import {
-  forwardRef,
-  Inject,
   Injectable,
   InternalServerErrorException,
   BadRequestException,
@@ -28,7 +26,7 @@ import { ApplicationStatus } from './enums/application-status.enum';
 import { HouseholdService } from 'src/household/household.service';
 //import { RelationshipToPrimary } from 'src/household/enums/relationship-to-primary.enum';
 import { UserService } from 'src/auth/user.service';
-import { ApplicationSubmissionService } from 'src/application-submission/application-submission.service';
+//import { ApplicationSubmissionService } from 'src/application-submission/application-submission.service';
 import {
   ScreeningAccessCode,
   ScreeningAccessCodeDocument,
@@ -40,8 +38,8 @@ export class ApplicationService {
   constructor(
     @InjectModel(Application.name)
     private applicationModel: Model<ApplicationDocument>,
-    @Inject(forwardRef(() => ApplicationSubmissionService))
-    private readonly applicationSubmissionService: ApplicationSubmissionService,
+    //@Inject(forwardRef(() => ApplicationSubmissionService))
+    //private readonly applicationSubmissionService: ApplicationSubmissionService,
     @InjectModel(FormParameters.name)
     private formParametersModel: Model<FormParametersDocument>,
     @InjectModel(ScreeningAccessCode.name) // add this line
@@ -74,14 +72,14 @@ export class ApplicationService {
         formData: dto.formData ?? null,
       });
 
-      const savedApplication = await application.save();
+      await application.save();
 
       this.logger.info({ applicationId }, 'Saved application to DB');
 
       // create initial submission
-      await this.applicationSubmissionService.createInitialSubmission(
-        String(savedApplication._id),
-      );
+      //await this.applicationSubmissionService.createInitialSubmission(
+      //  String(savedApplication._id),
+      //);
 
       const formParameters = new this.formParametersModel({
         applicationId,
