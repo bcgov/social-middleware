@@ -20,6 +20,7 @@ import {
 import { ApplicationPackageService } from './application-package.service';
 import { CreateApplicationPackageDto } from './dto/create-application-package.dto';
 import { UpdateApplicationPackageDto } from './dto/update-application-package.dto';
+import { ValidateHouseholdCompletionDto } from './dto/validate-application-package.dto';
 import { SessionAuthGuard } from 'src/auth/session-auth.guard';
 import { SessionUtil } from 'src/common/utils/session.util';
 import { Request } from 'express';
@@ -240,6 +241,27 @@ export class ApplicationPackageController {
     };
 
     await this.applicationPackageService.cancelApplicationPackage(cancelDto);
+  }
+  @Get(':applicationPackageId/validate-household')
+  @UseGuards(SessionAuthGuard)
+  @ApiOperation({
+    summary: 'Validate household completion for an application package',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Household validation results',
+    type: ValidateHouseholdCompletionDto,
+  })
+  @ApiResponse({ status: 404, description: 'Application package not found' })
+  async validateHouseholdCompletion(
+    @Param('applicationPackageId') applicationPackageId: string,
+    @Req() req: Request,
+  ): Promise<ValidateHouseholdCompletionDto> {
+    const userId = this.sessionUtil.extractUserIdFromRequest(req);
+    return await this.applicationPackageService.validateHouseholdCompletion(
+      applicationPackageId,
+      userId,
+    );
   }
 
   @Post(':applicationPackageId/submit')

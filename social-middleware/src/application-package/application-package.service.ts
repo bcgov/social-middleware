@@ -31,6 +31,7 @@ import { Model } from 'mongoose';
 import { RelationshipToPrimary } from '../household/enums/relationship-to-primary.enum';
 import { SiebelApiService } from '../siebel/siebel-api.service';
 import { ReferralState } from './enums/application-package-subtypes.enum';
+import { ValidateHouseholdCompletionDto } from './dto/validate-application-package.dto';
 
 interface SiebelServiceRequestResponse {
   items?: {
@@ -601,5 +602,28 @@ export class ApplicationPackageService {
         'Failed to submit application package',
       );
     }
+  }
+
+  async validateHouseholdCompletion(
+    applicationPackageId: string,
+    userId: string,
+  ): Promise<ValidateHouseholdCompletionDto> {
+    // First, verify the user owns this application package
+    const applicationPackage = await this.applicationPackageModel
+      .findOne({ applicationPackageId, userId })
+      .lean();
+
+    if (!applicationPackage) {
+      throw new NotFoundException(
+        `Application package ${applicationPackageId} not found or not owned by user`,
+      );
+    }
+
+    // Call the household service validation method
+    return await this.householdService.validateHouseholdCompletion(
+      applicationPackageId,
+      applicationPackage.hasPartner,
+      applicationPackage.hasHousehold,
+    );
   }
 }
