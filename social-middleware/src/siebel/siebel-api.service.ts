@@ -119,7 +119,23 @@ export class SiebelApiService {
       //'ICM BCSC DID': bcscId,
       //'SR Type': 'Caregiver Application',
     };
-    return await this.get(endpoint, params);
+
+    const rawResponse = await this.get<{
+      items?: SiebelSRResponse | SiebelSRResponse[];
+      [key: string]: unknown;
+    }>(endpoint, params);
+
+    // Normalize items to always be an array
+    const items: SiebelSRResponse[] = rawResponse?.items
+      ? Array.isArray(rawResponse.items)
+        ? rawResponse.items
+        : [rawResponse.items]
+      : [];
+
+    return {
+      ...rawResponse,
+      items,
+    };
   }
 
   async get<T>(endpoint: string, params?: Record<string, any>): Promise<T> {
