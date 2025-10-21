@@ -18,6 +18,7 @@ import {
   ApiBearerAuth,
 } from '@nestjs/swagger';
 import { ApplicationPackageService } from './application-package.service';
+import { ApplicationPackageStatus } from './enums/application-package-status.enum';
 import { CreateApplicationPackageDto } from './dto/create-application-package.dto';
 import { UpdateApplicationPackageDto } from './dto/update-application-package.dto';
 import { ValidateHouseholdCompletionDto } from './dto/validate-application-package.dto';
@@ -307,5 +308,46 @@ export class ApplicationPackageController {
       );
       throw error;
     }
+  }
+
+  @Post(':applicationPackageId/lock-application')
+  @ApiOperation({
+    summary:
+      'Lock application for household completion and application submission',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'ApplicationStatus updated',
+    schema: {
+      type: 'object',
+      properties: {
+        status: {
+          type: 'string',
+          enum: Object.values(ApplicationPackageStatus),
+        },
+        //requiresHouseholdScreening: { type: 'boolean' },
+        //message: { type: 'string' },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 400,
+    description:
+      'Incomplete data in application package, likely household data',
+  })
+  @ApiResponse({ status: 404, description: 'Application package not found' })
+  async validateAndProcessApplication(
+    @Param('applicationPackageId') applicationPackageId: string,
+    @Req() req: Request,
+  ): Promise<{
+    status: ApplicationPackageStatus;
+    //requiresHouseholdScreening: boolean;
+    //message: string; //TODO: we could pass some errors to the front end at some point
+  }> {
+    const userId = this.sessionUtil.extractUserIdFromRequest(req);
+    return await this.applicationPackageService.lockApplicationPackage(
+      applicationPackageId,
+      userId,
+    );
   }
 }
