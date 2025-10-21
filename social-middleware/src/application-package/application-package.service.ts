@@ -732,7 +732,7 @@ export class ApplicationPackageService {
         { applicationPackageId },
         {
           status: isInitialSubmission
-            ? ApplicationPackageStatus.CONSENT
+            ? ApplicationPackageStatus.REFERRAL
             : ApplicationPackageStatus.SUBMITTED,
           //referralstate: ReferralState.REQUESTED,
           submittedAt: new Date(),
