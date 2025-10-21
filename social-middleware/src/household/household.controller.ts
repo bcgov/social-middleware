@@ -23,9 +23,7 @@ import {
 } from '@nestjs/swagger';
 
 @ApiTags('Household Members')
-@Controller(
-  'application-package/:applicationPackageId/household-members/:applicationId',
-)
+@Controller('application-package/:applicationPackageId/household-members')
 export class HouseholdController {
   private readonly logger = new Logger(HouseholdController.name);
 
