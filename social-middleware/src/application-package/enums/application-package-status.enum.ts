@@ -1,7 +1,8 @@
 export enum ApplicationPackageStatus {
   DRAFT = 'Draft',
+  REFERRAL = 'Referral Requested',
+  APPLICATION = 'Application',
   AWAITING = 'Awaiting Household',
-  READY = 'Ready',
   SUBMITTED = 'Submitted',
   RETURNED = 'Returned',
   WITHDRAWN = 'Withdrawn',
