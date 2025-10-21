@@ -401,8 +401,11 @@ export class HouseholdService {
       }
     }
 
+    const isComplete =
+      !!hasPartner?.trim() && !!hasHousehold?.trim() && errors.length === 0;
+
     return {
-      isComplete: errors.length === 0,
+      isComplete: isComplete,
       errors: errors,
       summary: {
         partnersRequired: partnersRequired,
