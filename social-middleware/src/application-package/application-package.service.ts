@@ -732,7 +732,7 @@ export class ApplicationPackageService {
         { applicationPackageId },
         {
           status: isInitialSubmission
-            ? ApplicationPackageStatus.REFERRAL
+            ? ApplicationPackageStatus.CONSENT
             : ApplicationPackageStatus.SUBMITTED,
           //referralstate: ReferralState.REQUESTED,
           submittedAt: new Date(),
@@ -827,12 +827,12 @@ export class ApplicationPackageService {
         await this.applicationPackageModel.findOneAndUpdate(
           { applicationPackageId },
           {
-            status: ApplicationPackageStatus.AWAITING,
+            status: ApplicationPackageStatus.CONSENT,
             updatedAt: new Date(),
           },
         );
         return {
-          status: ApplicationPackageStatus.AWAITING,
+          status: ApplicationPackageStatus.CONSENT,
         };
       } else {
         // everything is ready - proceed for final submission
