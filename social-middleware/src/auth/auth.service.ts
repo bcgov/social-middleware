@@ -39,7 +39,7 @@ export class AuthService {
       userId: user.id,
       bc_services_card_id: userData.bc_services_card_id,
       timestamp: new Date(),
-      firstName: userData.first_name,
+      firstName: userData.first_name || '',
       lastName: userData.last_name,
       email: userData.email,
     });

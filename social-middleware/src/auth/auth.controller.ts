@@ -246,7 +246,7 @@ export class AuthController {
       //  Persist user to database
       const userData: CreateUserDto = {
         bc_services_card_id: userInfo.sub,
-        first_name: userInfo.given_name,
+        first_name: userInfo.given_name || '(Mononym)',
         last_name: userInfo.family_name,
         dateOfBirth: this.userUtil.icmDateFormat(userInfo.birthdate),
         sex: userInfo.gender,
