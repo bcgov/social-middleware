@@ -91,6 +91,33 @@ export class HouseholdController {
     }
   }
 
+  @Get(':householdMemberId')
+  @ApiOperation({ summary: 'Get household members by householdMemberId' })
+  @ApiParam({ name: 'householdMemberId', type: String })
+  @ApiOkResponse({
+    description: 'Information associated with the household member',
+    type: [CreateHouseholdMemberDto],
+  })
+  @ApiResponse({ status: 500, description: 'Internal server error.' })
+  async getHouseholdMember(
+    @Param('householdMemberId', new ValidationPipe({ transform: true }))
+    householdMemberId: string,
+  ): Promise<HouseholdMembersDocument | null> {
+    try {
+      return await this.householdService.findById(householdMemberId);
+    } catch (error: unknown) {
+      const err = error as Error;
+      this.logger.error(
+        `Error retrieving household member: ${err.message}`,
+        err.stack,
+      );
+      throw new HttpException(
+        'Failed to retrieve household member',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
   @Delete(':householdMemberId')
   @ApiOperation({ summary: 'Delete household member by householdMemberId' })
   @ApiParam({ name: 'householdMemberId', type: String })
