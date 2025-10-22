@@ -22,6 +22,7 @@ import { Request } from 'express';
 import { NewTokenDto } from './dto/new-token.dto';
 import { GetApplicationFormDto } from './dto/get-application-form.dto';
 import { SubmitApplicationFormDto } from './dto/submit-application-form.dto';
+//import { InviteHouseholdMemberParamsDto } from './dto/invite-household-member-params.dto';
 import { SessionAuthGuard } from 'src/auth/session-auth.guard';
 import { ApplicationFormService } from './services/application-form.service';
 import { SessionUtil } from 'src/common/utils/session.util';
@@ -120,7 +121,33 @@ export class ApplicationFormsController {
 
     return applicationForm;
   }
-
+  /*
+  @Post(':applicationId/household/:householdMemberId/invite')
+  @ApiOperation({
+    summary: 'Generate an access code for a household member screening',
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Access code generated successfully',
+    schema: {
+      type: 'object',
+      properties: {
+        accessCode: { type: 'string' },
+        screeningApplicationid: { type: 'string' },
+        expiresAt: { type: 'string', format: 'date-time' },
+      },
+    },
+  })
+  async inviteHouseholdMember(
+    @Param(new ValidationPipe({ whitelist: true, transform: true }))
+    params: InviteHouseholdMemberParamsDto,
+  ) {
+    return await this.applicationFormService.createHouseholdScreening(
+      params.applicationId,
+      params.householdMemberId,
+    );
+  }
+*/
   @Post('submit')
   @ApiOperation({ summary: 'Update application form data' })
   @ApiResponse({

@@ -24,7 +24,7 @@ import {
   ApiBearerAuth,
 } from '@nestjs/swagger';
 import { GetApplicationsDto } from './dto/get-applications.dto';
-import { InviteHouseholdMemberParamsDto } from './dto/invite-household-member-params.dto';
+//import { InviteHouseholdMemberParamsDto } from '../application-form/dto/invite-household-member-params.dto';
 import { AssociateAccessCodeDto } from './dto/associate-access-code.dto';
 import { SessionAuthGuard } from 'src/auth/session-auth.guard';
 import { Request } from 'express';
@@ -100,32 +100,6 @@ export class ApplicationController {
   ): Promise<GetApplicationsDto[]> {
     const userId = this.sessionUtil.extractUserIdFromRequest(request);
     return this.applicationService.getApplicationsByUser(userId);
-  }
-
-  @Post(':applicationId/household/:householdMemberId/invite')
-  @ApiOperation({
-    summary: 'Generate an access code for a household member screening',
-  })
-  @ApiResponse({
-    status: 201,
-    description: 'Access code generated successfully',
-    schema: {
-      type: 'object',
-      properties: {
-        accessCode: { type: 'string' },
-        screeningApplicationid: { type: 'string' },
-        expiresAt: { type: 'string', format: 'date-time' },
-      },
-    },
-  })
-  async inviteHouseholdMember(
-    @Param(new ValidationPipe({ whitelist: true, transform: true }))
-    params: InviteHouseholdMemberParamsDto,
-  ) {
-    return await this.applicationService.createHouseholdScreening(
-      params.applicationId,
-      params.householdMemberId,
-    );
   }
 
   @Put('submit')
