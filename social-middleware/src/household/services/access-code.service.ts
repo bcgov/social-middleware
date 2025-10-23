@@ -11,6 +11,7 @@ import {
 } from '../../application-form/schemas/application-form.schema';
 import { HouseholdService } from './household.service';
 import { PinoLogger } from 'nestjs-pino';
+import { compareDates } from '../../common/utils/date.util';
 
 @Injectable()
 export class AccessCodeService {
@@ -123,7 +124,10 @@ export class AccessCodeService {
       const lastNameMatch =
         bcscUserData.lastName.toLowerCase().trim() ===
         householdMember.lastName.toLowerCase().trim();
-      const dobMatch = bcscUserData.dateOfBirth === householdMember.dateOfBirth;
+      const dobMatch = compareDates(
+        bcscUserData.dateOfBirth,
+        householdMember.dateOfBirth,
+      );
 
       if (!lastNameMatch || !dobMatch) {
         await this.screeningAccessCodeModel.findByIdAndUpdate(
@@ -185,7 +189,7 @@ export class AccessCodeService {
         success: true,
         applicationFormId: accessCodeRecord.applicationFormId,
       };
-    } catch (error) {
+    } catch (error: unknown) {
       this.logger.error(
         { error, accessCode, userId },
         'Failed to associate user with access code',
