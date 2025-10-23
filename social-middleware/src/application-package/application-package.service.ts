@@ -23,8 +23,8 @@ import {
 import { CreateApplicationPackageDto } from './dto/create-application-package.dto';
 import { UpdateApplicationPackageDto } from './dto/update-application-package.dto';
 import { CancelApplicationPackageDto } from './dto/cancel-application-package.dto';
-import { HouseholdService } from '../household/household.service';
-import { AccessCodeService } from '../application-form/services/access-code.service';
+import { HouseholdService } from '../household/services/household.service';
+import { AccessCodeService } from '../household/services/access-code.service';
 import { UserService } from '../auth/user.service';
 import { UserUtil } from '../common/utils/user.util';
 import { calculateAge } from '../common/utils/age.util';
@@ -33,6 +33,8 @@ import { RelationshipToPrimary } from '../household/enums/relationship-to-primar
 import { SiebelApiService } from '../siebel/siebel-api.service';
 //import { ReferralState } from './enums/application-package-subtypes.enum';
 import { ValidateHouseholdCompletionDto } from './dto/validate-application-package.dto';
+//import { CreateApplicationFormDto } from '../application-form/dto/create-application-form.dto';
+import { HouseholdMembersDocument } from '../household/schemas/household-members.schema';
 
 interface SiebelServiceRequestResponse {
   items?: {
@@ -824,6 +826,12 @@ export class ApplicationPackageService {
 
       if (requiresHouseholdScreening) {
         // household is complete, and adults must complete screening
+        // generate screening forms and access codes for each adult member
+        await this.generateHousholdScreeningWorkflow(
+          applicationPackageId,
+          nonSelfAdultMembers,
+        );
+
         await this.applicationPackageModel.findOneAndUpdate(
           { applicationPackageId },
           {
@@ -859,6 +867,27 @@ export class ApplicationPackageService {
         'Failed to validate and process application',
       );
       throw error;
+    }
+  }
+
+  private async generateHousholdScreeningWorkflow(
+    applicationPackageId: string,
+    nonSelfAdultMembers: HouseholdMembersDocument[],
+  ) {
+    for (const member of nonSelfAdultMembers) {
+      // create screening application form
+      const screeningForm =
+        await this.applicationFormService.createScreeningForm(
+          applicationPackageId,
+          member.householdMemberId,
+        );
+
+      // generate access code and associate with form
+      await this.accessCodeService.createAccessCode(
+        applicationPackageId,
+        screeningForm.screeningApplicationId,
+        member.householdMemberId,
+      );
     }
   }
 
