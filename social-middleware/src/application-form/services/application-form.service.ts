@@ -238,7 +238,7 @@ export class ApplicationFormService {
       }
 
       // Fetch corresponding formIds from FormParameters
-      const applicationIds = forms.map((form) => form.applicationId);
+      const applicationIds = forms.map((form) => form.applicationFormId);
       const formParameters = await this.formParametersModel
         .find(
           { applicationId: { $in: applicationIds } },
@@ -253,9 +253,9 @@ export class ApplicationFormService {
 
       // Build final DTO array
       const results: GetApplicationFormDto[] = forms.map((form) => ({
-        applicationId: form.applicationId,
+        applicationFormId: form.applicationFormId,
         applicationPackageId: form.applicationPackageId,
-        formId: formIdMap.get(form.applicationId) ?? '',
+        formId: formIdMap.get(form.applicationFormId) ?? '',
         userId: form.userId,
         type: form.type,
         status: form.status,
@@ -316,7 +316,7 @@ export class ApplicationFormService {
       }
 
       // Fetch corresponding formIds from FormParameters
-      const applicationIds = forms.map((form) => form.applicationId);
+      const applicationIds = forms.map((form) => form.applicationFormId);
       const formParameters = await this.formParametersModel
         .find(
           { applicationId: { $in: applicationIds } },
@@ -329,9 +329,9 @@ export class ApplicationFormService {
       );
 
       const results: GetApplicationFormDto[] = forms.map((form) => ({
-        applicationId: form.applicationId,
+        applicationFormId: form.applicationFormId,
         applicationPackageId: form.applicationPackageId,
-        formId: formIdMap.get(form.applicationId) ?? '',
+        formId: formIdMap.get(form.applicationFormId) ?? '',
         userId: form.userId,
         type: form.type,
         status: form.status,
@@ -393,7 +393,7 @@ export class ApplicationFormService {
         .exec();
 
       const result: GetApplicationFormDto = {
-        applicationId: form.applicationId,
+        applicationFormId: form.applicationFormId,
         applicationPackageId: form.applicationPackageId,
         formId: formParameters?.formId ?? '',
         userId: form.userId,
@@ -463,27 +463,30 @@ export class ApplicationFormService {
   }
 
   async cancelApplicationForm(dto: DeleteApplicationFormDto): Promise<void> {
-    const { applicationId } = dto;
+    const { applicationFormId } = dto;
 
-    this.logger.info({ applicationId }, 'Starting application cancellation');
+    this.logger.info(
+      { applicationFormId },
+      'Starting application cancellation',
+    );
 
     // check to see if the user owns the application in question
     const application = await this.applicationFormModel
-      .findOne({ applicationId })
+      .findOne({ applicationFormId })
       .exec();
 
     if (!application) {
-      throw new NotFoundException(`Application ${applicationId} not found`);
+      throw new NotFoundException(`Application ${applicationFormId} not found`);
     }
 
     // Delete form parameters
-    await this.formParametersModel.deleteMany({ applicationId }).exec();
+    await this.formParametersModel.deleteMany({ applicationFormId }).exec();
 
     // Delete the main application
     await this.applicationFormModel.findByIdAndDelete(application._id).exec();
 
     this.logger.info(
-      { applicationId },
+      { applicationFormId },
       'ApplicationForm cancelled successfully',
     );
   }

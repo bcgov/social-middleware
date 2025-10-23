@@ -11,7 +11,7 @@ import {
 } from '../../application-form/schemas/application-form.schema';
 import { HouseholdService } from './household.service';
 import { PinoLogger } from 'nestjs-pino';
-import { compareDates } from '../../common/utils/date.util';
+//import { compareDates } from '../../common/utils/date.util';
 
 @Injectable()
 export class AccessCodeService {
@@ -98,7 +98,7 @@ export class AccessCodeService {
         accessCode,
         isUsed: false,
         expiresAt: { $gt: new Date() },
-        attemptCount: { $lt: 3 },
+        attemptCount: { $lt: 10 },
       });
 
       if (!accessCodeRecord) {
@@ -124,7 +124,7 @@ export class AccessCodeService {
       const lastNameMatch =
         bcscUserData.lastName.toLowerCase().trim() ===
         householdMember.lastName.toLowerCase().trim();
-      const dobMatch = compareDates(
+      const dobMatch = this.compareDates(
         bcscUserData.dateOfBirth,
         householdMember.dateOfBirth,
       );
@@ -141,7 +141,7 @@ export class AccessCodeService {
           {
             accessCode,
             userId,
-            expectedLastName: householdMember.lastName,
+            expectedLastName: householdMember.lastName.toLowerCase().trim(),
             providedLastName: bcscUserData.lastName.toLowerCase().trim(),
             expectedDOB: householdMember.dateOfBirth,
             providedDOB: bcscUserData.dateOfBirth,
@@ -167,7 +167,7 @@ export class AccessCodeService {
 
       await this.applicationFormModel.findOneAndUpdate(
         { applicationId: accessCodeRecord.applicationFormId },
-        { primary_applicantId: userId },
+        { userId: userId },
       );
 
       await this.householdService.associateUserWithMember(
@@ -195,6 +195,43 @@ export class AccessCodeService {
         'Failed to associate user with access code',
       );
       throw new InternalServerErrorException('Failed to process access code');
+    }
+  }
+
+  private compareDates(date1: string, date2: string): boolean {
+    try {
+      const d1 = new Date(date1);
+      const d2 = new Date(date2);
+
+      // Check if both dates are valid
+      if (isNaN(d1.getTime()) || isNaN(d2.getTime())) {
+        this.logger.error({ date1, date2 }, 'Invalid dates provided');
+        return false;
+      }
+
+      // Compare only the date parts using UTC to avoid timezone issues
+      const d1Year = d1.getUTCFullYear();
+      const d1Month = d1.getUTCMonth();
+      const d1Day = d1.getUTCDate();
+
+      const d2Year = d2.getUTCFullYear();
+      const d2Month = d2.getUTCMonth();
+      const d2Day = d2.getUTCDate();
+
+      this.logger.info(
+        {
+          original1: date1,
+          original2: date2,
+          d1Parts: { year: d1Year, month: d1Month, day: d1Day },
+          d2Parts: { year: d2Year, month: d2Month, day: d2Day },
+        },
+        `Comparing date parts`,
+      );
+
+      return d1Year === d2Year && d1Month === d2Month && d1Day === d2Day;
+    } catch (error) {
+      this.logger.error({ date1, date2, error }, 'Date comparison failed');
+      return false;
     }
   }
   async deleteByApplicationPackageId(

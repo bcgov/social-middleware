@@ -7,5 +7,5 @@ export class DeleteApplicationFormDto {
     example: '4e4d305b-6de8-4fc8-98cf-fdc4f22111f0',
   })
   @IsUUID()
-  applicationId!: string;
+  applicationFormId!: string;
 }

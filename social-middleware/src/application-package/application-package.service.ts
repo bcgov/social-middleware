@@ -679,21 +679,21 @@ export class ApplicationPackageService {
               })) as { Id: string };
 
             attachmentResults.push({
-              applicationId: form.applicationId,
+              applicationFormId: form.applicationFormId,
               attachmentId: attachmentResult.Id,
             });
 
             this.logger.info(
               {
                 serviceRequestId: serviceRequestId,
-                applicationId: form.applicationId,
+                applicationFormId: form.applicationFormId,
                 fileName: fileName,
               },
               'Attachment created successfully for form',
             );
           } else {
             this.logger.warn(
-              { applicationId: form.applicationId },
+              { applicationFormId: form.applicationFormId },
               'Skipping form with no data for attachment',
             );
           }
@@ -701,7 +701,7 @@ export class ApplicationPackageService {
           this.logger.error(
             {
               error,
-              applicationId: form.applicationId,
+              applicationFormId: form.applicationFormId,
               serviceRequestId: serviceRequestId,
             },
             'Failed to create attachment for form',

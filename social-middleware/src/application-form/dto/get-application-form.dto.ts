@@ -4,7 +4,7 @@ import { ApplicationFormType } from '../enums/application-form-types.enum';
 
 export class GetApplicationFormDto {
   @ApiProperty()
-  applicationId!: string;
+  applicationFormId!: string;
 
   @ApiProperty()
   applicationPackageId!: string;
