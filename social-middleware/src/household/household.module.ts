@@ -11,14 +11,17 @@ import {
   ApplicationForm,
   ApplicationFormSchema,
 } from '../application-form/schemas/application-form.schema';
-import { ScreeningAccessCode } from './schemas/screening-access-code.schema';
+import {
+  ScreeningAccessCode,
+  ScreeningAccessCodeSchema,
+} from './schemas/screening-access-code.schema';
 
 @Module({
   imports: [
     MongooseModule.forFeature([
       { name: HouseholdMembers.name, schema: HouseholdMembersSchema },
       { name: ApplicationForm.name, schema: ApplicationFormSchema },
-      { name: ScreeningAccessCode.name, schema: ScreeningAccessCode },
+      { name: ScreeningAccessCode.name, schema: ScreeningAccessCodeSchema },
     ]),
   ],
   controllers: [HouseholdController],

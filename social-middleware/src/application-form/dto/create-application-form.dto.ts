@@ -32,7 +32,7 @@ export class CreateApplicationFormDto {
   @IsOptional()
   @IsObject()
   @IsNotEmpty()
-  userId!: string;
+  userId?: string;
 
   @ApiProperty({
     description: 'The type of application being created',

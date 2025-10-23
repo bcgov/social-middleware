@@ -13,7 +13,7 @@ import {
   ApplicationForm,
   ApplicationFormDocument,
 } from '../schemas/application-form.schema';
-//import { FormType } from '../enums/form-type.enum';
+import { FormType } from '../enums/form-type.enum';
 import {
   FormParameters,
   FormParametersDocument,
@@ -81,7 +81,6 @@ export class ApplicationFormService {
 
       this.logger.info({ applicationId }, 'Saved application form to DB');
 
-      /*
       const newFormDto = {
         applicationId: applicationId,
         type: FormType.New,
@@ -92,8 +91,7 @@ export class ApplicationFormService {
         },
       };
 
-      await this.newFormAccessToken(newFormDto, dto.userId);
-      */
+      await this.newFormAccessToken(newFormDto);
 
       return { applicationId };
     } catch (error) {
@@ -152,60 +150,50 @@ export class ApplicationFormService {
     }
   }
 
-  async newFormAccessToken(dto: NewTokenDto, userId: string): Promise<string> {
-    this.logger.info('Creating a new Form Access Token for user:', userId);
+  async newFormAccessToken(dto: NewTokenDto): Promise<string> {
     this.logger.debug('Passed applicationId:', dto.applicationId);
 
     try {
-      // check to see if the user owns the applicationForm
-      const ownsForm = await this.confirmOwnership(dto.applicationId, userId);
+      // Get the latest form parameters for this application
+      const latestFormParameters = await this.formParametersModel
+        .findOne({ applicationId: { $eq: dto.applicationId } })
+        .sort({ createdAt: -1 })
+        .lean()
+        .exec();
 
-      if (ownsForm) {
-        // Get the latest form parameters for this application
-        const latestFormParameters = await this.formParametersModel
-          .findOne({ applicationId: { $eq: dto.applicationId } })
-          .sort({ createdAt: -1 })
-          .lean()
-          .exec();
+      const formAccessToken = uuidv4();
 
-        const formAccessToken = uuidv4();
-
-        if (latestFormParameters) {
-          // Reuse existing parameters but with new token
-          this.logger.info('Re-using form parameters');
+      if (latestFormParameters) {
+        // Reuse existing parameters but with new token
+        this.logger.info('Re-using form parameters');
+        const formParamters = new this.formParametersModel({
+          applicationId: dto.applicationId,
+          type: latestFormParameters.type,
+          formId: latestFormParameters.formId,
+          formAccessToken: formAccessToken,
+          formParameters: latestFormParameters.formParameters, // Reuse existing
+        });
+        await formParamters.save();
+      } else {
+        // Create new parameters using the dto
+        this.logger.info('Creating new form parameters');
+        if (dto.type && dto.formId && dto.formParameters) {
           const formParamters = new this.formParametersModel({
             applicationId: dto.applicationId,
-            type: latestFormParameters.type,
-            formId: latestFormParameters.formId,
+            type: dto.type,
+            formId: dto.formId,
             formAccessToken: formAccessToken,
-            formParameters: latestFormParameters.formParameters, // Reuse existing
+            formParameters: dto.formParameters, // Reuse existing
           });
           await formParamters.save();
         } else {
-          // Create new parameters using the dto
-          this.logger.info('Creating new form parameters');
-          if (dto.type && dto.formId && dto.formParameters) {
-            const formParamters = new this.formParametersModel({
-              applicationId: dto.applicationId,
-              type: dto.type,
-              formId: dto.formId,
-              formAccessToken: formAccessToken,
-              formParameters: dto.formParameters, // Reuse existing
-            });
-            await formParamters.save();
-          } else {
-            this.logger.error('Cannot create new token without form meta data');
-            throw new InternalServerErrorException(
-              'Failed to create new form access token',
-            );
-          }
+          this.logger.error('Cannot create new token without form meta data');
+          throw new InternalServerErrorException(
+            'Failed to create new form access token',
+          );
         }
-        return formAccessToken;
-      } else {
-        throw new InternalServerErrorException(
-          'Invalid applicationForm or unauthorized access',
-        );
       }
+      return formAccessToken;
     } catch (error) {
       if (error instanceof NotFoundException) {
         // Re-throw NotFoundException (from the !formParameters check)
@@ -220,6 +208,17 @@ export class ApplicationFormService {
         'Failed to generate form access token',
       );
     }
+  }
+
+  async confirmOwnership(
+    applicationId: string,
+    userId: string,
+  ): Promise<boolean> {
+    const applicationForm = await this.applicationFormModel
+      .findOne({ applicationId: { $eq: applicationId }, userId })
+      .lean()
+      .exec();
+    return !!applicationForm;
   }
 
   async getApplicationFormsByUser(
@@ -541,16 +540,5 @@ export class ApplicationFormService {
     await this.applicationFormModel
       .deleteMany({ parentApplicationId: parentApplicationId })
       .exec();
-  }
-
-  async confirmOwnership(
-    applicationId: string,
-    userId: string,
-  ): Promise<boolean> {
-    const applicationForm = await this.applicationFormModel
-      .findOne({ applicationId: { $eq: applicationId }, userId })
-      .lean()
-      .exec();
-    return !!applicationForm;
   }
 }

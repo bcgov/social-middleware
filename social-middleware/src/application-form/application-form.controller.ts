@@ -8,6 +8,7 @@ import {
   Body,
   ValidationPipe,
   NotFoundException,
+  UnauthorizedException,
   Post,
 } from '@nestjs/common';
 import {
@@ -72,9 +73,20 @@ export class ApplicationFormsController {
       applicationId,
     };
 
-    const formAccessToken =
-      await this.applicationFormsService.newFormAccessToken(dto, userId);
-    return { formAccessToken };
+    const ownsForm = await this.applicationFormsService.confirmOwnership(
+      applicationId,
+      userId,
+    );
+
+    if (ownsForm) {
+      const formAccessToken =
+        await this.applicationFormsService.newFormAccessToken(dto);
+      return { formAccessToken };
+    } else {
+      throw new UnauthorizedException(
+        'Invalid applicationForm or unauthorized access',
+      );
+    }
   }
 
   @Get(':applicationId')
