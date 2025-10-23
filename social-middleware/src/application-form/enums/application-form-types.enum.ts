@@ -7,6 +7,7 @@ export enum ApplicationFormType {
   HISTORY = 'Caregiving history',
   REFERENCES = 'References',
   CONSENT = 'Consent and agreements',
+  SCREENING = 'Screening',
 }
 
 export const FormId: Record<ApplicationFormType, string> = {
@@ -18,6 +19,7 @@ export const FormId: Record<ApplicationFormType, string> = {
   [ApplicationFormType.HISTORY]: 'CF0001_AboutMe',
   [ApplicationFormType.REFERENCES]: 'CF0001_AboutMe',
   [ApplicationFormType.CONSENT]: 'CF0001_AboutMe',
+  [ApplicationFormType.SCREENING]: 'CF0001_AboutMe',
 };
 
 // helper
