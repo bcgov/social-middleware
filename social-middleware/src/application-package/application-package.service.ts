@@ -280,9 +280,11 @@ export class ApplicationPackageService {
         'Updating application package stage',
       );
 
-      // TODO: compare against previous stage to ensure valid transition
       // TODO: handle withdrawl, cancellations, etc.
-      if (newStage === ServiceRequestStage.APPLICATION) {
+      if (
+        newStage === ServiceRequestStage.APPLICATION &&
+        applicationPackage.srStage !== ServiceRequestStage.APPLICATION // if we are already in Application, don't do anything
+      ) {
         // create aboutme as the first application Form
         const aboutMeDto = {
           applicationPackageId: applicationPackage.applicationPackageId,
