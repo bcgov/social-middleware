@@ -50,8 +50,8 @@ export class ApplicationFormService {
 
   async createApplicationForm(
     dto: CreateApplicationFormDto,
-  ): Promise<{ applicationId: string }> {
-    const applicationId = uuidv4();
+  ): Promise<{ applicationFormId: string }> {
+    const applicationFormId = uuidv4();
     const formAccessToken = uuidv4();
 
     try {
@@ -59,7 +59,7 @@ export class ApplicationFormService {
       this.logger.debug(
         {
           applicationPackageId: dto.applicationPackageId,
-          applicationId: applicationId,
+          applicationFormId: applicationFormId,
           userId: dto.userId,
           formId: dto.formId,
           type: dto.type,
@@ -69,7 +69,7 @@ export class ApplicationFormService {
       );
 
       const applicationForm = new this.applicationFormModel({
-        applicationId,
+        applicationFormId,
         applicationPackageId: dto.applicationPackageId,
         userId: dto.userId,
         formId: dto.formId,
@@ -79,10 +79,10 @@ export class ApplicationFormService {
 
       await applicationForm.save();
 
-      this.logger.info({ applicationId }, 'Saved application form to DB');
+      this.logger.info({ applicationFormId }, 'Saved application form to DB');
 
       const newFormDto = {
-        applicationId: applicationId,
+        applicationFormId: applicationFormId,
         type: FormType.New,
         formId: dto.formId,
         formParameters: {
@@ -93,7 +93,7 @@ export class ApplicationFormService {
 
       await this.newFormAccessToken(newFormDto);
 
-      return { applicationId };
+      return { applicationFormId };
     } catch (error) {
       this.logger.error({ error }, 'Failed to create application');
       throw new InternalServerErrorException('Application creation failed.');
@@ -105,7 +105,7 @@ export class ApplicationFormService {
     householdMemberId: string,
     //userId?: string, // optional
   ): Promise<{
-    screeningApplicationId: string;
+    screeningApplicationFormId: string;
     accessCode?: string; // only if userId not provided
     expiresAt?: Date; // only if userId not provided
   }> {
@@ -119,13 +119,13 @@ export class ApplicationFormService {
         formParameters: {},
       };
 
-      const screeningApplicationId =
+      const screeningApplicationFormId =
         await this.createApplicationForm(screeningDto);
 
       const { accessCode, expiresAt } =
         await this.accessCodeService.createAccessCode(
           applicationPackageId,
-          screeningApplicationId.applicationId,
+          screeningApplicationFormId.applicationFormId,
           householdMemberId,
         );
 
@@ -138,7 +138,8 @@ export class ApplicationFormService {
       //  : undefined;
 
       return {
-        screeningApplicationId: screeningApplicationId.applicationId,
+        screeningApplicationFormId:
+          screeningApplicationFormId.applicationFormId,
         accessCode,
         expiresAt,
       };
@@ -151,12 +152,12 @@ export class ApplicationFormService {
   }
 
   async newFormAccessToken(dto: NewTokenDto): Promise<string> {
-    this.logger.debug('Passed applicationId:', dto.applicationId);
+    this.logger.debug('Passed applicationFormId:', dto.applicationFormId);
 
     try {
       // Get the latest form parameters for this application
       const latestFormParameters = await this.formParametersModel
-        .findOne({ applicationId: { $eq: dto.applicationId } })
+        .findOne({ applicationFormId: { $eq: dto.applicationFormId } })
         .sort({ createdAt: -1 })
         .lean()
         .exec();
@@ -167,7 +168,7 @@ export class ApplicationFormService {
         // Reuse existing parameters but with new token
         this.logger.info('Re-using form parameters');
         const formParamters = new this.formParametersModel({
-          applicationId: dto.applicationId,
+          applicationFormId: dto.applicationFormId,
           type: latestFormParameters.type,
           formId: latestFormParameters.formId,
           formAccessToken: formAccessToken,
@@ -179,7 +180,7 @@ export class ApplicationFormService {
         this.logger.info('Creating new form parameters');
         if (dto.type && dto.formId && dto.formParameters) {
           const formParamters = new this.formParametersModel({
-            applicationId: dto.applicationId,
+            applicationFormId: dto.applicationFormId,
             type: dto.type,
             formId: dto.formId,
             formAccessToken: formAccessToken,
@@ -202,7 +203,7 @@ export class ApplicationFormService {
       // Log and handle unexpected database errors
       this.logger.error(
         { error },
-        `Error generating formAccessToken for application: ${dto.applicationId}`,
+        `Error generating formAccessToken for application: ${dto.applicationFormId}`,
       );
       throw new InternalServerErrorException(
         'Failed to generate form access token',
@@ -211,11 +212,11 @@ export class ApplicationFormService {
   }
 
   async confirmOwnership(
-    applicationId: string,
+    applicationFormId: string,
     userId: string,
   ): Promise<boolean> {
     const applicationForm = await this.applicationFormModel
-      .findOne({ applicationId: { $eq: applicationId }, userId })
+      .findOne({ applicationFormId: { $eq: applicationFormId }, userId })
       .lean()
       .exec();
     return !!applicationForm;
@@ -238,17 +239,17 @@ export class ApplicationFormService {
       }
 
       // Fetch corresponding formIds from FormParameters
-      const applicationIds = forms.map((form) => form.applicationFormId);
+      const applicationFormIds = forms.map((form) => form.applicationFormId);
       const formParameters = await this.formParametersModel
         .find(
-          { applicationId: { $in: applicationIds } },
-          { applicationId: 1, formId: 1 },
+          { applicationFormId: { $in: applicationFormIds } },
+          { applicationFormId: 1, formId: 1 },
         )
         .lean();
 
       // Map applicationId -> formId
       const formIdMap = new Map(
-        formParameters.map((fp) => [fp.applicationId, fp.formId]),
+        formParameters.map((fp) => [fp.applicationFormId, fp.formId]),
       );
 
       // Build final DTO array
@@ -316,16 +317,16 @@ export class ApplicationFormService {
       }
 
       // Fetch corresponding formIds from FormParameters
-      const applicationIds = forms.map((form) => form.applicationFormId);
+      const applicationFormIds = forms.map((form) => form.applicationFormId);
       const formParameters = await this.formParametersModel
         .find(
-          { applicationId: { $in: applicationIds } },
-          { applicationId: 1, formId: 1 },
+          { applicationFormId: { $in: applicationFormIds } },
+          { applicationFormId: 1, formId: 1 },
         )
         .lean();
 
       const formIdMap = new Map(
-        formParameters.map((fp) => [fp.applicationId, fp.formId]),
+        formParameters.map((fp) => [fp.applicationFormId, fp.formId]),
       );
 
       const results: GetApplicationFormDto[] = forms.map((form) => ({
@@ -357,12 +358,12 @@ export class ApplicationFormService {
 
   // used by front end to determine the current state of the applicationForm
   async getApplicationFormById(
-    applicationId: string,
+    applicationFormId: string,
     userId: string,
   ): Promise<GetApplicationFormDto | null> {
     try {
       this.logger.info(
-        { applicationId, userId },
+        { applicationFormId, userId },
         'Fetching application form by ID',
       );
 
@@ -370,7 +371,7 @@ export class ApplicationFormService {
       const form = await this.applicationFormModel
         .findOne(
           {
-            applicationId: { $eq: applicationId },
+            applicationFormId: { $eq: applicationFormId },
             userId: { $eq: userId },
           },
           { formData: 0 },
@@ -380,7 +381,7 @@ export class ApplicationFormService {
 
       if (!form) {
         this.logger.info(
-          { applicationId, userId },
+          { applicationFormId, userId },
           'Application form not found or access denied',
         );
         return null;
@@ -388,7 +389,10 @@ export class ApplicationFormService {
 
       // Get the corresponding formId from FormParameters
       const formParameters = await this.formParametersModel
-        .findOne({ applicationId: { $eq: applicationId } }, { formId: 1 })
+        .findOne(
+          { applicationFormId: { $eq: applicationFormId } },
+          { formId: 1 },
+        )
         .lean()
         .exec();
 
@@ -404,14 +408,14 @@ export class ApplicationFormService {
       };
 
       this.logger.info(
-        { applicationId, userId },
+        { applicationFormId, userId },
         'Application form fetched successfully',
       );
 
       return result;
     } catch (error) {
       this.logger.error(
-        { error, applicationId, userId },
+        { error, applicationFormId, userId },
         'Failed to fetch application form by ID',
       );
       throw new InternalServerErrorException(
@@ -427,7 +431,7 @@ export class ApplicationFormService {
 
       const record = await this.formParametersModel
         .findOne({ formAccessToken: { $eq: dto.token } })
-        .select('applicationId')
+        .select('applicationFormId')
         .lean()
         .exec();
 
@@ -436,7 +440,7 @@ export class ApplicationFormService {
       }
       const updated = await this.applicationFormModel
         .findOneAndUpdate(
-          { applicationId: record.applicationId },
+          { applicationFormId: record.applicationFormId },
           {
             $set: {
               formData: dto.jsonToSave,
@@ -448,10 +452,10 @@ export class ApplicationFormService {
         .exec();
       if (!updated) {
         throw new NotFoundException(
-          `Application ${record.applicationId} not found`,
+          `Application ${record.applicationFormId} not found`,
         );
       }
-      this.logger.info('Application saved  to DB ', record.applicationId);
+      this.logger.info('Application saved  to DB ', record.applicationFormId);
     } catch (err) {
       if (err instanceof HttpException) {
         // Re-throw known HTTP exceptions (404, 400)
@@ -492,13 +496,13 @@ export class ApplicationFormService {
   }
 
   async findByIdAndUser(
-    applicationId: string,
+    applicationFormId: string,
     userId: string,
   ): Promise<ApplicationFormDocument | null> {
     try {
       const application = await this.applicationFormModel
         .findOne({
-          applicationId: applicationId,
+          applicationFormId: applicationFormId,
           userId: userId,
         })
         .exec();
@@ -506,7 +510,7 @@ export class ApplicationFormService {
       return application;
     } catch (error) {
       this.logger.error(
-        { error, applicationId, userId },
+        { error, applicationFormId, userId },
         'Error finding application by ID and user',
       );
       return null;
@@ -538,10 +542,10 @@ export class ApplicationFormService {
   }
 
   async deleteByApplicationPackageId(
-    parentApplicationId: string,
+    applicationPackageId: string,
   ): Promise<void> {
     await this.applicationFormModel
-      .deleteMany({ parentApplicationId: parentApplicationId })
+      .deleteMany({ applicationPackageId: applicationPackageId })
       .exec();
   }
 }

@@ -7,7 +7,7 @@ export class InviteHouseholdMemberParamsDto {
     example: 'a8a6a5f0-1234-4bcd-9ef0-567890abcdef',
   })
   @IsUUID()
-  applicationId!: string;
+  applicationFormId!: string;
 
   @ApiProperty({
     description: 'Household Member ID',

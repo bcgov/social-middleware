@@ -69,11 +69,11 @@ export class DevToolsService {
       // step 2: fin all application forms for these packages
       const applicationForms = await this.applicationFormModel.find(
         { applicationPackageId: { $in: applicationPackageIds } },
-        { applicationId: 1 },
+        { applicationFormId: 1 },
       );
 
       const applicationFormIds = applicationForms.map(
-        (form) => form.applicationId,
+        (form) => form.applicationFormId,
       );
 
       this.logger.info(
@@ -83,7 +83,7 @@ export class DevToolsService {
 
       // step 3: delete form parameters associated with application forms
       const deletedFormParameters = await this.formParametersModel.deleteMany({
-        applicationId: { $in: applicationFormIds },
+        applicationFormId: { $in: applicationFormIds },
       });
 
       // step 4: delete application forms associated with packages

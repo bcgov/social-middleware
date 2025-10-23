@@ -15,10 +15,10 @@ export class ApplicationSubmissionService {
     private applicationSubmissionModel: Model<ApplicationSubmission>,
   ) {}
   async createInitialSubmission(
-    applicationId: string,
+    applicationFormId: string,
   ): Promise<ApplicationSubmission> {
     const initialSubmission = new this.applicationSubmissionModel({
-      applicationId,
+      applicationFormId,
       status: ApplicationSubmissionStatus.Draft, // or CREATED
       createdAt: new Date(),
       submittedAt: null, // Will be set when actually submitted
@@ -29,7 +29,7 @@ export class ApplicationSubmissionService {
   }
 
   async updateSubmissionStatus(
-    applicationId: string,
+    applicationFormId: string,
     updateDto: UpdateSubmissionStatusDto,
   ): Promise<ApplicationSubmission> {
     // verify ownership before proceeding
@@ -44,7 +44,7 @@ export class ApplicationSubmissionService {
     } */
 
     const submission = await this.applicationSubmissionModel.findOneAndUpdate(
-      { applicationId },
+      { applicationFormId },
       {
         ...updateDto,
         updatedAt: new Date(),
@@ -54,7 +54,7 @@ export class ApplicationSubmissionService {
 
     if (!submission) {
       throw new NotFoundException(
-        `Submission not found for application ID: ${applicationId}`,
+        `Submission not found for application ID: ${applicationFormId}`,
       );
     }
 

@@ -34,7 +34,7 @@ export class ApplicationSubmissionController {
     this.jwtSecret = this.configService.get<string>('JWT_SECRET')!;
   }
 
-  @Put(':applicationId/status')
+  @Put(':applicationFormId/status')
   async updateSubmissionStatus(
     @Param(new ValidationPipe({ whitelist: true, transform: true }))
     params: UpdateSubmissionStatusParamsDto,
@@ -59,7 +59,7 @@ export class ApplicationSubmissionController {
 
       // verify ownership before proceeding
       const application = await this.applicationService.findByIdAndUser(
-        params.applicationId,
+        params.applicationFormId,
         userId,
       );
 
@@ -69,7 +69,7 @@ export class ApplicationSubmissionController {
       // Proceed with updating the submission status
 
       return this.applicationSubmissionService.updateSubmissionStatus(
-        params.applicationId,
+        params.applicationFormId,
         updateDto,
       );
     } catch (error) {

@@ -43,7 +43,7 @@ export class ApplicationFormsController {
   @UseGuards(SessionAuthGuard)
   @ApiOperation({ summary: 'Get form access token by application ID' })
   @ApiQuery({
-    name: 'applicationId',
+    name: 'applicationFormId',
     required: true,
     description: 'The application ID to get the form access token for',
   })
@@ -64,17 +64,17 @@ export class ApplicationFormsController {
     description: 'Internal server error',
   })
   async getFormAccessToken(
-    @Query('applicationId') applicationId: string,
+    @Query('applicationFormId') applicationFormId: string,
     @Req() request: Request,
   ): Promise<{ formAccessToken: string }> {
     const userId = this.sessionUtil.extractUserIdFromRequest(request);
 
     const dto: NewTokenDto = {
-      applicationId,
+      applicationFormId,
     };
 
     const ownsForm = await this.applicationFormsService.confirmOwnership(
-      applicationId,
+      applicationFormId,
       userId,
     );
 
@@ -89,11 +89,11 @@ export class ApplicationFormsController {
     }
   }
 
-  @Get(':applicationId')
+  @Get(':applicationFormId')
   @UseGuards(SessionAuthGuard)
   @ApiOperation({ summary: 'Get application form metadata by application ID' })
   @ApiParam({
-    name: 'applicationId',
+    name: 'applicationFormId',
     required: true,
     description: 'The application ID to retrieve',
   })
@@ -114,14 +114,14 @@ export class ApplicationFormsController {
     description: 'Internal server error',
   })
   async getApplicationFormById(
-    @Param('applicationId') applicationId: string,
+    @Param('applicationFormId') applicationFormId: string,
     @Req() request: Request,
   ): Promise<GetApplicationFormDto> {
     const userId = this.sessionUtil.extractUserIdFromRequest(request);
 
     const applicationForm =
       await this.applicationFormsService.getApplicationFormById(
-        applicationId,
+        applicationFormId,
         userId,
       );
 

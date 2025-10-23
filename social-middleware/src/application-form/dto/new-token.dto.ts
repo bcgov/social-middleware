@@ -9,7 +9,7 @@ export class NewTokenDto {
     example: '37fbe045-4be7-4226-b2e6-a0018f797b11',
   })
   @IsString()
-  applicationId!: string;
+  applicationFormId!: string;
 
   @ApiProperty({
     description: 'The status of form being created',

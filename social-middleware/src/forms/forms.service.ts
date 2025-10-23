@@ -76,24 +76,24 @@ export class FormsService {
 
   async getFormAccessToken(dto: GetTokenDto): Promise<any> {
     this.logger.info('Retrieving Form Access Token');
-    const applicationId = dto.applicationId;
-    this.logger.debug('Passed applicationId:', applicationId);
+    const applicationFormId = dto.applicationFormId;
+    this.logger.debug('Passed applicationFormId:', applicationFormId);
     this.logger.info(
-      'Checking whether form access token exists for applicationId',
+      'Checking whether form access token exists for applicationFormId',
     );
 
     try {
       // TODO: Handle types other than 'New'
       const formParameters = await this.formParametersModel
         .findOne({
-          applicationId: applicationId,
+          applicationFormId: applicationFormId,
           type: 'New',
         })
         .exec();
 
       if (!formParameters) {
         throw new NotFoundException(
-          `No form parameters found for applicationId ${applicationId}`,
+          `No form parameters found for applicationFormId ${applicationFormId}`,
         );
       }
 
@@ -105,8 +105,8 @@ export class FormsService {
       }
       // Log and handle unexpected database errors
       this.logger.error(
-        { error, applicationId },
-        `Error finding formAccessToken for application: ${applicationId}`,
+        { error, applicationFormId },
+        `Error finding formAccessToken for application: ${applicationFormId}`,
       );
       throw new InternalServerErrorException(
         'Failed to retrieve form access token',

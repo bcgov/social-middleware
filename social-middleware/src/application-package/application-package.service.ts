@@ -119,7 +119,7 @@ export class ApplicationPackageService {
     this.logger.info(
       {
         applicationPackageId: appPackage.applicationPackageId,
-        referralApplicationId: referral.applicationId,
+        referralApplicationFormId: referral.applicationFormId,
       },
       'Created referral form for application package',
     );
@@ -887,7 +887,7 @@ export class ApplicationPackageService {
       // generate access code and associate with form
       await this.accessCodeService.createAccessCode(
         applicationPackageId,
-        screeningForm.screeningApplicationId,
+        screeningForm.screeningApplicationFormId,
         member.householdMemberId,
       );
     }

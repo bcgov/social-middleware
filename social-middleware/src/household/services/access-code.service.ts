@@ -166,7 +166,7 @@ export class AccessCodeService {
       );
 
       await this.applicationFormModel.findOneAndUpdate(
-        { applicationId: accessCodeRecord.applicationFormId },
+        { applicationFormId: accessCodeRecord.applicationFormId },
         { userId: userId },
       );
 
