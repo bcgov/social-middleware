@@ -1,6 +1,9 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { HouseholdController } from './household.controller';
+import { HouseholdAccessCodeController } from './household-access.controller';
+import { SessionUtil } from '../common/utils/session.util';
+import { AuthModule } from '../auth/auth.module';
 import { HouseholdService } from './services/household.service';
 import { AccessCodeService } from './services/access-code.service';
 import {
@@ -23,9 +26,10 @@ import {
       { name: ApplicationForm.name, schema: ApplicationFormSchema },
       { name: ScreeningAccessCode.name, schema: ScreeningAccessCodeSchema },
     ]),
+    AuthModule,
   ],
-  controllers: [HouseholdController],
-  providers: [HouseholdService, AccessCodeService],
+  controllers: [HouseholdController, HouseholdAccessCodeController],
+  providers: [HouseholdService, AccessCodeService, SessionUtil],
   exports: [HouseholdService, AccessCodeService],
 })
 export class HouseholdModule {}

@@ -10,6 +10,7 @@ import {
   Delete,
   ValidationPipe,
 } from '@nestjs/common';
+import { SessionUtil } from '../common/utils/session.util';
 import { HouseholdService } from './services/household.service';
 import { AccessCodeService } from './services/access-code.service';
 import { CreateHouseholdMemberDto } from './dto/create-household-member.dto';
@@ -22,7 +23,7 @@ import {
   ApiBody,
   ApiOkResponse,
 } from '@nestjs/swagger';
-
+//TODO: ADD SESSION AUTH GUARD
 @ApiTags('Household Members')
 @Controller('application-package/:applicationPackageId/household-members')
 export class HouseholdController {
@@ -30,6 +31,7 @@ export class HouseholdController {
   constructor(
     private readonly householdService: HouseholdService,
     private readonly accessCodeService: AccessCodeService,
+    private readonly sessionUtil: SessionUtil,
   ) {}
 
   @Post()
