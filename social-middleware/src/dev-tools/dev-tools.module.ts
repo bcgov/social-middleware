@@ -20,7 +20,7 @@ import {
 import {
   ScreeningAccessCode,
   ScreeningAccessCodeSchema,
-} from '../application-form/schemas/screening-access-code.schema';
+} from '../household/schemas/screening-access-code.schema';
 @Module({
   imports: [
     ConfigModule,

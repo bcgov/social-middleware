@@ -9,10 +9,10 @@ import { Model } from 'mongoose';
 import {
   HouseholdMembers,
   HouseholdMembersDocument,
-} from './schemas/household-members.schema';
-import { CreateHouseholdMemberDto } from './dto/create-household-member.dto';
-import { RelationshipToPrimary } from './enums/relationship-to-primary.enum';
-import { MemberTypes } from './enums/member-types.enum';
+} from '../schemas/household-members.schema';
+import { CreateHouseholdMemberDto } from '../dto/create-household-member.dto';
+import { RelationshipToPrimary } from '../enums/relationship-to-primary.enum';
+import { MemberTypes } from '../enums/member-types.enum';
 import { v4 as uuidv4 } from 'uuid';
 
 @Injectable()

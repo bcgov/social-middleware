@@ -25,7 +25,7 @@ import {
   FormParameters,
   FormParametersDocument,
 } from '../application/schemas/form-parameters.schema';
-import { HouseholdService } from '../household/household.service';
+import { HouseholdService } from '../household/services/household.service';
 
 @Injectable()
 export class DevToolsService {

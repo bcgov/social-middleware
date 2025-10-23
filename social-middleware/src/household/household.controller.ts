@@ -10,7 +10,8 @@ import {
   Delete,
   ValidationPipe,
 } from '@nestjs/common';
-import { HouseholdService } from './household.service';
+import { HouseholdService } from './services/household.service';
+import { AccessCodeService } from './services/access-code.service';
 import { CreateHouseholdMemberDto } from './dto/create-household-member.dto';
 import { HouseholdMembersDocument } from './schemas/household-members.schema';
 import {
@@ -26,8 +27,10 @@ import {
 @Controller('application-package/:applicationPackageId/household-members')
 export class HouseholdController {
   private readonly logger = new Logger(HouseholdController.name);
-
-  constructor(private readonly householdService: HouseholdService) {}
+  constructor(
+    private readonly householdService: HouseholdService,
+    private readonly accessCodeService: AccessCodeService,
+  ) {}
 
   @Post()
   @ApiOperation({ summary: 'Create a new household member' })

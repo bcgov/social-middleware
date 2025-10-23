@@ -23,7 +23,7 @@ import { GenderTypes } from 'src/household/enums/gender-types.enum';
 import { GetApplicationsDto } from './dto/get-applications.dto';
 import { SubmitApplicationDto } from './dto/submit-application-dto';
 import { ApplicationStatus } from './enums/application-status.enum';
-import { HouseholdService } from 'src/household/household.service';
+import { HouseholdService } from 'src/household/services/household.service';
 //import { RelationshipToPrimary } from 'src/household/enums/relationship-to-primary.enum';
 import { UserService } from 'src/auth/user.service';
 //import { ApplicationSubmissionService } from 'src/application-submission/application-submission.service';
@@ -121,60 +121,6 @@ export class ApplicationService {
     } catch (error) {
       this.logger.error({ error }, 'Failed to create application');
       throw new InternalServerErrorException('Application creation failed');
-    }
-  }
-
-  // service to create a household screening application record
-  async createHouseholdScreening(
-    parentApplicationId: string,
-    householdMemberId: string,
-  ): Promise<{
-    accessCode: string;
-    screeningApplicationId: string;
-    expiresAt: Date;
-  }> {
-    const screeningApplicationId = uuidv4();
-    const accessCode = this.generateSecureAccessCode();
-    const expiresAt = new Date(Date.now() + 72 * 60 * 60 * 1000); // 72 hours
-
-    try {
-      // create screening application record
-      this.logger.info('Creating new screening application');
-
-      const application = new this.applicationModel({
-        applicationId: screeningApplicationId,
-        parentApplicationId: parentApplicationId,
-        type: ApplicationTypes.CaregiverScreening,
-      });
-
-      await application.save();
-
-      this.logger.info({ screeningApplicationId }, 'Saved application to DB');
-
-      // create access code record
-      const accessCodeRecord = new this.screeningAccessCodeModel({
-        accessCode,
-        parentApplicationId,
-        screeningApplicationId,
-        householdMemberId,
-        isUsed: false,
-        expiresAt,
-        attemptCount: 0,
-        maxAttempts: 3,
-      });
-
-      await accessCodeRecord.save();
-      this.logger.info(
-        { accessCode, screeningApplicationId, expiresAt },
-        'Created screening access code record',
-      );
-
-      return { accessCode, screeningApplicationId, expiresAt };
-    } catch (error) {
-      this.logger.error({ error }, 'Failed to create screening application');
-      throw new InternalServerErrorException(
-        'Screening application creation failed',
-      );
     }
   }
 

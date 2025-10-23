@@ -13,7 +13,7 @@ import {
   ApplicationForm,
   ApplicationFormDocument,
 } from '../schemas/application-form.schema';
-import { FormType } from '../enums/form-type.enum';
+//import { FormType } from '../enums/form-type.enum';
 import {
   FormParameters,
   FormParametersDocument,
@@ -24,7 +24,7 @@ import {
   getFormIdForFormType,
 } from '../enums/application-form-types.enum';
 import { ApplicationFormStatus } from '../enums/application-form-status.enum';
-import { AccessCodeService } from './access-code.service';
+import { AccessCodeService } from '../../household/services/access-code.service';
 import { GetApplicationFormDto } from '../dto/get-application-form.dto';
 import { DeleteApplicationFormDto } from '../dto/delete-application-form.dto';
 import {
@@ -81,6 +81,7 @@ export class ApplicationFormService {
 
       this.logger.info({ applicationId }, 'Saved application form to DB');
 
+      /*
       const newFormDto = {
         applicationId: applicationId,
         type: FormType.New,
@@ -92,6 +93,7 @@ export class ApplicationFormService {
       };
 
       await this.newFormAccessToken(newFormDto, dto.userId);
+      */
 
       return { applicationId };
     } catch (error) {
@@ -101,65 +103,47 @@ export class ApplicationFormService {
   }
 
   async createScreeningForm(
-    parentApplicationId: string,
+    applicationPackageId: string,
     householdMemberId: string,
-    userId?: string, // optional
+    //userId?: string, // optional
   ): Promise<{
     screeningApplicationId: string;
     accessCode?: string; // only if userId not provided
     expiresAt?: Date; // only if userId not provided
   }> {
-    const screeningApplicationId = uuidv4();
-    const accessCode = !userId
-      ? this.accessCodeService.generateAccessCode()
-      : undefined;
-    const expiresAt = !userId
-      ? new Date(Date.now() + 72 * 60 * 60 * 1000) // 72 hours
-      : undefined;
-
     try {
-      this.logger.info('Creating new screening application');
+      this.logger.info('Creating new screening record');
+      const screeningDto = {
+        applicationPackageId: applicationPackageId,
+        formId: getFormIdForFormType(ApplicationFormType.SCREENING),
+        //userId: null,
+        type: ApplicationFormType.SCREENING,
+        formParameters: {},
+      };
 
-      // Create ApplicationForm-like record for screening
-      const applicationForm = new this.applicationFormModel({
-        applicationId: screeningApplicationId,
-        applicationPackageId: parentApplicationId,
-        userId: userId || null,
-        type: userId
-          ? ApplicationFormType.ABOUTME
-          : ApplicationFormType.REFERRAL,
-        status: ApplicationFormStatus.NEW,
-        formData: null,
-      });
+      const screeningApplicationId =
+        await this.createApplicationForm(screeningDto);
 
-      await applicationForm.save();
-      this.logger.info(
-        { screeningApplicationId },
-        'Saved screening application form to DB',
-      );
-
-      // Create FormParameters-like record for access
-      if (!userId) {
-        const formParameters = new this.formParametersModel({
-          applicationId: screeningApplicationId,
-          type: FormType.New,
-          formId: getFormIdForFormType(ApplicationFormType.REFERRAL),
-          formAccessToken: accessCode,
-          formParameters: {
-            householdMemberId,
-            parentApplicationId,
-            expiresAt,
-          },
-        });
-
-        await formParameters.save();
-        this.logger.info(
-          { accessCode, screeningApplicationId, expiresAt },
-          'Saved form parameters (access code) to DB',
+      const { accessCode, expiresAt } =
+        await this.accessCodeService.createAccessCode(
+          applicationPackageId,
+          screeningApplicationId.applicationId,
+          householdMemberId,
         );
-      }
 
-      return { screeningApplicationId, accessCode, expiresAt };
+      //const screeningApplicationId = uuidv4();
+      //const accessCode = !userId
+      //  ? this.accessCodeService.generateAccessCode()
+      //  : undefined;
+      //const expiresAt = !userId
+      //  ? new Date(Date.now() + 72 * 60 * 60 * 1000) // 72 hours
+      //  : undefined;
+
+      return {
+        screeningApplicationId: screeningApplicationId.applicationId,
+        accessCode,
+        expiresAt,
+      };
     } catch (error) {
       this.logger.error({ error }, 'Failed to create screening application');
       throw new InternalServerErrorException(

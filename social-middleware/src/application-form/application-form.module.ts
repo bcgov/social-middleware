@@ -10,7 +10,7 @@ import {
   FormParametersSchema,
 } from './schemas/form-parameters.schema';
 import { AuthModule } from 'src/auth/auth.module';
-import { AccessCodeService } from './services/access-code.service';
+import { AccessCodeService } from '../household/services/access-code.service';
 import {
   ApplicationPackage,
   ApplicationPackageSchema,
@@ -18,7 +18,7 @@ import {
 import {
   ScreeningAccessCode,
   ScreeningAccessCodeSchema,
-} from './schemas/screening-access-code.schema';
+} from '../household/schemas/screening-access-code.schema';
 import { HouseholdModule } from 'src/household/household.module';
 import { ApplicationFormsController } from './application-form.controller';
 import { SessionUtil } from '../common/utils/session.util';
