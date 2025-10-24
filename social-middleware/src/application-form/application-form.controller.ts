@@ -26,6 +26,7 @@ import { SubmitApplicationFormDto } from './dto/submit-application-form.dto';
 //import { InviteHouseholdMemberParamsDto } from './dto/invite-household-member-params.dto';
 import { SessionAuthGuard } from 'src/auth/session-auth.guard';
 import { ApplicationFormService } from './services/application-form.service';
+import { ApplicationFormType } from './enums/application-form-types.enum';
 import { SessionUtil } from 'src/common/utils/session.util';
 import { PinoLogger } from 'nestjs-pino';
 
@@ -176,5 +177,28 @@ export class ApplicationFormsController {
     dto: SubmitApplicationFormDto,
   ) {
     return await this.applicationFormsService.submitApplicationForm(dto);
+  }
+
+  @Get()
+  @ApiOperation({
+    summary: 'Get user application forms',
+    description:
+      'Retrieves application forms assigned to the authenticated user (screening forms)',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Application forms retrieved successfully',
+    type: [GetApplicationFormDto],
+  })
+  async getUserApplicationForms(
+    @Req() request: Request,
+  ): Promise<GetApplicationFormDto[]> {
+    const userId = this.sessionUtil.extractUserIdFromRequest(request);
+
+    // Hard-coded to only return screening forms
+    return await this.applicationFormsService.getApplicationFormsByUser(
+      userId,
+      [ApplicationFormType.SCREENING],
+    );
   }
 }

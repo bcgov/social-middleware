@@ -224,13 +224,25 @@ export class ApplicationFormService {
 
   async getApplicationFormsByUser(
     userId: string,
+    types?: ApplicationFormType[], // optional form type filter for front end
   ): Promise<GetApplicationFormDto[]> {
     try {
-      this.logger.info({ userId }, 'Fetching application forms for user');
+      this.logger.info(
+        { userId, types },
+        'Fetching application forms for user',
+      );
+
+      // build the query - add type filter if types are specified
+      const query: { userId: string; type?: { $in: ApplicationFormType[] } } = {
+        userId,
+      };
+      if (types && types.length > 0) {
+        query.type = { $in: types };
+      }
 
       // Find all application forms for the user (exclude formData to reduce payload)
       const forms = await this.applicationFormModel
-        .find({ userId }, { formData: 0 })
+        .find(query, { formData: 0 })
         .lean();
 
       if (!forms.length) {
