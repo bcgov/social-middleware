@@ -1,6 +1,6 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document } from 'mongoose';
-import { ApplicationFormType } from '../enums/application-form-types.enum';
+//import { ApplicationFormType } from '../enums/application-form-types.enum';
 import { FormType } from '../enums/form-type.enum';
 //import { ApplicationFormStatus } from '../enums/application-form-status.enum';
 
