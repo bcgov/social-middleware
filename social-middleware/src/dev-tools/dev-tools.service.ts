@@ -24,7 +24,7 @@ import {
 import {
   FormParameters,
   FormParametersDocument,
-} from '../application/schemas/form-parameters.schema';
+} from '../application-form/schemas/form-parameters.schema';
 import { HouseholdService } from '../household/services/household.service';
 
 @Injectable()

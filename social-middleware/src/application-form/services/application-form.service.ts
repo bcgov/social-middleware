@@ -152,7 +152,7 @@ export class ApplicationFormService {
   }
 
   async newFormAccessToken(dto: NewTokenDto): Promise<string> {
-    this.logger.debug('Passed applicationFormId:', dto.applicationFormId);
+    this.logger.debug('Passed applicationFormIdX:', dto.applicationFormId);
 
     try {
       // Get the latest form parameters for this application

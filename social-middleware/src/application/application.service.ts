@@ -242,7 +242,7 @@ export class ApplicationService {
 
       // associate screening record to user
       await this.applicationModel.findOneAndUpdate(
-        { applicationId: accessCodeRecord.screeningApplicationId },
+        { applicationFormId: accessCodeRecord.screeningApplicationId },
         { primary_applicantId: userId },
       );
 
@@ -321,7 +321,7 @@ export class ApplicationService {
 
       // Map applicationId -> formId
       const formIdMap = new Map(
-        formParameters.map((fp) => [fp.applicationId, fp.formId]),
+        formParameters.map((fp) => [fp.applicationFormId, fp.formId]),
       );
 
       const results = applications.map((app) => ({
@@ -360,7 +360,7 @@ export class ApplicationService {
       }
       const updated = await this.applicationModel
         .findOneAndUpdate(
-          { applicationId: record.applicationId },
+          { applicationId: record.applicationFormId },
           {
             $set: {
               formData: dto.formJson,
@@ -372,10 +372,10 @@ export class ApplicationService {
         .exec();
       if (!updated) {
         throw new NotFoundException(
-          `Application ${record.applicationId} not found`,
+          `Application ${record.applicationFormId} not found`,
         );
       }
-      this.logger.info('Application saved  to DB ', record.applicationId);
+      this.logger.info('Application saved  to DB ', record.applicationFormId);
     } catch (err) {
       if (err instanceof HttpException) {
         // Re-throw known HTTP exceptions (404, 400)

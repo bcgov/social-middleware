@@ -11,7 +11,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import {
   FormParameters,
   FormParametersDocument,
-} from 'src/application/schemas/form-parameters.schema';
+} from 'src/application-form/schemas/form-parameters.schema';
 import { Model } from 'mongoose';
 import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
 import { ApplicationService } from 'src/application/application.service';

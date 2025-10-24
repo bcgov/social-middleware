@@ -7,7 +7,7 @@ export type FormParametersDocument = FormParameters & Document;
 @Schema({ timestamps: true })
 export class FormParameters {
   @Prop({ required: true })
-  applicationId!: string;
+  applicationFormId!: string;
 
   @Prop({ required: true, enum: FormType })
   type!: FormType;
