@@ -14,6 +14,7 @@ import { CreateHouseholdMemberDto } from '../dto/create-household-member.dto';
 import { RelationshipToPrimary } from '../enums/relationship-to-primary.enum';
 import { MemberTypes } from '../enums/member-types.enum';
 import { v4 as uuidv4 } from 'uuid';
+import { sexToGenderType } from '../../common/utils/gender.util';
 
 @Injectable()
 export class HouseholdService {
@@ -170,6 +171,60 @@ export class HouseholdService {
       );
       throw new InternalServerErrorException(
         'Could not associate user with household member',
+      );
+    }
+  }
+
+  // update household member details with authenticated user information
+  async updateMemberWithUserData(
+    householdMemberId: string,
+    userData: {
+      firstName?: string;
+      sex?: string;
+    },
+  ): Promise<HouseholdMembersDocument> {
+    try {
+      this.logger.log(
+        `Updating household member ${householdMemberId} with authenticated user data`,
+      );
+
+      const updateData: Partial<HouseholdMembers> = {};
+
+      // update firstName if provided
+      if (userData.firstName) {
+        updateData.firstName = userData.firstName;
+      }
+      if (userData.sex) {
+        updateData.genderType = sexToGenderType(userData.sex);
+      }
+
+      const result = await this.householdMemberModel
+        .findOneAndUpdate(
+          { householdMemberId },
+          { $set: updateData },
+          { new: true, runValidators: true },
+        )
+        .exec();
+
+      if (!result) {
+        this.logger.warn(
+          `Household member with ID ${householdMemberId} not found for data update.`,
+        );
+        throw NotFoundException;
+      }
+
+      this.logger.log(
+        `Successfully updated household member ${householdMemberId} firstName and gender`,
+      );
+      return result;
+    } catch (error: unknown) {
+      const err = error as Error;
+      this.logger.error(
+        `Failed to update household member ${householdMemberId}: ${err.message}`,
+        err.stack,
+      );
+      throw new InternalServerErrorException(
+        'Could not update household member with user data',
       );
     }
   }

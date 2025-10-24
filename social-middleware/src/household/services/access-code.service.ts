@@ -11,7 +11,6 @@ import {
 } from '../../application-form/schemas/application-form.schema';
 import { HouseholdService } from './household.service';
 import { PinoLogger } from 'nestjs-pino';
-//import { compareDates } from '../../common/utils/date.util';
 
 @Injectable()
 export class AccessCodeService {
@@ -65,9 +64,10 @@ export class AccessCodeService {
   }
 
   /**
-   * Generate a secure access code
+   * Generate a 6 digit secure access code
    */
   generateAccessCode(length = 6): string {
+    // note we remove ambiguous characters like I, 1, O, 0
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
     let result = '';
     for (let i = 0; i < length; i++) {
@@ -87,6 +87,7 @@ export class AccessCodeService {
       dateOfBirth: string;
       email?: string;
       firstName?: string;
+      sex?: string;
     },
   ): Promise<{
     success: boolean;
@@ -94,6 +95,7 @@ export class AccessCodeService {
     error?: string;
   }> {
     try {
+      // locate a valid access code record with the accessCode provided
       const accessCodeRecord = await this.screeningAccessCodeModel.findOne({
         accessCode,
         isUsed: false,
@@ -101,6 +103,7 @@ export class AccessCodeService {
         attemptCount: { $lt: 10 },
       });
 
+      // if we didn't find a valid one return
       if (!accessCodeRecord) {
         this.logger.warn(
           { accessCode },
@@ -109,10 +112,12 @@ export class AccessCodeService {
         return { success: false, error: 'Invalid or expired access code' };
       }
 
+      //  let's find the householdMember for associated with the access code
       const householdMember = await this.householdService.findById(
         accessCodeRecord.householdMemberId,
       );
 
+      // if we don't find one, that's an internal error somewhere
       if (!householdMember) {
         this.logger.error(
           { householdMemberId: accessCodeRecord.householdMemberId },
@@ -121,14 +126,17 @@ export class AccessCodeService {
         return { success: false, error: 'No match' };
       }
 
+      // now let's see if the last name provided by the primary applicant matches the BC services Card Data
       const lastNameMatch =
         bcscUserData.lastName.toLowerCase().trim() ===
         householdMember.lastName.toLowerCase().trim();
+      // let's check the date of birth
       const dobMatch = this.compareDates(
         bcscUserData.dateOfBirth,
         householdMember.dateOfBirth,
       );
 
+      // if either don't match, then this isn't for them, or the primary applicant made a mistake
       if (!lastNameMatch || !dobMatch) {
         await this.screeningAccessCodeModel.findByIdAndUpdate(
           accessCodeRecord._id,
@@ -156,7 +164,7 @@ export class AccessCodeService {
         };
       }
 
-      // validation successful
+      // we got this far, which means we found a match, so let's link the access code to the user
       await this.screeningAccessCodeModel.findByIdAndUpdate(
         accessCodeRecord._id,
         {
@@ -164,17 +172,29 @@ export class AccessCodeService {
           isUsed: true,
         },
       );
-
+      // and link the screening form that the primary applicant generated to the household user
+      // TODO: if we end up generating multiple forms for the household user, we will need to change this
       await this.applicationFormModel.findOneAndUpdate(
         { applicationFormId: accessCodeRecord.applicationFormId },
         { userId: userId },
       );
-
+      // now let's link the household record to the user
       await this.householdService.associateUserWithMember(
         accessCodeRecord.householdMemberId,
         userId,
       );
+      // and we can update the household record details with the bcsc data;
+      // the first name from BCSC may be different from what the primary applicant provided
+      // also, we don't let the primary applicant specify the gender of any adult so we use the BCSC data for that too.
+      await this.householdService.updateMemberWithUserData(
+        accessCodeRecord.householdMemberId,
+        {
+          firstName: bcscUserData.firstName,
+          sex: bcscUserData.sex,
+        },
+      );
 
+      // all good to go
       this.logger.info(
         {
           accessCode,
@@ -198,6 +218,7 @@ export class AccessCodeService {
     }
   }
 
+  // helper method to compare BCSC DOB to ISO DOB (which ICM prefers)
   private compareDates(date1: string, date2: string): boolean {
     try {
       const d1 = new Date(date1);
@@ -234,6 +255,8 @@ export class AccessCodeService {
       return false;
     }
   }
+
+  // delete screening access codes related to a given applicationPackageID
   async deleteByApplicationPackageId(
     applicationPackageId: string,
   ): Promise<void> {
