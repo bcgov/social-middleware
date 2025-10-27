@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { HouseholdController } from './household.controller';
 import { HouseholdAccessCodeController } from './household-access.controller';
@@ -14,6 +14,7 @@ import {
   ApplicationForm,
   ApplicationFormSchema,
 } from '../application-form/schemas/application-form.schema';
+import { ApplicationFormModule } from '../application-form/application-form.module';
 import {
   ScreeningAccessCode,
   ScreeningAccessCodeSchema,
@@ -27,6 +28,7 @@ import {
       { name: ScreeningAccessCode.name, schema: ScreeningAccessCodeSchema },
     ]),
     AuthModule,
+    forwardRef(() => ApplicationFormModule), // Add this back
   ],
   controllers: [HouseholdController, HouseholdAccessCodeController],
   providers: [HouseholdService, AccessCodeService, SessionUtil],

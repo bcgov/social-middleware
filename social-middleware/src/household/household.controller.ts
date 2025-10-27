@@ -10,10 +10,13 @@ import {
   Delete,
   ValidationPipe,
 } from '@nestjs/common';
+import { Inject, forwardRef } from '@nestjs/common';
 import { SessionUtil } from '../common/utils/session.util';
 import { HouseholdService } from './services/household.service';
 import { AccessCodeService } from './services/access-code.service';
+import { ApplicationFormService } from '../application-form/services/application-form.service';
 import { CreateHouseholdMemberDto } from './dto/create-household-member.dto';
+import { GetApplicationFormDto } from '../application-form/dto/get-application-form.dto';
 import { HouseholdMembersDocument } from './schemas/household-members.schema';
 import {
   ApiTags,
@@ -23,6 +26,7 @@ import {
   ApiBody,
   ApiOkResponse,
 } from '@nestjs/swagger';
+import { HouseholdMemberWithFormsDto } from './dto/household-member-with-forms.dto';
 //TODO: ADD SESSION AUTH GUARD
 @ApiTags('Household Members')
 @Controller('application-package/:applicationPackageId/household-members')
@@ -30,6 +34,8 @@ export class HouseholdController {
   private readonly logger = new Logger(HouseholdController.name);
   constructor(
     private readonly householdService: HouseholdService,
+    @Inject(forwardRef(() => ApplicationFormService))
+    private readonly applicationFormService: ApplicationFormService,
     private readonly accessCodeService: AccessCodeService,
     private readonly sessionUtil: SessionUtil,
   ) {}
@@ -97,19 +103,43 @@ export class HouseholdController {
   }
 
   @Get(':householdMemberId')
-  @ApiOperation({ summary: 'Get household members by householdMemberId' })
+  @ApiOperation({
+    summary: 'Get household member details by householdMemberId',
+  })
   @ApiParam({ name: 'householdMemberId', type: String })
   @ApiOkResponse({
     description: 'Information associated with the household member',
-    type: [CreateHouseholdMemberDto],
+    type: HouseholdMemberWithFormsDto,
   })
   @ApiResponse({ status: 500, description: 'Internal server error.' })
   async getHouseholdMember(
     @Param('householdMemberId', new ValidationPipe({ transform: true }))
     householdMemberId: string,
-  ): Promise<HouseholdMembersDocument | null> {
+  ): Promise<HouseholdMemberWithFormsDto | null> {
     try {
-      return await this.householdService.findById(householdMemberId);
+      const householdMember =
+        await this.householdService.findById(householdMemberId);
+
+      if (!householdMember) {
+        throw new HttpException(
+          'Household member not found',
+          HttpStatus.NOT_FOUND,
+        );
+      }
+      // Get application forms if user is associated
+      let applicationForms: GetApplicationFormDto[] = [];
+      // TODO: we should filter by applicationPackageId??
+      if (householdMember.userId) {
+        applicationForms =
+          await this.applicationFormService.getApplicationFormsByUser(
+            householdMember.userId,
+          );
+      }
+
+      return {
+        householdMember,
+        applicationForms,
+      };
     } catch (error: unknown) {
       const err = error as Error;
       this.logger.error(
