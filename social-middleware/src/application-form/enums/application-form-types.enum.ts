@@ -19,7 +19,7 @@ export const FormId: Record<ApplicationFormType, string> = {
   [ApplicationFormType.HISTORY]: 'CF0001_AboutMe',
   [ApplicationFormType.REFERENCES]: 'CF0001_AboutMe',
   [ApplicationFormType.CONSENT]: 'CF0001_AboutMe',
-  [ApplicationFormType.SCREENING]: 'CF0001_AboutMe',
+  [ApplicationFormType.SCREENING]: 'CF0001_Referral',
 };
 
 // helper
