@@ -1,5 +1,6 @@
 // auth/dto/create-user.dto.ts
-import { IsString, IsEmail, IsNotEmpty } from 'class-validator';
+import { IsString, IsOptional, IsEmail, IsNotEmpty } from 'class-validator';
+import { Transform } from 'class-transformer';
 import { GenderTypes } from '../../household/enums/gender-types.enum';
 
 export class CreateUserDto {
@@ -7,9 +8,15 @@ export class CreateUserDto {
   @IsNotEmpty()
   bc_services_card_id!: string;
 
+  @IsOptional() // it's possible that we get a mononym; in this case the first name will be blank
   @IsString()
-  @IsNotEmpty()
-  first_name!: string;
+  @Transform(({ value }: { value: any }) => {
+    if (typeof value === 'string') {
+      return value.trim() || '';
+    }
+    return '';
+  })
+  first_name?: string;
 
   @IsString()
   @IsNotEmpty()

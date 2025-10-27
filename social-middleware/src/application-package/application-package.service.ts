@@ -10,20 +10,31 @@ import { InjectModel } from '@nestjs/mongoose';
 import { v4 as uuidv4 } from 'uuid';
 import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
 import { ApplicationPackage } from './schema/application-package.schema';
-import { ApplicationPackageStatus } from './enums/application-package-status.enum';
+import {
+  ApplicationPackageStatus,
+  ServiceRequestStage,
+} from './enums/application-package-status.enum';
 import { ApplicationForm } from '../application-form/schemas/application-form.schema';
 import { ApplicationFormService } from '../application-form/services/application-form.service';
-import { ApplicationFormType } from '../application-form/enums/application-form-types.enum';
+import {
+  ApplicationFormType,
+  getFormIdForFormType,
+} from '../application-form/enums/application-form-types.enum';
 import { CreateApplicationPackageDto } from './dto/create-application-package.dto';
+import { UpdateApplicationPackageDto } from './dto/update-application-package.dto';
 import { CancelApplicationPackageDto } from './dto/cancel-application-package.dto';
-import { HouseholdService } from '../household/household.service';
-import { AccessCodeService } from '../application-form/services/access-code.service';
+import { HouseholdService } from '../household/services/household.service';
+import { AccessCodeService } from '../household/services/access-code.service';
 import { UserService } from '../auth/user.service';
 import { UserUtil } from '../common/utils/user.util';
+import { calculateAge } from '../common/utils/age.util';
 import { Model } from 'mongoose';
 import { RelationshipToPrimary } from '../household/enums/relationship-to-primary.enum';
 import { SiebelApiService } from '../siebel/siebel-api.service';
-import { ReferralState } from './enums/application-package-subtypes.enum';
+//import { ReferralState } from './enums/application-package-subtypes.enum';
+import { ValidateHouseholdCompletionDto } from './dto/validate-application-package.dto';
+//import { CreateApplicationFormDto } from '../application-form/dto/create-application-form.dto';
+import { HouseholdMembersDocument } from '../household/schemas/household-members.schema';
 
 interface SiebelServiceRequestResponse {
   items?: {
@@ -46,6 +57,10 @@ export class ApplicationPackageService {
     @InjectPinoLogger(ApplicationFormService.name)
     private readonly logger: PinoLogger,
   ) {}
+
+  // create a new application package, which includes creating the initial referral form
+  // and the primary household member
+  // returns the created application package
   async createApplicationPackage(
     dto: CreateApplicationPackageDto,
     userId: string,
@@ -104,13 +119,16 @@ export class ApplicationPackageService {
     this.logger.info(
       {
         applicationPackageId: appPackage.applicationPackageId,
-        referralApplicationId: referral.applicationId,
+        referralApplicationFormId: referral.applicationFormId,
       },
       'Created referral form for application package',
     );
     return appPackage;
   }
 
+  // cancel an application package, which includes deleting all associated forms,
+  // household members, and access codes
+  // only allowed if the package is in DRAFT or IN_PROGRESS status
   async cancelApplicationPackage(
     dto: CancelApplicationPackageDto,
   ): Promise<void> {
@@ -164,6 +182,49 @@ export class ApplicationPackageService {
       );
     }
   }
+
+  async updateApplicationPackage(
+    applicationPackageId: string,
+    dto: UpdateApplicationPackageDto,
+    userId: string,
+  ): Promise<ApplicationPackage> {
+    try {
+      const updatedPackage = await this.applicationPackageModel
+        .findOneAndUpdate(
+          {
+            applicationPackageId: { $eq: applicationPackageId },
+            userId: { $eq: userId },
+          },
+          { $set: dto },
+          { new: true, runValidators: true },
+        )
+        .exec();
+      if (!updatedPackage) {
+        throw new NotFoundException(
+          `Application package with ID ${applicationPackageId} not found or access denied`,
+        );
+      }
+
+      this.logger.info(
+        { applicationPackageId, userId },
+        'Application package updated successfully',
+      );
+
+      return updatedPackage;
+    } catch (error: unknown) {
+      const err = error as Error;
+      this.logger.error(
+        `Failed to update application package ${applicationPackageId}: ${err.message}`,
+        err.stack,
+      );
+      throw new InternalServerErrorException(
+        'Could not update application package',
+      );
+    }
+  }
+
+  // get the applicationPackage details for a given packageId and userId
+  // used to view the package details and status
   async getApplicationPackage(
     applicationPackageId: string,
     userId: string,
@@ -208,6 +269,93 @@ export class ApplicationPackageService {
       );
     }
   }
+
+  async updateApplicationPackageStage(
+    applicationPackage: ApplicationPackage,
+    newStage: ServiceRequestStage,
+  ): Promise<ApplicationPackage> {
+    try {
+      this.logger.info(
+        { applicationPackage, newStage },
+        'Updating application package stage',
+      );
+
+      // TODO: handle withdrawl, cancellations, etc.
+      if (
+        newStage === ServiceRequestStage.APPLICATION &&
+        applicationPackage.srStage !== ServiceRequestStage.APPLICATION // if we are already in Application, don't do anything
+      ) {
+        // create aboutme as the first application Form
+        const aboutMeDto = {
+          applicationPackageId: applicationPackage.applicationPackageId,
+          formId: getFormIdForFormType(ApplicationFormType.ABOUTME),
+          userId: applicationPackage.userId,
+          type: ApplicationFormType.ABOUTME,
+          formParameters: {},
+        };
+        await this.applicationFormService.createApplicationForm(aboutMeDto);
+
+        // note, household is handled differently from the other forms;
+        // we use the applicationForm table to track the status of the household data,
+        // but there is no actual form to fill out; the data is collected
+        // via the household API endpoints
+        const householdDto = {
+          applicationPackageId: applicationPackage.applicationPackageId,
+          formId: getFormIdForFormType(ApplicationFormType.HOUSEHOLD),
+          userId: applicationPackage.userId,
+          type: ApplicationFormType.HOUSEHOLD,
+          formParameters: {},
+        };
+        await this.applicationFormService.createApplicationForm(householdDto);
+      }
+
+      const updatedPackage = await this.applicationPackageModel
+        .findOneAndUpdate(
+          { applicationPackageId: applicationPackage.applicationPackageId },
+          {
+            srStage: newStage,
+            status: ApplicationPackageStatus.APPLICATION,
+            updatedAt: new Date(),
+          },
+          { new: true },
+        )
+        .lean()
+        .exec();
+
+      if (!updatedPackage) {
+        throw new NotFoundException('Application package not found');
+      }
+
+      this.logger.info(
+        {
+          applicationPackageId: applicationPackage.applicationPackageId,
+          newStage,
+        },
+        'Application package stage updated successfully',
+      );
+
+      return updatedPackage;
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+
+      this.logger.error(
+        {
+          error,
+          applicationPackageId: applicationPackage.applicationPackageId,
+          newStage,
+        },
+        'Failed to update application package stage',
+      );
+      throw new InternalServerErrorException(
+        'Failed to update application package stage',
+      );
+    }
+  }
+
+  // get all application packages for a user
+  // used on dashboard to list all packages for possible interaction
   async getApplicationPackages(userId: string): Promise<ApplicationPackage[]> {
     try {
       this.logger.info({ userId }, 'Fetching application packages for user');
@@ -245,7 +393,7 @@ export class ApplicationPackageService {
         'Fetching application forms for package',
       );
 
-      const forms = await this.applicationFormService.findByPackageAndUser(
+      const forms = await this.applicationFormService.findShortByPackageAndUser(
         applicationPackageId,
         userId,
       );
@@ -288,82 +436,232 @@ export class ApplicationPackageService {
           'Application package not found or already submitted',
         );
       }
-      // get all application forms for this package
-      const applicationForms =
-        await this.applicationFormService.findShortByPackageAndUser(
-          applicationPackageId,
-          userId,
-        );
+
+      // TODO
+      // if there is a service request ID already, it means that the service request exists in ICM
+      // therefore, we will only need to update the prospects
+      // and upload the attached forms
+      // but we need to check that everyone is complete first; household members may still need to
+      // finish their consent forms.
+
+      const isInitialSubmission = !applicationPackage.srId?.trim();
 
       // get the primary user
       const primaryUser = await this.userService.findOne(userId);
 
-      // TODO: Get household
+      let serviceRequestId: string;
 
-      // create the service request
-      const srPayload = {
-        Id: 'NULL',
-        Status: 'Open',
-        Priority: '3-Standard',
-        'Contact Method': 'Client Portal',
-        Type: 'Caregiver Application',
-        'Sub Type': applicationPackage.subtype,
-        'Sub Sub Type': applicationPackage.subsubtype,
-        'ICM Stage': 'Application',
-        'Icm Bcsc Did': primaryUser.bc_services_card_id,
-        'First Name': primaryUser.first_name,
-        'Service Office': 'MCFD',
-        'SR Memo': 'Created By Portal',
-      };
+      if (isInitialSubmission) {
+        // create the service request
+        const srPayload = {
+          Id: 'NULL',
+          Status: 'Open',
+          Priority: '3-Standard',
+          Type: 'Caregiver Application',
+          'SR Sub Type': applicationPackage.subtype,
+          'SR Sub Sub Type': applicationPackage.subsubtype,
+          'ICM Stage': 'Application',
+          'ICM BCSC DID': primaryUser.bc_services_card_id,
+          'Service Office': 'MCFD',
+          'Comm Method': 'Client Portal',
+          Memo: 'Created By Portal',
+        };
 
-      const siebelResponse =
-        await this.siebelApiService.createServiceRequest(srPayload);
+        const siebelResponse =
+          await this.siebelApiService.createServiceRequest(srPayload);
 
-      if (!siebelResponse) {
-        throw new InternalServerErrorException();
-      }
+        if (!siebelResponse) {
+          throw new InternalServerErrorException(
+            'Failed to create service request',
+          );
+        }
 
-      const serviceRequestId = (siebelResponse as SiebelServiceRequestResponse)
-        .items?.Id;
+        const newServiceRequestId = (
+          siebelResponse as SiebelServiceRequestResponse
+        ).items?.Id;
 
-      if (!serviceRequestId) {
-        this.logger.error(
-          { siebelResponse },
-          'No service request ID in response.',
+        if (!newServiceRequestId) {
+          this.logger.error(
+            { siebelResponse },
+            'No service request ID in response',
+          );
+          throw new InternalServerErrorException(
+            'Failed to get service request ID from Siebel',
+          );
+        }
+        serviceRequestId = newServiceRequestId;
+
+        this.logger.info(
+          { applicationPackageId, serviceRequestId },
+          'Created new service request in Siebel',
         );
-        throw new InternalServerErrorException(
-          'Failed to get service request Id',
+      } else {
+        // not the initial submission so let's reuse the service request ID
+        serviceRequestId = applicationPackage.srId?.trim();
+      }
+
+      // the referral stage has not been implemented in ICM yet; on creation
+      // of a service request, it will default to Application, which will actually
+      // be the second step in the process. We will create a seperate endpoint
+      // to track the status and stage.
+      //const serviceRequestStage = (
+      //  siebelResponse as SiebelServiceRequestResponse
+      //).items?.['ICM Stage'] as string;
+
+      if (isInitialSubmission) {
+        // for the initial submission, we create the user payload
+        const primaryUserProspectPayload = {
+          ServiceRequestId: serviceRequestId, //TODO
+          IcmBcscDid: primaryUser.bc_services_card_id,
+          FirstName: primaryUser.first_name,
+          LastName: primaryUser.last_name,
+          DateofBirth: primaryUser.dateOfBirth,
+          StreetAddress: primaryUser.street_address,
+          City: primaryUser.city,
+          Prov: primaryUser.region,
+          PostalCode: primaryUser.postal_code,
+          EmailAddress: primaryUser.email,
+          Gender: this.userUtil.sexToGenderType(primaryUser.sex),
+          Relationship: 'Key player',
+        };
+
+        const siebelProspectResponse =
+          (await this.siebelApiService.createProspect(
+            primaryUserProspectPayload,
+          )) as { Id: string };
+
+        if (!siebelProspectResponse.Id) {
+          console.log('failed to create prospect');
+        }
+      } else {
+        // on the subsequent submission, we will create payloads for every other user
+        // load household
+        const allHouseholdMembers =
+          await this.householdService.findAllHouseholdMembers(
+            applicationPackageId,
+          );
+        // filter out the primary applicant (they were created on the initial submission)
+        const nonPrimaryHouseholdMembers = allHouseholdMembers.filter(
+          (member) =>
+            member.relationshipToPrimary != RelationshipToPrimary.Self,
         );
+
+        this.logger.info(
+          {
+            applicationPackageId,
+            totalMembers: allHouseholdMembers.length,
+            nonPrimaryHouseholdMembers: nonPrimaryHouseholdMembers.length,
+          },
+          'Processing household members for subsequent submission',
+        );
+        // process each non-primary household member
+        for (const householdMember of nonPrimaryHouseholdMembers) {
+          try {
+            let prospectPayload;
+
+            // if they have a userId, it means they have logged in via BC Services card and we have their info in the user record
+            if (householdMember.userId) {
+              // adult household member with their own user account
+              const memberUser = await this.userService.findOne(
+                householdMember.userId,
+              );
+              prospectPayload = {
+                ServiceRequestId: serviceRequestId, //TODO
+                IcmBcscDid: memberUser.bc_services_card_id,
+                FirstName: memberUser.first_name,
+                LastName: memberUser.last_name,
+                DateofBirth: memberUser.dateOfBirth,
+                StreetAddress: memberUser.street_address,
+                City: memberUser.city,
+                Prov: memberUser.region,
+                PostalCode: memberUser.postal_code,
+                EmailAddress: memberUser.email,
+                Gender: this.userUtil.sexToGenderType(memberUser.sex),
+                Relationship: householdMember.relationshipToPrimary,
+              };
+            } else {
+              // household member without user account (typically minors)
+              prospectPayload = {
+                ServiceRequestId: serviceRequestId, //TODO
+                IcmBcscDid: '',
+                FirstName: householdMember.firstName,
+                LastName: householdMember.lastName,
+                DateofBirth: householdMember.dateOfBirth,
+                StreetAddress: primaryUser.street_address,
+                City: primaryUser.city,
+                Prov: primaryUser.region,
+                PostalCode: primaryUser.postal_code,
+                EmailAddress: '', //householdMember.email,
+                Gender: householdMember.genderType,
+                Relationship: householdMember.relationshipToPrimary,
+              };
+            }
+
+            const memberProspectResponse =
+              await this.siebelApiService.createProspect(prospectPayload);
+
+            this.logger.info(
+              {
+                householdMember: householdMember.householdMemberId,
+                prospectId: (memberProspectResponse as { Id: string }).Id, // should we save the prospectID??
+                relationship: householdMember.relationshipToPrimary,
+              },
+              'Created prospect for household member',
+            );
+          } catch (error) {
+            this.logger.error(
+              {
+                error,
+                householdMemberId: householdMember.householdMemberId,
+                relationship: householdMember.relationshipToPrimary,
+              },
+              'Failed to create prospect for household member',
+            );
+            // continue processing other members even if one fails..??
+          }
+        }
       }
 
-      const primaryUserProspectPayload = {
-        ServiceRequestId: serviceRequestId, //TODO
-        IcmBcscDid: primaryUser.bc_services_card_id,
-        FirstName: primaryUser.first_name,
-        LastName: primaryUser.last_name,
-        DateofBirth: primaryUser.dateOfBirth,
-        StreetAddress: primaryUser.street_address,
-        City: primaryUser.city,
-        Prov: primaryUser.region,
-        PostalCode: primaryUser.postal_code,
-        EmailAddress: primaryUser.email,
-        Gender: this.userUtil.sexToGenderType(primaryUser.sex),
-        Relationship: 'Key player',
-      };
-
-      const siebelProspectResponse =
-        (await this.siebelApiService.createProspect(
-          primaryUserProspectPayload,
-        )) as { Id: string };
-
-      if (!siebelProspectResponse.Id) {
-        console.log('failed to create prospect');
-      }
+      // get all application forms for this package
+      const allApplicationForms =
+        await this.applicationFormService.findByPackageAndUser(
+          applicationPackageId,
+          userId,
+        );
 
       // attach the forms
+      // for an initial submission, there should only be a referral form
+      let formsToAttach;
+
+      if (isInitialSubmission) {
+        formsToAttach = allApplicationForms.filter(
+          (form) => form.type === ApplicationFormType.REFERRAL,
+        );
+        this.logger.info(
+          {
+            applicationPackageId,
+            totalForms: allApplicationForms.length,
+            referralForms: formsToAttach.length,
+          },
+          'Initial submission: attaching only REFERRAL forms',
+        );
+      } else {
+        // For subsequent submissions, attach everything EXCEPT REFERRAL forms
+        formsToAttach = allApplicationForms.filter(
+          (form) => form.type !== ApplicationFormType.REFERRAL,
+        );
+        this.logger.info(
+          {
+            applicationPackageId,
+            totalForms: allApplicationForms.length,
+            nonReferralForms: formsToAttach.length,
+          },
+          'Subsequent submission: attaching non-REFERRAL forms',
+        );
+      }
 
       const attachmentResults = [];
-      for (const form of applicationForms) {
+      for (const form of formsToAttach) {
         try {
           if (form.formData) {
             const fileName = form.type;
@@ -381,21 +679,21 @@ export class ApplicationPackageService {
               })) as { Id: string };
 
             attachmentResults.push({
-              applicationId: form.applicationId,
+              applicationFormId: form.applicationFormId,
               attachmentId: attachmentResult.Id,
             });
 
             this.logger.info(
               {
                 serviceRequestId: serviceRequestId,
-                applicationId: form.applicationId,
+                applicationFormId: form.applicationFormId,
                 fileName: fileName,
               },
               'Attachment created successfully for form',
             );
           } else {
             this.logger.warn(
-              { applicationId: form.applicationId },
+              { applicationFormId: form.applicationFormId },
               'Skipping form with no data for attachment',
             );
           }
@@ -403,7 +701,7 @@ export class ApplicationPackageService {
           this.logger.error(
             {
               error,
-              applicationId: form.applicationId,
+              applicationFormId: form.applicationFormId,
               serviceRequestId: serviceRequestId,
             },
             'Failed to create attachment for form',
@@ -414,19 +712,37 @@ export class ApplicationPackageService {
       this.logger.info(
         {
           serviceRequestId: serviceRequestId,
-          totalForms: applicationForms.length,
+          totalForms: formsToAttach.length,
           successfulAttachments: attachmentResults.length,
         },
-        'Completed attachment creation for all forms',
+        `Completed attachment creation for ${attachmentResults.length}/${formsToAttach.length} forms`,
       );
+
+      // After the attachment loop, add this check:
+      if (attachmentResults.length !== formsToAttach.length) {
+        const failedCount = formsToAttach.length - attachmentResults.length;
+        this.logger.warn(
+          {
+            applicationPackageId,
+            expectedAttachments: formsToAttach.length,
+            successfulAttachments: attachmentResults.length,
+            failedAttachments: failedCount,
+          },
+          'Some forms failed to attach to Siebel - submission continuing with partial attachments',
+        );
+      }
 
       await this.applicationPackageModel.findOneAndUpdate(
         { applicationPackageId },
         {
-          status: ApplicationPackageStatus.SUBMITTED,
-          referralstate: ReferralState.REQUESTED,
+          status: isInitialSubmission
+            ? ApplicationPackageStatus.REFERRAL
+            : ApplicationPackageStatus.SUBMITTED,
+          //referralstate: ReferralState.REQUESTED,
           submittedAt: new Date(),
+          updatedAt: new Date(),
           srId: serviceRequestId,
+          // srStage: serviceRequestStage,
         },
       );
 
@@ -455,5 +771,148 @@ export class ApplicationPackageService {
         'Failed to submit application package',
       );
     }
+  }
+
+  async lockApplicationPackage(
+    applicationPackageId: string,
+    userId: string,
+  ): Promise<{ status: ApplicationPackageStatus }> {
+    try {
+      this.logger.info(
+        { applicationPackageId, userId },
+        'locking application package validation and processing',
+      );
+
+      // Verify ownership
+      const applicationPackage = await this.applicationPackageModel
+        .findOne({ applicationPackageId, userId })
+        .lean();
+
+      if (!applicationPackage) {
+        throw new NotFoundException(
+          `Application package ${applicationPackageId} not found or not owned by user`,
+        );
+      }
+      // validate household completion
+      const householdValidation =
+        await this.householdService.validateHouseholdCompletion(
+          applicationPackageId,
+          applicationPackage.hasPartner,
+          applicationPackage.hasHousehold,
+        );
+      if (!householdValidation.isComplete) {
+        //household data is incomplete
+        throw new BadRequestException( // TODO: what is the right ERROR??
+          `Household data is incomplete`,
+        );
+      }
+
+      // check if there are non-self household members who are adults (require screenings)
+      const allHouseholdMembers =
+        await this.householdService.findAllHouseholdMembers(
+          applicationPackageId,
+        );
+      const nonSelfAdultMembers = allHouseholdMembers.filter((member) => {
+        if (member.relationshipToPrimary === RelationshipToPrimary.Self) {
+          return false;
+        }
+        // calculate age to determine if they're an adult
+        const age = calculateAge(member.dateOfBirth);
+        return age >= 19; // adults require screening
+      });
+
+      const requiresHouseholdScreening =
+        (applicationPackage.hasPartner === 'true' ||
+          applicationPackage.hasHousehold === 'true') &&
+        nonSelfAdultMembers.length > 0;
+
+      if (requiresHouseholdScreening) {
+        // household is complete, and adults must complete screening
+        // generate screening forms and access codes for each adult member
+        await this.generateHousholdScreeningWorkflow(
+          applicationPackageId,
+          nonSelfAdultMembers,
+        );
+
+        await this.applicationPackageModel.findOneAndUpdate(
+          { applicationPackageId },
+          {
+            status: ApplicationPackageStatus.CONSENT,
+            updatedAt: new Date(),
+          },
+        );
+        return {
+          status: ApplicationPackageStatus.CONSENT,
+        };
+      } else {
+        // everything is ready - proceed for final submission
+        const submissionResult = await this.submitApplicationPackage(
+          applicationPackageId,
+          userId,
+        );
+
+        this.logger.info(
+          {
+            applicationPackageId,
+            serviceRequestId: submissionResult.serviceRequestId,
+          },
+          'Application validation complete - automatically submitted',
+        );
+
+        return {
+          status: ApplicationPackageStatus.SUBMITTED,
+        };
+      }
+    } catch (error) {
+      this.logger.error(
+        { error, applicationPackageId, userId },
+        'Failed to validate and process application',
+      );
+      throw error;
+    }
+  }
+
+  private async generateHousholdScreeningWorkflow(
+    applicationPackageId: string,
+    nonSelfAdultMembers: HouseholdMembersDocument[],
+  ) {
+    for (const member of nonSelfAdultMembers) {
+      // create screening application form
+      const screeningForm =
+        await this.applicationFormService.createScreeningForm(
+          applicationPackageId,
+          member.householdMemberId,
+        );
+
+      // generate access code and associate with form
+      await this.accessCodeService.createAccessCode(
+        applicationPackageId,
+        screeningForm.screeningApplicationFormId,
+        member.householdMemberId,
+      );
+    }
+  }
+
+  async validateHouseholdCompletion(
+    applicationPackageId: string,
+    userId: string,
+  ): Promise<ValidateHouseholdCompletionDto> {
+    // First, verify the user owns this application package
+    const applicationPackage = await this.applicationPackageModel
+      .findOne({ applicationPackageId, userId })
+      .lean();
+
+    if (!applicationPackage) {
+      throw new NotFoundException(
+        `Application package ${applicationPackageId} not found or not owned by user`,
+      );
+    }
+
+    // Call the household service validation method
+    return await this.householdService.validateHouseholdCompletion(
+      applicationPackageId,
+      applicationPackage.hasPartner,
+      applicationPackage.hasHousehold,
+    );
   }
 }

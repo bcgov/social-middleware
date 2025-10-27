@@ -5,6 +5,10 @@ import axios from 'axios';
 import qs from 'qs';
 import * as crypto from 'crypto';
 import { ConfigService } from '@nestjs/config';
+import { CreateUserDto } from './dto';
+import { AuthEventsService } from '../common/events/auth-events.service';
+import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
+import { User } from './schemas/user.schema';
 
 // this service is for handling OAuth2 authentication with a code verifier;
 // it is used for ICM Siebel Labs Integration
@@ -21,7 +25,25 @@ export class AuthService {
   private accessToken: string | null = null;
   private expiresAt = 0;
 
-  constructor(private readonly config: ConfigService) {}
+  constructor(
+    private readonly config: ConfigService,
+    private readonly authEventsService: AuthEventsService,
+    @InjectPinoLogger(AuthService.name)
+    private readonly logger: PinoLogger,
+  ) {}
+
+  async login(user: User, userData: CreateUserDto): Promise<void> {
+    // Emit user logged in event
+    //this.logger.info(`User logged in: ${userData.bc_services_card_id}`);
+    await this.authEventsService.emitUserLoggedInEvent({
+      userId: user.id,
+      bc_services_card_id: userData.bc_services_card_id,
+      timestamp: new Date(),
+      firstName: userData.first_name || '',
+      lastName: userData.last_name,
+      email: userData.email,
+    });
+  }
 
   generateCodeVerifier() {
     this.codeVerifier = crypto.randomBytes(32).toString('hex');

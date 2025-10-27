@@ -1,6 +1,7 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document } from 'mongoose';
-import { ApplicationFormType } from '../enums/application-form-types.enum';
+//import { ApplicationFormType } from '../enums/application-form-types.enum';
+import { FormType } from '../enums/form-type.enum';
 //import { ApplicationFormStatus } from '../enums/application-form-status.enum';
 
 export type FormParametersDocument = FormParameters & Document;
@@ -8,10 +9,10 @@ export type FormParametersDocument = FormParameters & Document;
 @Schema({ timestamps: true })
 export class FormParameters {
   @Prop({ required: true })
-  applicationId!: string;
+  applicationFormId!: string;
 
-  @Prop({ required: true, enum: ApplicationFormType })
-  type!: ApplicationFormType;
+  @Prop({ required: true, enum: FormType })
+  type!: FormType;
 
   @Prop({ required: true })
   formId!: string;

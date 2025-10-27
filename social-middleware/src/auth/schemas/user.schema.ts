@@ -12,7 +12,7 @@ export class User {
   @Prop({ required: true, unique: true })
   bc_services_card_id!: string;
 
-  @Prop({ required: true })
+  @Prop({ required: true, default: '' })
   first_name!: string;
 
   @Prop({ required: true })

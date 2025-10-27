@@ -10,21 +10,24 @@ import { ApplicationPackageService } from './application-package.service';
 import { ApplicationPackageController } from './application-package.controller';
 import { ApplicationFormModule } from '../application-form/application-form.module';
 import { SiebelModule } from '../siebel/siebel.module';
-import { SessionUtil } from 'src/common/utils/session.util';
-import { UserUtil } from '../common/utils/user.util';
+import { CommonModule } from '../common/common.module';
+//import { SessionUtil } from 'src/common/utils/session.util';
+//import { UserUtil } from '../common/utils/user.util';
+import { AuthListener } from './listeners/auth.listener';
 
 @Module({
   imports: [
     MongooseModule.forFeature([
       { name: ApplicationPackage.name, schema: ApplicationPackageSchema },
     ]),
-    AuthModule,
-    HouseholdModule,
-    SiebelModule,
     ApplicationFormModule,
+    HouseholdModule,
+    AuthModule,
+    SiebelModule,
+    CommonModule,
   ],
   controllers: [ApplicationPackageController],
-  providers: [ApplicationPackageService, SessionUtil, UserUtil],
+  providers: [ApplicationPackageService, AuthListener],
   exports: [ApplicationPackageService],
 })
 export class ApplicationPackageModule {}

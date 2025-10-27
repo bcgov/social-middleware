@@ -9,10 +9,10 @@ export class ScreeningAccessCode {
   accessCode!: string;
 
   @Prop({ required: true })
-  parentApplicationId!: string; // reference to parent caregiver application
+  applicationPackageId!: string; // reference to parent caregiver application
 
   @Prop({ required: true })
-  screeningApplicationId!: string; // reference to screening application
+  applicationFormId!: string; // reference to screening application
 
   @Prop({ required: true })
   householdMemberId!: string; // reference to household member record
@@ -25,15 +25,6 @@ export class ScreeningAccessCode {
 
   @Prop({ required: true })
   expiresAt!: Date;
-
-  // @Prop({ required: true })
-  // expectedLastName!: string;
-
-  //    @Prop({ required: true})
-  //    expectedDateOfBirth!: string;
-
-  //   @Prop({ required: false})
-  //  expectedEmail?: string;
 
   @Prop({ default: 0 })
   attemptCount!: number;

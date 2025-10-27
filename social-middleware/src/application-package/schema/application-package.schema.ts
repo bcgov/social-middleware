@@ -5,7 +5,10 @@ import {
   ApplicationPackageSubSubType,
   ReferralState,
 } from '../enums/application-package-subtypes.enum';
-import { ApplicationPackageStatus } from '../enums/application-package-status.enum';
+import {
+  ApplicationPackageStatus,
+  ServiceRequestStage,
+} from '../enums/application-package-status.enum';
 
 export type ApplicationPackageDocument = ApplicationPackage & Document;
 
@@ -34,6 +37,9 @@ export class ApplicationPackage {
   @Prop({ required: false })
   srId!: string;
 
+  @Prop({ required: false })
+  srStage!: ServiceRequestStage;
+
   @Prop({
     required: true,
     enum: ApplicationPackageStatus,
@@ -46,6 +52,15 @@ export class ApplicationPackage {
     default: ReferralState.NEW,
   })
   referralstate!: ReferralState;
+
+  @Prop({ required: false, default: null })
+  hasPartner!: string;
+
+  @Prop({ required: false, default: null })
+  hasHousehold!: string;
+
+  @Prop({ required: false, default: null })
+  hasSupportNetwork!: string;
 
   @Prop({ required: false, default: () => Date() })
   createdAt!: Date;

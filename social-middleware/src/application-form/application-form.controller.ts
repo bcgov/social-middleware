@@ -8,6 +8,7 @@ import {
   Body,
   ValidationPipe,
   NotFoundException,
+  UnauthorizedException,
   Post,
 } from '@nestjs/common';
 import {
@@ -22,8 +23,10 @@ import { Request } from 'express';
 import { NewTokenDto } from './dto/new-token.dto';
 import { GetApplicationFormDto } from './dto/get-application-form.dto';
 import { SubmitApplicationFormDto } from './dto/submit-application-form.dto';
+//import { InviteHouseholdMemberParamsDto } from './dto/invite-household-member-params.dto';
 import { SessionAuthGuard } from 'src/auth/session-auth.guard';
 import { ApplicationFormService } from './services/application-form.service';
+import { ApplicationFormType } from './enums/application-form-types.enum';
 import { SessionUtil } from 'src/common/utils/session.util';
 import { PinoLogger } from 'nestjs-pino';
 
@@ -41,7 +44,7 @@ export class ApplicationFormsController {
   @UseGuards(SessionAuthGuard)
   @ApiOperation({ summary: 'Get form access token by application ID' })
   @ApiQuery({
-    name: 'applicationId',
+    name: 'applicationFormId',
     required: true,
     description: 'The application ID to get the form access token for',
   })
@@ -62,25 +65,36 @@ export class ApplicationFormsController {
     description: 'Internal server error',
   })
   async getFormAccessToken(
-    @Query('applicationId') applicationId: string,
+    @Query('applicationFormId') applicationFormId: string,
     @Req() request: Request,
   ): Promise<{ formAccessToken: string }> {
     const userId = this.sessionUtil.extractUserIdFromRequest(request);
 
     const dto: NewTokenDto = {
-      applicationId,
+      applicationFormId,
     };
 
-    const formAccessToken =
-      await this.applicationFormsService.newFormAccessToken(dto, userId);
-    return { formAccessToken };
+    const ownsForm = await this.applicationFormsService.confirmOwnership(
+      applicationFormId,
+      userId,
+    );
+
+    if (ownsForm) {
+      const formAccessToken =
+        await this.applicationFormsService.newFormAccessToken(dto);
+      return { formAccessToken };
+    } else {
+      throw new UnauthorizedException(
+        'Invalid applicationForm or unauthorized access',
+      );
+    }
   }
 
-  @Get(':applicationId')
+  @Get(':applicationFormId')
   @UseGuards(SessionAuthGuard)
   @ApiOperation({ summary: 'Get application form metadata by application ID' })
   @ApiParam({
-    name: 'applicationId',
+    name: 'applicationFormId',
     required: true,
     description: 'The application ID to retrieve',
   })
@@ -101,14 +115,14 @@ export class ApplicationFormsController {
     description: 'Internal server error',
   })
   async getApplicationFormById(
-    @Param('applicationId') applicationId: string,
+    @Param('applicationFormId') applicationFormId: string,
     @Req() request: Request,
   ): Promise<GetApplicationFormDto> {
     const userId = this.sessionUtil.extractUserIdFromRequest(request);
 
     const applicationForm =
       await this.applicationFormsService.getApplicationFormById(
-        applicationId,
+        applicationFormId,
         userId,
       );
 
@@ -120,7 +134,33 @@ export class ApplicationFormsController {
 
     return applicationForm;
   }
-
+  /*
+  @Post(':applicationId/household/:householdMemberId/invite')
+  @ApiOperation({
+    summary: 'Generate an access code for a household member screening',
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Access code generated successfully',
+    schema: {
+      type: 'object',
+      properties: {
+        accessCode: { type: 'string' },
+        screeningApplicationid: { type: 'string' },
+        expiresAt: { type: 'string', format: 'date-time' },
+      },
+    },
+  })
+  async inviteHouseholdMember(
+    @Param(new ValidationPipe({ whitelist: true, transform: true }))
+    params: InviteHouseholdMemberParamsDto,
+  ) {
+    return await this.applicationFormService.createHouseholdScreening(
+      params.applicationId,
+      params.householdMemberId,
+    );
+  }
+*/
   @Post('submit')
   @ApiOperation({ summary: 'Update application form data' })
   @ApiResponse({
@@ -137,5 +177,28 @@ export class ApplicationFormsController {
     dto: SubmitApplicationFormDto,
   ) {
     return await this.applicationFormsService.submitApplicationForm(dto);
+  }
+
+  @Get()
+  @ApiOperation({
+    summary: 'Get user application forms',
+    description:
+      'Retrieves application forms assigned to the authenticated user (screening forms)',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Application forms retrieved successfully',
+    type: [GetApplicationFormDto],
+  })
+  async getUserApplicationForms(
+    @Req() request: Request,
+  ): Promise<GetApplicationFormDto[]> {
+    const userId = this.sessionUtil.extractUserIdFromRequest(request);
+
+    // Hard-coded to only return screening forms
+    return await this.applicationFormsService.getApplicationFormsByUser(
+      userId,
+      [ApplicationFormType.SCREENING],
+    );
   }
 }

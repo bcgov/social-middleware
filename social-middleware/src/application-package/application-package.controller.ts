@@ -3,6 +3,7 @@ import {
   Get,
   Delete,
   Post,
+  Patch,
   Body,
   UseGuards,
   Req,
@@ -17,7 +18,10 @@ import {
   ApiBearerAuth,
 } from '@nestjs/swagger';
 import { ApplicationPackageService } from './application-package.service';
+import { ApplicationPackageStatus } from './enums/application-package-status.enum';
 import { CreateApplicationPackageDto } from './dto/create-application-package.dto';
+import { UpdateApplicationPackageDto } from './dto/update-application-package.dto';
+import { ValidateHouseholdCompletionDto } from './dto/validate-application-package.dto';
 import { SessionAuthGuard } from 'src/auth/session-auth.guard';
 import { SessionUtil } from 'src/common/utils/session.util';
 import { Request } from 'express';
@@ -72,6 +76,52 @@ export class ApplicationPackageController {
       throw error;
     }
   }
+  @Patch(':applicationPackageId')
+  @ApiOperation({
+    summary: 'Update the status elements of an application package',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Application package status updated successfully',
+    type: ApplicationPackage,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Bad Request - validation failed',
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized - invalid or missing session',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Application package not found',
+  })
+  @ApiResponse({
+    status: 500,
+    description: 'Server error during application package update',
+  })
+  async updateApplicationPackage(
+    @Param('applicationPackageId') applicationPackageId: string,
+    @Body(new ValidationPipe({ whitelist: true, transform: true }))
+    dto: UpdateApplicationPackageDto,
+    @Req() request: Request,
+  ): Promise<ApplicationPackage> {
+    try {
+      const userId = this.sessionUtil.extractUserIdFromRequest(request);
+      this.logger.info(`patching application package for ${userId}`);
+
+      return await this.applicationPackageService.updateApplicationPackage(
+        applicationPackageId,
+        dto,
+        userId,
+      );
+    } catch (error) {
+      this.logger.error({ error }, 'Failed to update application package');
+      throw error;
+    }
+  }
+
   @Get()
   @ApiOperation({
     summary: 'Get all application packages for the authenticated user',
@@ -193,6 +243,27 @@ export class ApplicationPackageController {
 
     await this.applicationPackageService.cancelApplicationPackage(cancelDto);
   }
+  @Get(':applicationPackageId/validate-household')
+  @UseGuards(SessionAuthGuard)
+  @ApiOperation({
+    summary: 'Validate household completion for an application package',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Household validation results',
+    type: ValidateHouseholdCompletionDto,
+  })
+  @ApiResponse({ status: 404, description: 'Application package not found' })
+  async validateHouseholdCompletion(
+    @Param('applicationPackageId') applicationPackageId: string,
+    @Req() req: Request,
+  ): Promise<ValidateHouseholdCompletionDto> {
+    const userId = this.sessionUtil.extractUserIdFromRequest(req);
+    return await this.applicationPackageService.validateHouseholdCompletion(
+      applicationPackageId,
+      userId,
+    );
+  }
 
   @Post(':applicationPackageId/submit')
   @ApiOperation({ summary: 'Submit application package to Siebel' })
@@ -237,5 +308,46 @@ export class ApplicationPackageController {
       );
       throw error;
     }
+  }
+
+  @Post(':applicationPackageId/lock-application')
+  @ApiOperation({
+    summary:
+      'Lock application for household completion and application submission',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'ApplicationStatus updated',
+    schema: {
+      type: 'object',
+      properties: {
+        status: {
+          type: 'string',
+          enum: Object.values(ApplicationPackageStatus),
+        },
+        //requiresHouseholdScreening: { type: 'boolean' },
+        //message: { type: 'string' },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 400,
+    description:
+      'Incomplete data in application package, likely household data',
+  })
+  @ApiResponse({ status: 404, description: 'Application package not found' })
+  async validateAndProcessApplication(
+    @Param('applicationPackageId') applicationPackageId: string,
+    @Req() req: Request,
+  ): Promise<{
+    status: ApplicationPackageStatus;
+    //requiresHouseholdScreening: boolean;
+    //message: string; //TODO: we could pass some errors to the front end at some point
+  }> {
+    const userId = this.sessionUtil.extractUserIdFromRequest(req);
+    return await this.applicationPackageService.lockApplicationPackage(
+      applicationPackageId,
+      userId,
+    );
   }
 }

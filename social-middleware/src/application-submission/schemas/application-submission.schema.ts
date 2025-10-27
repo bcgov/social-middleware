@@ -8,7 +8,7 @@ export type ApplicationSubmissionDocument = ApplicationSubmission & Document;
 @Schema({ timestamps: true })
 export class ApplicationSubmission {
   @Prop({ required: true, unique: true })
-  applicationId!: string;
+  applicationFormId!: string;
 
   @Prop({ required: false })
   applicationFormIsComplete!: boolean;

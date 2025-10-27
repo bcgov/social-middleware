@@ -4,7 +4,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import {
   ScreeningAccessCode,
   ScreeningAccessCodeDocument,
-} from '../schemas/screening-access-code.schema';
+} from '../../household/schemas/screening-access-code.schema';
 import {
   ApplicationForm,
   ApplicationFormDocument,
@@ -49,7 +49,7 @@ export class AccessCodeService {
     },
   ): Promise<{
     success: boolean;
-    screeningApplicationId?: string;
+    applicationFormId?: string;
     error?: string;
   }> {
     try {
@@ -122,7 +122,7 @@ export class AccessCodeService {
       );
 
       await this.applicationFormModel.findOneAndUpdate(
-        { applicationId: accessCodeRecord.screeningApplicationId },
+        { applicationId: accessCodeRecord.applicationFormId },
         { primary_applicantId: userId },
       );
 
@@ -136,14 +136,14 @@ export class AccessCodeService {
           accessCode,
           userId,
           householdMemberId: accessCodeRecord.householdMemberId,
-          screeningApplicationId: accessCodeRecord.screeningApplicationId,
+          applicationFormId: accessCodeRecord.applicationFormId,
         },
         'Successfully validated and associated user with screening application',
       );
 
       return {
         success: true,
-        screeningApplicationId: accessCodeRecord.screeningApplicationId,
+        applicationFormId: accessCodeRecord.applicationFormId,
       };
     } catch (error) {
       this.logger.error(

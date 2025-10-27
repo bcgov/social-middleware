@@ -30,7 +30,7 @@ export class FormsController {
   @UseGuards(SessionAuthGuard)
   @ApiOperation({ summary: 'Get form access token by application ID' })
   @ApiQuery({
-    name: 'applicationId',
+    name: 'applicationFormId',
     required: true,
     description: 'The application ID to get the form access token for',
   })

@@ -7,28 +7,35 @@ import {
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { User, UserDocument } from '../auth/schemas/user.schema';
-import { HouseholdService } from '../household/household.service';
+
+import { PinoLogger } from 'nestjs-pino';
 import {
-  Application,
-  ApplicationDocument,
-} from '../application/schemas/application.schema';
+  ApplicationPackage,
+  ApplicationPackageDocument,
+} from '../application-package/schema/application-package.schema';
 import {
-  FormParameters,
-  FormParametersDocument,
-} from '../application/schemas/form-parameters.schema';
+  ApplicationForm,
+  ApplicationFormDocument,
+} from '../application-form/schemas/application-form.schema';
 import {
   ScreeningAccessCode,
   ScreeningAccessCodeDocument,
-} from 'src/application/schemas/screening-access-code.schema';
-import { PinoLogger } from 'nestjs-pino';
+} from '../application/schemas/screening-access-code.schema';
+import {
+  FormParameters,
+  FormParametersDocument,
+} from '../application-form/schemas/form-parameters.schema';
+import { HouseholdService } from '../household/services/household.service';
 
 @Injectable()
 export class DevToolsService {
   constructor(
     @InjectModel(User.name)
     private userModel: Model<UserDocument>,
-    @InjectModel(Application.name)
-    private applicationModel: Model<ApplicationDocument>,
+    @InjectModel(ApplicationPackage.name)
+    private applicationPackageModel: Model<ApplicationPackageDocument>,
+    @InjectModel(ApplicationForm.name)
+    private applicationFormModel: Model<ApplicationFormDocument>,
     @InjectModel(FormParameters.name)
     private formParametersModel: Model<FormParametersDocument>,
     @InjectModel(ScreeningAccessCode.name)
@@ -45,67 +52,100 @@ export class DevToolsService {
     try {
       this.logger.warn({ userId }, '[DevTools] Deleting all data for user');
 
-      const applications = await this.applicationModel
-        .find({ primary_applicantId: { $eq: userId } }, { applicationId: 1 })
+      // step 1: find all packages for the user
+      const applicationPackages = await this.applicationPackageModel
+        .find({ userId }, { applicationPackageId: 1 })
         .lean();
 
-      const applicationIds = applications.map((app) => app.applicationId);
+      const applicationPackageIds = applicationPackages.map(
+        (pkg) => pkg.applicationPackageId,
+      );
 
-      const totalDeletedHouseholdMembers = 0;
-      /*
-      for (const appId of applicationIds) {
+      this.logger.info(
+        { userId, packageCount: applicationPackageIds.length },
+        '[DevTools] found application packages',
+      );
+
+      // step 2: fin all application forms for these packages
+      const applicationForms = await this.applicationFormModel.find(
+        { applicationPackageId: { $in: applicationPackageIds } },
+        { applicationFormId: 1 },
+      );
+
+      const applicationFormIds = applicationForms.map(
+        (form) => form.applicationFormId,
+      );
+
+      this.logger.info(
+        { userId, formCount: applicationFormIds.length },
+        '[DevTools] Found application forms',
+      );
+
+      // step 3: delete form parameters associated with application forms
+      const deletedFormParameters = await this.formParametersModel.deleteMany({
+        applicationFormId: { $in: applicationFormIds },
+      });
+
+      // step 4: delete application forms associated with packages
+      const deletedApplicationForms =
+        await this.applicationFormModel.deleteMany({
+          applicationPackageId: { $in: applicationPackageIds },
+        });
+
+      // Step 5: Delete screening access codes associated with application forms
+      const deletedAccessCodes = await this.screeningAccessCodeModel.deleteMany(
+        {
+          parentApplicationId: { $in: applicationFormIds },
+        },
+      );
+
+      // Step 6: Delete households associated with packages
+      let totalDeletedHouseholdMembers = 0;
+      for (const packageId of applicationPackageIds) {
         try {
-          //const result =
-          //  await this.householdService.deleteAllMembersByApplicationId(appId);
-          //totalDeletedHouseholdMembers += result.deletedCount || 0;
+          const result =
+            await this.householdService.deleteAllMembersByApplicationPackageId(
+              packageId,
+            );
+          totalDeletedHouseholdMembers += result.deletedCount || 0;
         } catch (error) {
           this.logger.warn(
-            { appId, error },
-            `[DevTools] Failed to delete household members for applicationId=${appId}`,
+            { packageId, error },
+            `[DevTools] Failed to delete household members for packageId=${packageId}`,
           );
         }
       }
-        */
 
+      // Step 7: Delete all application packages
+      const deletedApplicationPackages =
+        await this.applicationPackageModel.deleteMany({
+          userId,
+        });
+
+      // Step 8: Delete user record
       const deletedUser = await this.userModel.deleteMany({
         _id: { $eq: userId },
-      });
-
-      const deletedApps = await this.applicationModel.deleteMany({
-        primary_applicantId: { $eq: userId },
-      });
-
-      const deletedFormParams = await this.formParametersModel.deleteMany({
-        applicationId: { $in: applicationIds },
-      });
-
-      // delete screening access codes
-      const deletedAccessCodes = await this.screeningAccessCodeModel.deleteMany(
-        { parentApplicationId: { $in: applicationIds } },
-      );
-
-      // delete screening applications
-      const deletedScreeningApps = await this.applicationModel.deleteMany({
-        $or: [
-          { parentApplicationId: { $in: applicationIds } },
-          { parentApplicationId: { $eq: userId }, type: 'CaregiverScreening' },
-        ],
       });
 
       this.logger.warn(
         {
           userId,
           deletedUsers: deletedUser.deletedCount,
-          deletedApplications: deletedApps.deletedCount,
-          deletedScreeningApps: deletedScreeningApps.deletedCount,
+          deletedApplicationPackages: deletedApplicationPackages.deletedCount,
+          deletedApplicationForms: deletedApplicationForms.deletedCount,
+          deletedFormParameters: deletedFormParameters.deletedCount,
           deletedAccessCodes: deletedAccessCodes.deletedCount,
-          deletedFormParameters: deletedFormParams.deletedCount,
+          deletedHouseholdMembers: totalDeletedHouseholdMembers,
         },
         '[DevTools] Deletion complete',
       );
 
       return {
-        message: `Deleted user ${deletedUser.deletedCount}, ${deletedApps.deletedCount} applications, ${deletedScreeningApps.deletedCount} screening applications, ${deletedAccessCodes.deletedCount} access codes, ${deletedFormParams.deletedCount} form parameters, and ${totalDeletedHouseholdMembers} household members for userId ${userId}`,
+        message: `Deleted user ${deletedUser.deletedCount}, 
+        ${deletedApplicationPackages.deletedCount} application packages, 
+        ${deletedApplicationForms.deletedCount} application forms, ${deletedFormParameters.deletedCount} form
+        parameters, ${deletedAccessCodes.deletedCount} access codes, and ${totalDeletedHouseholdMembers} 
+        household members for userId ${userId}`,
       };
     } catch (error) {
       this.logger.error({ error, userId }, 'Error in [DevTools] clearUserData');

@@ -24,8 +24,8 @@ import {
   ApiBearerAuth,
 } from '@nestjs/swagger';
 import { GetApplicationsDto } from './dto/get-applications.dto';
-import { InviteHouseholdMemberParamsDto } from './dto/invite-household-member-params.dto';
-import { AssociateAccessCodeDto } from './dto/associate-access-code.dto';
+//import { InviteHouseholdMemberParamsDto } from '../application-form/dto/invite-household-member-params.dto';
+//import { AssociateAccessCodeDto } from './dto/associate-access-code.dto';
 import { SessionAuthGuard } from 'src/auth/session-auth.guard';
 import { Request } from 'express';
 import { ConfigService } from '@nestjs/config';
@@ -102,32 +102,6 @@ export class ApplicationController {
     return this.applicationService.getApplicationsByUser(userId);
   }
 
-  @Post(':applicationId/household/:householdMemberId/invite')
-  @ApiOperation({
-    summary: 'Generate an access code for a household member screening',
-  })
-  @ApiResponse({
-    status: 201,
-    description: 'Access code generated successfully',
-    schema: {
-      type: 'object',
-      properties: {
-        accessCode: { type: 'string' },
-        screeningApplicationid: { type: 'string' },
-        expiresAt: { type: 'string', format: 'date-time' },
-      },
-    },
-  })
-  async inviteHouseholdMember(
-    @Param(new ValidationPipe({ whitelist: true, transform: true }))
-    params: InviteHouseholdMemberParamsDto,
-  ) {
-    return await this.applicationService.createHouseholdScreening(
-      params.applicationId,
-      params.householdMemberId,
-    );
-  }
-
   @Put('submit')
   @ApiOperation({ summary: 'Submit application and update form data' })
   @ApiResponse({
@@ -181,73 +155,5 @@ export class ApplicationController {
   ): Promise<void> {
     const userId = this.sessionUtil.extractUserIdFromRequest(request);
     return this.applicationService.cancelApplication(params, userId);
-  }
-
-  @Post('access-code/associate')
-  @UseGuards(SessionAuthGuard)
-  @ApiOperation({ summary: 'Associate an access code with a user account' })
-  @ApiResponse({
-    status: 200,
-    description: 'Access code successfully associated with user account',
-  })
-  @ApiResponse({ status: 400, description: 'Validation error' })
-  @ApiResponse({ status: 404, description: 'Access code not found' })
-  @ApiResponse({
-    status: 500,
-    description: 'Server error during access code association',
-  })
-  async associateWithAccessCode(
-    @Body(new ValidationPipe({ whitelist: true, transform: true }))
-    dto: AssociateAccessCodeDto,
-    @Req() request: Request,
-  ): Promise<{
-    success: boolean;
-    screeningApplicationId?: string;
-    message: string;
-  }> {
-    try {
-      const userId = this.sessionUtil.extractUserIdFromRequest(request);
-
-      const user = await this.userService.findOne(userId);
-      if (!user) {
-        throw new UnauthorizedException('User not found');
-      }
-
-      const userData = {
-        lastName: user.last_name,
-        dateOfBirth: user.dateOfBirth,
-      };
-
-      this.logger.debug(
-        { accessCode: dto.accessCode, userId, userData },
-        'Associating access code with user',
-      );
-
-      const result = await this.applicationService.associateUserWithAccessCode(
-        dto.accessCode,
-        userId,
-        userData,
-      );
-
-      if (result.success) {
-        return {
-          success: true,
-          screeningApplicationId: result.screeningApplicationId,
-          message: 'Access code associated successfully',
-        };
-      } else {
-        return {
-          success: false,
-          message: result.error || 'Failed to associate access code',
-        };
-      }
-    } catch (error) {
-      this.logger.error({ error }, 'Access code association error');
-      const errorMessage =
-        error instanceof Error
-          ? error.message
-          : 'Failed to associate access code';
-      return { success: false, message: errorMessage };
-    }
   }
 }

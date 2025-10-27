@@ -8,7 +8,7 @@ export type ApplicationFormDocument = ApplicationForm & Document;
 @Schema({ timestamps: true })
 export class ApplicationForm {
   @Prop({ required: true, unique: true })
-  applicationId!: string;
+  applicationFormId!: string;
 
   @Prop({ required: true, unique: false })
   applicationPackageId!: string;
