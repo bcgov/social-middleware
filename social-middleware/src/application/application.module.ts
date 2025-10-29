@@ -29,7 +29,7 @@ import {
     //forwardRef(() => ApplicationSubmissionModule),
     ApplicationQueueModule,
   ],
-  exports: [ApplicationService, MongooseModule, SessionUtil],
+  exports: [ApplicationService, SessionUtil],
   controllers: [ApplicationController],
   providers: [ApplicationService, SessionUtil],
 })
