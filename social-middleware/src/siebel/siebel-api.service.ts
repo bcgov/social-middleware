@@ -201,6 +201,28 @@ export class SiebelApiService {
     }
   }
 
+  async updateServiceRequestStage(
+    serviceRequestId: string,
+    newStage: string,
+  ): Promise<SiebelSRResponse> {
+    const endpoint = `/ServiceRequest/ServiceRequest/${serviceRequestId}`;
+    const payload = {
+      'ICM Stage': newStage,
+    };
+    this.logger.debug(
+      `Updating Service Request ${serviceRequestId} to stage: ${newStage}`,
+    );
+    try {
+      return await this.put(endpoint, payload);
+    } catch (error) {
+      this.logger.error(
+        { error, serviceRequestId, newStage },
+        'Failed to update Service Request stage',
+      );
+      throw error;
+    }
+  }
+
   async createAttachment(
     serviceRequestId: string,
     attachmentData: {

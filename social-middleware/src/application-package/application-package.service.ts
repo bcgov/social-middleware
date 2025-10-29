@@ -281,6 +281,8 @@ export class ApplicationPackageService {
       );
 
       // TODO: handle withdrawl, cancellations, etc.
+      let newStatus: ApplicationPackageStatus;
+
       if (
         newStage === ServiceRequestStage.APPLICATION &&
         applicationPackage.srStage !== ServiceRequestStage.APPLICATION // if we are already in Application, don't do anything
@@ -309,14 +311,21 @@ export class ApplicationPackageService {
         await this.applicationFormService.createApplicationForm(householdDto);
       }
 
+      const updateObject: Partial<ApplicationPackage> = {
+        srStage: newStage,
+        updatedAt: new Date(),
+      };
+
+      if (newStage === ServiceRequestStage.APPLICATION) {
+        updateObject.status = ApplicationPackageStatus.APPLICATION;
+      } else if (newStage === ServiceRequestStage.SCREENING) {
+        updateObject.status = ApplicationPackageStatus.SUBMITTED;
+      }
+
       const updatedPackage = await this.applicationPackageModel
         .findOneAndUpdate(
           { applicationPackageId: applicationPackage.applicationPackageId },
-          {
-            srStage: newStage,
-            status: ApplicationPackageStatus.APPLICATION,
-            updatedAt: new Date(),
-          },
+          updateObject,
           { new: true },
         )
         .lean()
@@ -426,15 +435,43 @@ export class ApplicationPackageService {
       );
 
       // get the applicationPackage
-      const applicationPackage = await this.applicationPackageModel
+      const primaryApplicationPackage = await this.applicationPackageModel
         .findOne({ applicationPackageId, userId })
         .lean()
         .exec();
 
-      if (!applicationPackage) {
-        throw new NotFoundException(
-          'Application package not found or already submitted',
-        );
+      let applicationPackage: ApplicationPackage;
+
+      // if we found an applicationPackage for this user, then proceed
+      if (primaryApplicationPackage) {
+        applicationPackage = primaryApplicationPackage;
+        this.logger.info('Primary Application package found for submission');
+      } else {
+        // otherwise, let's check if this was submitted by a household member who completed their screening form
+        const screeningApplicationForm =
+          await this.applicationFormService.findByPackageAndUser(
+            applicationPackageId,
+            userId,
+          );
+        // if we find a form
+        if (
+          screeningApplicationForm &&
+          screeningApplicationForm.some(
+            (form) => form.type === ApplicationFormType.SCREENING,
+          )
+        ) {
+          // then we can proceed
+          applicationPackage = (await this.applicationPackageModel
+            .findOne({
+              applicationPackageId,
+            })
+            .lean()
+            .exec()) as ApplicationPackage;
+          this.logger.info('Submission initiated via screening submission');
+        } else {
+          // otherwise, we throw not found
+          throw new NotFoundException('Application package not found for user');
+        }
       }
 
       // TODO
@@ -534,6 +571,17 @@ export class ApplicationPackageService {
           console.log('failed to create prospect');
         }
       } else {
+        // this is a subsequent submission
+        // first let's confirm the application package is complete.
+        const isComplete =
+          await this.isApplicationPackageComplete(applicationPackage);
+        if (!isComplete) {
+          // if it's not, we take an early exit
+          // we probably have more screening forms to collect
+          return {
+            serviceRequestId: serviceRequestId,
+          };
+        }
         // on the subsequent submission, we will create payloads for every other user
         // load household
         const allHouseholdMembers =
@@ -620,8 +668,27 @@ export class ApplicationPackageService {
             // continue processing other members even if one fails..??
           }
         }
+        try {
+          // update the service request stage to Screening
+          this.logger.info(
+            { applicationPackageId, serviceRequestId },
+            'Updating service request stage to Screening',
+          );
+          await this.siebelApiService.updateServiceRequestStage(
+            serviceRequestId,
+            'Screening',
+          );
+        } catch (error) {
+          this.logger.error(
+            {
+              error,
+              applicationPackageId,
+              serviceRequestId,
+            },
+            'Failed to update service request stage to Screening',
+          );
+        }
       }
-
       // get all application forms for this package
       const allApplicationForms =
         await this.applicationFormService.findByPackageAndUser(
@@ -891,6 +958,30 @@ export class ApplicationPackageService {
         member.householdMemberId,
       );
     }
+  }
+
+  private async isApplicationPackageComplete(
+    applicationPackage: ApplicationPackage,
+  ): Promise<boolean> {
+    // check that all required forms are complete
+
+    const applicationForms = await this.getApplicationFormsByPackageId(
+      applicationPackage.applicationPackageId,
+      applicationPackage.userId,
+    );
+    /*
+    if (
+      !applicationForms ||
+      applicationForms.some(
+        (form) => form.status != ApplicationFormStatus.COMPLETE,
+      )
+    ) {
+      this.logger.info('Application forms are not all complete for package');
+      return false;
+    }
+    */
+    this.logger.info('Application forms are complete for package');
+    return true;
   }
 
   async validateHouseholdCompletion(
