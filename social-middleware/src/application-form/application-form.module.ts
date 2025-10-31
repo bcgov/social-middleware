@@ -34,7 +34,7 @@ import { SessionUtil } from '../common/utils/session.util';
     AuthModule, // For UserService dependency
     HouseholdModule,
   ],
-  exports: [ApplicationFormService, AccessCodeService], // Export so other modules can use it
+  exports: [ApplicationFormService, AccessCodeService, MongooseModule], // Export so other modules can use it
   controllers: [ApplicationFormsController],
   providers: [ApplicationFormService, SessionUtil, AccessCodeService],
 })
