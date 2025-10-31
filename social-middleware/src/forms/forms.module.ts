@@ -8,10 +8,15 @@ import {
   FormParameters,
   FormParametersSchema,
 } from '../application-form/schemas/form-parameters.schema';
+import {
+  ApplicationForm,
+  ApplicationFormSchema,
+} from '../application-form/schemas/application-form.schema';
 
 @Module({
   imports: [
     MongooseModule.forFeature([
+      { name: ApplicationForm.name, schema: ApplicationFormSchema },
       { name: FormParameters.name, schema: FormParametersSchema },
     ]),
     ApplicationFormModule,
