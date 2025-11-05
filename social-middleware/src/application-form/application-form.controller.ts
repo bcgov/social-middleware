@@ -1,3 +1,4 @@
+/* eslint-disable prettier/prettier */
 import {
   Controller,
   Query,
@@ -29,6 +30,7 @@ import { ApplicationFormService } from './services/application-form.service';
 import { ApplicationFormType } from './enums/application-form-types.enum';
 import { SessionUtil } from 'src/common/utils/session.util';
 import { PinoLogger } from 'nestjs-pino';
+import { ApplicationFormStatus } from './enums/application-form-status.enum';
 
 @ApiBearerAuth()
 @ApiTags('Application Forms')
@@ -162,7 +164,9 @@ export class ApplicationFormsController {
   }
 */
   @Post('submit')
-  @ApiOperation({ summary: 'Update application form data' })
+  @ApiOperation({
+    summary: 'Update application form data with Completed Status',
+  })
   @ApiResponse({
     status: 200,
     description: 'Application Form data successfully updated',
@@ -176,7 +180,10 @@ export class ApplicationFormsController {
     @Body(new ValidationPipe({ whitelist: true, transform: true }))
     dto: SubmitApplicationFormDto,
   ) {
-    return await this.applicationFormsService.submitApplicationForm(dto);
+    return await this.applicationFormsService.submitApplicationForm(
+      dto,
+      ApplicationFormStatus.COMPLETE
+    );
   }
 
   @Get()
@@ -199,6 +206,27 @@ export class ApplicationFormsController {
     return await this.applicationFormsService.getApplicationFormsByUser(
       userId,
       [ApplicationFormType.SCREENING],
+    );
+  }
+
+  @Post('saveDraft')
+  @ApiOperation({ summary: 'Update application form data with Draft status' })
+  @ApiResponse({
+    status: 200,
+    description: 'Application Form data successfully updated',
+  })
+  @ApiResponse({ status: 404, description: 'Token or application not found' })
+  @ApiResponse({
+    status: 500,
+    description: 'Server error during application form submission',
+  })
+  async saveDraftApplicationForm(
+    @Body(new ValidationPipe({ whitelist: true, transform: true }))
+    dto: SubmitApplicationFormDto,
+  ) {
+    return await this.applicationFormsService.submitApplicationForm(
+      dto,
+      ApplicationFormStatus.DRAFT
     );
   }
 }

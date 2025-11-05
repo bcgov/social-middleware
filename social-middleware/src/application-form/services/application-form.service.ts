@@ -1,3 +1,4 @@
+/* eslint-disable prettier/prettier */
 import {
   ForbiddenException,
   HttpException,
@@ -436,10 +437,14 @@ export class ApplicationFormService {
     }
   }
 
-  async submitApplicationForm(dto: SubmitApplicationFormDto): Promise<void> {
+  async submitApplicationForm(
+    dto: SubmitApplicationFormDto,
+    status: ApplicationFormStatus
+  ): Promise<void> {
     try {
-      this.logger.info('Saving application');
+      this.logger.info('Saving application', dto.token);
       this.logger.debug('Saving application for token', dto.token);
+      //this.logger.info('Status ', dto.status);
 
       const record = await this.formParametersModel
         .findOne({ formAccessToken: { $eq: dto.token } })
@@ -456,7 +461,7 @@ export class ApplicationFormService {
           {
             $set: {
               formData: dto.jsonToSave,
-              status: ApplicationFormStatus.DRAFT,
+              status: status,
             },
           },
           { new: true },
