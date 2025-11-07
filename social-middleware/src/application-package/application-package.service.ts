@@ -292,10 +292,20 @@ export class ApplicationPackageService {
           applicationPackageId: applicationPackage.applicationPackageId,
           formId: getFormIdForFormType(ApplicationFormType.ABOUTME),
           userId: applicationPackage.userId,
-          type: ApplicationFormType.ABOUTME,
+          type: ApplicationFormType.ADDRESS,
           formParameters: {},
         };
         await this.applicationFormService.createApplicationForm(aboutMeDto);
+
+        // address is the second form
+        const addressDto = {
+          applicationPackageId: applicationPackage.applicationPackageId,
+          formId: getFormIdForFormType(ApplicationFormType.REFERRAL),
+          userId: applicationPackage.userId,
+          type: ApplicationFormType.REFERRAL,
+          formParameters: {},
+        };
+        await this.applicationFormService.createApplicationForm(addressDto);
 
         // note, household is handled differently from the other forms;
         // we use the applicationForm table to track the status of the household data,
@@ -732,9 +742,8 @@ export class ApplicationPackageService {
         try {
           if (form.formData) {
             const fileName = form.type;
-            const fileContent = Buffer.from(
-              JSON.stringify(form.formData),
-            ).toString('base64');
+
+            const fileContent = form.formData; // Buffer.from(formDataString).toString('base64');
             const description = `Caregiver Application ${form.type} form`;
 
             const attachmentResult =
