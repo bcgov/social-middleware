@@ -5,8 +5,8 @@ metadata:
   namespace: f6e00d-dev
   labels:
     app: {{ .Values.mongodb.podlabel }}
-    name: {{ .Values.mongodb.podlabel }}
-    app.openshift.io/runtime: mongodb
+    app.kubernetes.io/name: mongodb
+    app.kubernetes.io/version: "7.0"
 spec:
   replicas: 1
   selector:
@@ -15,7 +15,6 @@ spec:
   template:
     metadata:
       labels:
-        app: {{ .Values.mongodb.podlabel }}
         app: {{ .Values.mongodb.podlabel }}
     spec:
       containers:
@@ -36,33 +35,24 @@ spec:
                 secretKeyRef:
                   name: mongodb
                   key: database-password
-            - name: MONGODB_ADMIN_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: mongodb
-                  key: database-admin-password
-            - name: MONGODB_DATABASE
+            - name: MONGO_INITDB_DATABASE
               valueFrom:
                 secretKeyRef:
                   name: mongodb
                   key: database-name
           volumeMounts:
             - name: mongodb-data
-              mountPath: /var/lib/mongodb/data
+              mountPath: /data/db
+            - name: mongo-init
+              mountPath: /docker-entrypoint-initdb.d
           resources:
             limits:
               memory: 512Mi
-          securityContext:
-            capabilities: {}
-            privileged: false
-          terminationMessagePath: /dev/termination-log
-          terminationMessagePolicy: File
       restartPolicy: Always
-      terminationGracePeriodSeconds: 30
-      dnsPolicy: ClusterFirst
-      securityContext: {}
-      schedulerName: default-scheduler
       volumes:
         - name: mongodb-data
           persistentVolumeClaim:
             claimName: mongodb
+        - name: mongo-init
+          configMap:
+            name: mongo-init
