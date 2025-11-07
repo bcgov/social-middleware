@@ -29,8 +29,8 @@ export class ApplicationForm {
   })
   status!: ApplicationFormStatus;
 
-  @Prop({ type: Object, default: null }) // Allows storing raw JSON
-  formData!: Record<string, unknown> | null;
+  @Prop({ type: String, default: null }) // Allows storing raw JSON
+  formData!: string | null;
 
   @Prop({ default: Date.now })
   submittedAt!: Date;
