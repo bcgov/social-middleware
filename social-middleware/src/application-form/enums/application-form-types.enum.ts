@@ -1,9 +1,10 @@
 export enum ApplicationFormType {
   REFERRAL = 'Referral',
   ABOUTME = 'About Me',
-  HOUSEHOLD = 'My household and support network',
+  HOUSEHOLD = 'My household',
   REFERENCES = 'References',
-  CONSENT = 'Consent and agreements',
+  PLACEMENT = 'Type of placement',
+  CONSENT = 'Consents',
   SCREENING = 'Screening',
 }
 
@@ -12,8 +13,9 @@ export const FormId: Record<ApplicationFormType, string> = {
   [ApplicationFormType.ABOUTME]: 'CF0001_AboutMe',
   [ApplicationFormType.HOUSEHOLD]: 'HOUSEHOLD',
   [ApplicationFormType.REFERENCES]: 'CF0001_References',
-  [ApplicationFormType.CONSENT]: 'CF0001_Consent',
-  [ApplicationFormType.SCREENING]: 'CF0001_AboutMe',
+  [ApplicationFormType.PLACEMENT]: 'CF0001_Placement',
+  [ApplicationFormType.CONSENT]: 'CF0001_Consents',
+  [ApplicationFormType.SCREENING]: 'CF0001_Referral',
 };
 
 // helper
