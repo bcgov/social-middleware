@@ -28,6 +28,7 @@ import { AccessCodeService } from '../household/services/access-code.service';
 import { UserService } from '../auth/user.service';
 import { UserUtil } from '../common/utils/user.util';
 import { calculateAge } from '../common/utils/age.util';
+import { formatDateForSiebel } from '../common/utils/date.util';
 import { Model } from 'mongoose';
 import { RelationshipToPrimary } from '../household/enums/relationship-to-primary.enum';
 import { SiebelApiService } from '../siebel/siebel-api.service';
@@ -35,6 +36,7 @@ import { SiebelApiService } from '../siebel/siebel-api.service';
 import { ValidateHouseholdCompletionDto } from './dto/validate-application-package.dto';
 //import { CreateApplicationFormDto } from '../application-form/dto/create-application-form.dto';
 import { HouseholdMembersDocument } from '../household/schemas/household-members.schema';
+import { ApplicationFormStatus } from '../application-form/enums/application-form-status.enum';
 
 interface SiebelServiceRequestResponse {
   items?: {
@@ -309,6 +311,36 @@ export class ApplicationPackageService {
           formParameters: {},
         };
         await this.applicationFormService.createApplicationForm(householdDto);
+
+        // placements is the third form
+        const placementDto = {
+          applicationPackageId: applicationPackage.applicationPackageId,
+          formId: getFormIdForFormType(ApplicationFormType.PLACEMENT),
+          userId: applicationPackage.userId,
+          type: ApplicationFormType.PLACEMENT,
+          formParameters: {},
+        };
+        await this.applicationFormService.createApplicationForm(placementDto);
+
+        // references is the fourth form
+        const referencesDto = {
+          applicationPackageId: applicationPackage.applicationPackageId,
+          formId: getFormIdForFormType(ApplicationFormType.REFERENCES),
+          userId: applicationPackage.userId,
+          type: ApplicationFormType.REFERENCES,
+          formParameters: {},
+        };
+        await this.applicationFormService.createApplicationForm(referencesDto);
+
+        // consent is the final form
+        const consentDto = {
+          applicationPackageId: applicationPackage.applicationPackageId,
+          formId: getFormIdForFormType(ApplicationFormType.CONSENT),
+          userId: applicationPackage.userId,
+          type: ApplicationFormType.CONSENT,
+          formParameters: {},
+        };
+        await this.applicationFormService.createApplicationForm(consentDto);
       }
 
       const updateObject: Partial<ApplicationPackage> = {
@@ -424,6 +456,15 @@ export class ApplicationPackageService {
     }
   }
 
+  /** submitApplicationPackage
+   * handles submission from the portal; which can happen in various ways
+   * 1. when the applicant submits a referral request
+   * 2. when the applicant submits a complete application and has no adult household members requiring a screening
+   * 3. when a household member completes their screening request; will take an early exit if there are screenings still remaining
+   * This is probably too long, and should be refactored into smaller methods, but it assembles a lot of information
+   * and puts it into ICM data structures via REST API
+   */
+
   async submitApplicationPackage(
     applicationPackageId: string,
     userId: string,
@@ -441,6 +482,12 @@ export class ApplicationPackageService {
         .exec();
 
       let applicationPackage: ApplicationPackage;
+
+      // load household
+      const allHouseholdMembers =
+        await this.householdService.findAllHouseholdMembers(
+          applicationPackageId,
+        );
 
       // if we found an applicationPackage for this user, then proceed
       if (primaryApplicationPackage) {
@@ -474,17 +521,10 @@ export class ApplicationPackageService {
         }
       }
 
-      // TODO
-      // if there is a service request ID already, it means that the service request exists in ICM
-      // therefore, we will only need to update the prospects
-      // and upload the attached forms
-      // but we need to check that everyone is complete first; household members may still need to
-      // finish their consent forms.
-
-      const isInitialSubmission = !applicationPackage.srId?.trim();
-
-      // get the primary user
+      // get the primary applicant user
       const primaryUser = await this.userService.findOne(userId);
+      // if there is a service request ID already, it means that the service request exists in ICM
+      const isInitialSubmission = !applicationPackage.srId?.trim();
 
       let serviceRequestId: string;
 
@@ -552,7 +592,7 @@ export class ApplicationPackageService {
           IcmBcscDid: primaryUser.bc_services_card_id,
           FirstName: primaryUser.first_name,
           LastName: primaryUser.last_name,
-          DateofBirth: primaryUser.dateOfBirth,
+          DateofBirth: formatDateForSiebel(primaryUser.dateOfBirth),
           StreetAddress: primaryUser.street_address,
           City: primaryUser.city,
           Prov: primaryUser.region,
@@ -575,6 +615,7 @@ export class ApplicationPackageService {
         // first let's confirm the application package is complete.
         const isComplete =
           await this.isApplicationPackageComplete(applicationPackage);
+
         if (!isComplete) {
           // if it's not, we take an early exit
           // we probably have more screening forms to collect
@@ -582,12 +623,12 @@ export class ApplicationPackageService {
             serviceRequestId: serviceRequestId,
           };
         }
+
+        const primaryApplicant = await this.userService.findOne(
+          applicationPackage.userId,
+        );
         // on the subsequent submission, we will create payloads for every other user
-        // load household
-        const allHouseholdMembers =
-          await this.householdService.findAllHouseholdMembers(
-            applicationPackageId,
-          );
+
         // filter out the primary applicant (they were created on the initial submission)
         const nonPrimaryHouseholdMembers = allHouseholdMembers.filter(
           (member) =>
@@ -618,7 +659,7 @@ export class ApplicationPackageService {
                 IcmBcscDid: memberUser.bc_services_card_id,
                 FirstName: memberUser.first_name,
                 LastName: memberUser.last_name,
-                DateofBirth: memberUser.dateOfBirth,
+                DateofBirth: formatDateForSiebel(memberUser.dateOfBirth),
                 StreetAddress: memberUser.street_address,
                 City: memberUser.city,
                 Prov: memberUser.region,
@@ -634,11 +675,11 @@ export class ApplicationPackageService {
                 IcmBcscDid: '',
                 FirstName: householdMember.firstName,
                 LastName: householdMember.lastName,
-                DateofBirth: householdMember.dateOfBirth,
-                StreetAddress: primaryUser.street_address,
-                City: primaryUser.city,
-                Prov: primaryUser.region,
-                PostalCode: primaryUser.postal_code,
+                DateofBirth: formatDateForSiebel(householdMember.dateOfBirth),
+                StreetAddress: primaryApplicant.street_address,
+                City: primaryApplicant.city,
+                Prov: primaryApplicant.region,
+                PostalCode: primaryApplicant.postal_code,
                 EmailAddress: '', //householdMember.email,
                 Gender: householdMember.genderType,
                 Relationship: householdMember.relationshipToPrimary,
@@ -689,18 +730,19 @@ export class ApplicationPackageService {
           );
         }
       }
-      // get all application forms for this package
-      const allApplicationForms =
-        await this.applicationFormService.findByPackageAndUser(
-          applicationPackageId,
-          userId,
-        );
 
       // attach the forms
       // for an initial submission, there should only be a referral form
       let formsToAttach;
 
       if (isInitialSubmission) {
+        // get all application forms for this package
+        const allApplicationForms =
+          await this.applicationFormService.findByPackageAndUser(
+            applicationPackageId,
+            userId,
+          );
+
         formsToAttach = allApplicationForms.filter(
           (form) => form.type === ApplicationFormType.REFERRAL,
         );
@@ -713,7 +755,11 @@ export class ApplicationPackageService {
           'Initial submission: attaching only REFERRAL forms',
         );
       } else {
-        // For subsequent submissions, attach everything EXCEPT REFERRAL forms
+        // Subsequent submission: get ALL forms for the package (all users)
+        const allApplicationForms =
+          await this.applicationFormService.findAllByApplicationPackageId(
+            applicationPackageId,
+          );
         formsToAttach = allApplicationForms.filter(
           (form) => form.type !== ApplicationFormType.REFERRAL,
         );
@@ -731,10 +777,27 @@ export class ApplicationPackageService {
       for (const form of formsToAttach) {
         try {
           if (form.formData) {
-            const fileName = form.type;
-            const fileContent = Buffer.from(
-              JSON.stringify(form.formData),
-            ).toString('base64');
+            let fileName = form.type as string;
+
+            // files need to have unique names, so for screening forms, add the household member's name
+            if (form.type === ApplicationFormType.SCREENING && form.userId) {
+              const householdMember = allHouseholdMembers.find(
+                (member) => member.userId === form.userId,
+              );
+              if (householdMember) {
+                fileName = `${householdMember.firstName}_${householdMember.lastName}-SCREENING`;
+              } else {
+                this.logger.warn(
+                  {
+                    applicationFormId: form.applicationFormId,
+                    userId: form.userId,
+                  },
+                  'Could not find household member for screening form - using default filename',
+                );
+              }
+            }
+
+            const fileContent = form.formData; // Buffer.from(formDataString).toString('base64');
             const description = `Caregiver Application ${form.type} form`;
 
             const attachmentResult =
@@ -965,11 +1028,50 @@ export class ApplicationPackageService {
   ): Promise<boolean> {
     // check that all required forms are complete
 
-    const applicationForms = await this.getApplicationFormsByPackageId(
-      applicationPackage.applicationPackageId,
-      applicationPackage.userId,
+    const allApplicationForms =
+      await this.applicationFormService.findAllByApplicationPackageId(
+        applicationPackage.applicationPackageId,
+      );
+
+    // check the SCREENING type forms
+    const screeningForms = allApplicationForms.filter(
+      (form) => form.type === ApplicationFormType.SCREENING,
     );
-    /*
+
+    // check if ANY screening form is not complete;
+    const incompleteScreeningForms = screeningForms.filter(
+      (form) => form.status !== ApplicationFormStatus.COMPLETE,
+    );
+
+    if (screeningForms.length > 0 && incompleteScreeningForms.length > 0) {
+      this.logger.info(
+        {
+          applicationPackageId: applicationPackage.applicationPackageId,
+          totalScreeningForms: screeningForms.length,
+          incompleteCount: incompleteScreeningForms.length,
+          incompleteForms: incompleteScreeningForms.map((f) => ({
+            applicationFormId: f.applicationFormId,
+            userId: f.userId,
+            status: f.status,
+          })),
+        },
+        'Not all screening forms are complete',
+      );
+      return false;
+    } else {
+      this.logger.info(
+        {
+          applicationPackageId: applicationPackage.applicationPackageId,
+          totalScreeningForms: screeningForms.length,
+        },
+        'Screening forms are complete',
+      );
+    }
+
+    this.logger.info(
+      'Skipping form completion check until feature completely implemented',
+    );
+    /* 
     if (
       !applicationForms ||
       applicationForms.some(
@@ -980,7 +1082,7 @@ export class ApplicationPackageService {
       return false;
     }
     */
-    this.logger.info('Application forms are complete for package');
+
     return true;
   }
 

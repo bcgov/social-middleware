@@ -557,6 +557,17 @@ export class ApplicationFormService {
       .lean()
       .exec();
   }
+  // returns all applicationforms, even those assigned to other userIds (screening forms, etc.)
+  async findAllByApplicationPackageId(
+    applicationPackageId: string,
+  ): Promise<ApplicationForm[]> {
+    return await this.applicationFormModel
+      .find({ applicationPackageId })
+      .sort({ createdAt: 1 })
+      .lean()
+      .exec();
+  }
+
 
   async deleteByApplicationPackageId(
     applicationPackageId: string,
