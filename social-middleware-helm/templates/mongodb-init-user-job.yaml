@@ -37,7 +37,7 @@ spec:
               while [ $COUNTER -lt $MAX_TRIES ]; do
                 echo "Attempt $((COUNTER + 1))/$MAX_TRIES: Checking MongoDB connection..."
 
-                if mongosh "mongodb://$MONGODB_SERVICE:$MONGODB_PORT/admin" \
+                if mongosh "mongodb://$MONGODB_SERVICE:$MONGODB_PORT/admin?tls=true&tlsAllowInvalidCertificates=true" \
                   --quiet \
                   --eval "db.adminCommand('ping')" > /dev/null 2>&1; then
                   echo "SUCCESS: MongoDB is ready!"
@@ -59,7 +59,9 @@ spec:
               echo "Username: $MONGODB_USER"
 
               # Create user (idempotent - only creates if doesn't exist)
-              mongosh "mongodb://$MONGODB_SERVICE:$MONGODB_PORT/$MONGO_INITDB_DATABASE" \
+              # Use TLS connection (required by MongoDB config)
+              # Localhost exception allows connection without auth before first user is created
+              mongosh "mongodb://$MONGODB_SERVICE:$MONGODB_PORT/$MONGO_INITDB_DATABASE?tls=true&tlsAllowInvalidCertificates=true" \
                 --quiet \
                 --eval "
                   // Check if user already exists

@@ -1,0 +1,38 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: mongodb-network-policy
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: {{ .Values.mongodb.podlabel }}
+spec:
+  podSelector:
+    matchLabels:
+      app: {{ .Values.mongodb.podlabel }}
+  policyTypes:
+    - Ingress
+  ingress:
+    # Allow from middleware pods
+    - from:
+        - podSelector:
+            matchLabels:
+              app: {{ .Values.nextjs.podlabel }}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.mongodb.port }}
+    # Allow from init job (for user creation)
+    - from:
+        - podSelector:
+            matchLabels:
+              app: mongodb-init-user
+      ports:
+        - protocol: TCP
+          port: {{ .Values.mongodb.port }}
+    # Allow from test client (can remove in production)
+    - from:
+        - podSelector:
+            matchLabels:
+              app: mongodb-test-client
+      ports:
+        - protocol: TCP
+          port: {{ .Values.mongodb.port }}
