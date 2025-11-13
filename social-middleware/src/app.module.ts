@@ -14,6 +14,7 @@ import { HouseholdModule } from './household/household.module';
 import { BullDashboardModule } from './bull-dashboard/bull-dashboard.module';
 import { SiebelModule } from './siebel/siebel.module';
 import { ScheduleModule } from '@nestjs/schedule';
+import { AttachmentsModule } from './attachments/attachments.module';
 
 @Module({})
 export class AppModule {
@@ -54,6 +55,7 @@ export class AppModule {
         FormsModule,
         DatabaseModule,
         ApplicationFormModule,
+        AttachmentsModule,
         ApplicationPackageModule,
         HouseholdModule,
         ...(isDevelopment ? [DevToolsModule] : []),
