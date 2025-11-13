@@ -45,6 +45,14 @@ spec:
                 secretKeyRef:
                   name: mongodb
                   key: database-name
+            - name: MONGO_HOST
+              value: "{{ .Values.mongodb.podlabel }}.{{ .Release.Namespace }}.svc"
+            - name: MONGO_PORT
+              value: "{{ .Values.mongodb.port }}"
+            - name: MONGO_USE_TLS
+              value: "true"
+            - name: MONGO_TLS_CA_FILE
+              value: "/etc/mongodb-ca/service-ca.crt"
           envFrom:
             - secretRef:
                 name: frontend
@@ -52,9 +60,17 @@ spec:
                 name: bcsc
             - secretRef:
                 name: siebel
+          volumeMounts:
+            - name: mongodb-ca
+              mountPath: /etc/mongodb-ca
+              readOnly: true
           resources: {}
           terminationMessagePath: /dev/termination-log
           terminationMessagePolicy: File
+      volumes:
+        - name: mongodb-ca
+          configMap:
+            name: mongodb-ca-bundle
       restartPolicy: Always
       terminationGracePeriodSeconds: 30
       dnsPolicy: ClusterFirst
