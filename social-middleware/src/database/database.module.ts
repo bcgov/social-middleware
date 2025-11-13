@@ -16,6 +16,8 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
         const host = configService.get<string>('MONGO_HOST', 'mongodb');
         const port = configService.get<string>('MONGO_PORT', '27017');
         const db = configService.get<string>('MONGO_DB');
+        const useTls = configService.get<string>('MONGO_USE_TLS', 'false') === 'true';
+        const tlsCAFile = configService.get<string>('MONGO_TLS_CA_FILE');
 
         if (!host || !port || !db) {
           throw new Error('Missing required MongoDB environment variables');
@@ -29,11 +31,26 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
           uri = `mongodb://${host}:${port}/${db}`;
         }
 
-        return {
+        const connectionOptions: any = {
           uri,
-          // useNewUrlParser: true,
-          // useUnifiedTopology: true,
         };
+
+        // Add TLS configuration if enabled
+        if (useTls) {
+          connectionOptions.tls = true;
+
+          if (tlsCAFile) {
+            // Use CA file for certificate verification (production)
+            connectionOptions.tlsCAFile = tlsCAFile;
+            connectionOptions.tlsAllowInvalidCertificates = false;
+          } else {
+            // Allow connections without CA verification (development only)
+            connectionOptions.tlsAllowInvalidCertificates = true;
+            console.warn('MongoDB TLS enabled but no CA file provided - using tlsAllowInvalidCertificates');
+          }
+        }
+
+        return connectionOptions;
       },
     }),
   ],
