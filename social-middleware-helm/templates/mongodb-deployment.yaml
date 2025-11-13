@@ -75,8 +75,6 @@ spec:
           volumeMounts:
             - name: mongodb-data
               mountPath: /data/db
-            - name: mongo-init
-              mountPath: /docker-entrypoint-initdb.d
             - name: mongodb-ssl
               mountPath: /etc/mongodb-ssl
               readOnly: true
@@ -88,9 +86,6 @@ spec:
         - name: mongodb-data
           persistentVolumeClaim:
             claimName: mongodb
-        - name: mongo-init
-          configMap:
-            name: mongo-init
         - name: mongodb-tls
           secret:
             secretName: mongodb-tls
