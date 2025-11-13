@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: {{ .Values.mongodb.podlabel }}
-  namespace: f6e00d-dev
+  namespace: {{ .Release.Namespace }}
   labels:
     app: {{ .Values.mongodb.podlabel }}
     app.kubernetes.io/name: mongodb
@@ -17,10 +17,42 @@ spec:
       labels:
         app: {{ .Values.mongodb.podlabel }}
     spec:
+      initContainers:
+        # Combine tls.crt and tls.key into a single PEM file for MongoDB
+        # and copy the CA certificate for the chain of trust
+        - name: prepare-tls
+          image: {{ .Values.mongodb.image }}
+          command:
+            - /bin/sh
+            - -c
+            - |
+              cat /etc/mongodb-tls/tls.crt /etc/mongodb-tls/tls.key > /etc/mongodb-ssl/mongodb.pem
+              chmod 400 /etc/mongodb-ssl/mongodb.pem
+              cp /etc/mongodb-ca/service-ca.crt /etc/mongodb-ssl/ca.crt
+              chmod 400 /etc/mongodb-ssl/ca.crt
+          volumeMounts:
+            - name: mongodb-tls
+              mountPath: /etc/mongodb-tls
+              readOnly: true
+            - name: mongodb-ca
+              mountPath: /etc/mongodb-ca
+              readOnly: true
+            - name: mongodb-ssl
+              mountPath: /etc/mongodb-ssl
       containers:
         - name: {{ .Values.mongodb.podlabel }}
           image: {{ .Values.mongodb.image }}
           imagePullPolicy: IfNotPresent
+          command:
+            - mongod
+            - --bind_ip_all
+            - --tlsMode
+            - preferTLS
+            - --tlsCertificateKeyFile
+            - /etc/mongodb-ssl/mongodb.pem
+            - --tlsCAFile
+            - /etc/mongodb-ssl/ca.crt
+            - --tlsAllowConnectionsWithoutCertificates
           ports:
             - containerPort: {{ .Values.mongodb.port }}
               protocol: TCP
@@ -43,8 +75,9 @@ spec:
           volumeMounts:
             - name: mongodb-data
               mountPath: /data/db
-            - name: mongo-init
-              mountPath: /docker-entrypoint-initdb.d
+            - name: mongodb-ssl
+              mountPath: /etc/mongodb-ssl
+              readOnly: true
           resources:
             limits:
               memory: 512Mi
@@ -53,6 +86,13 @@ spec:
         - name: mongodb-data
           persistentVolumeClaim:
             claimName: mongodb
-        - name: mongo-init
+        - name: mongodb-tls
+          secret:
+            secretName: mongodb-tls
+            defaultMode: 0400
+        - name: mongodb-ca
           configMap:
-            name: mongo-init
+            name: mongodb-ca-bundle
+            defaultMode: 0444
+        - name: mongodb-ssl
+          emptyDir: {}
