@@ -4,9 +4,64 @@ metadata:
   name: mongo-init
 data:
   create-user.js: |
+    // MongoDB Init Script - User Creation
+    // This script runs during container startup via localhost connection (no TLS required with preferTLS mode)
+    // The script is idempotent and can be run multiple times safely
+
+    print("=== MongoDB User Creation Script Starting ===");
+
+    // Log environment variables (without password)
+    print("Environment check:");
+    print("  MONGO_INITDB_DATABASE: " + process.env.MONGO_INITDB_DATABASE);
+    print("  MONGODB_USER: " + process.env.MONGODB_USER);
+    print("  MONGODB_PASSWORD: " + (process.env.MONGODB_PASSWORD ? "[SET]" : "[NOT SET]"));
+
+    // Validate required environment variables
+    if (!process.env.MONGO_INITDB_DATABASE) {
+      print("ERROR: MONGO_INITDB_DATABASE environment variable is not set");
+      quit(1);
+    }
+    if (!process.env.MONGODB_USER) {
+      print("ERROR: MONGODB_USER environment variable is not set");
+      quit(1);
+    }
+    if (!process.env.MONGODB_PASSWORD) {
+      print("ERROR: MONGODB_PASSWORD environment variable is not set");
+      quit(1);
+    }
+
+    print("Switching to database: " + process.env.MONGO_INITDB_DATABASE);
     db = db.getSiblingDB(process.env.MONGO_INITDB_DATABASE);
-    db.createUser({
-      user: process.env.MONGODB_USER,
-      pwd: process.env.MONGODB_PASSWORD,
-      roles: [ { role: "readWrite", db: process.env.MONGO_INITDB_DATABASE } ]
-    });
+
+    // Check if user already exists to make this script idempotent
+    print("Checking if user '" + process.env.MONGODB_USER + "' already exists...");
+    try {
+      const existingUser = db.getUser(process.env.MONGODB_USER);
+      if (existingUser) {
+        print("SUCCESS: User '" + process.env.MONGODB_USER + "' already exists, skipping creation");
+        print("Existing user roles: " + JSON.stringify(existingUser.roles));
+      } else {
+        print("User does not exist, creating new user...");
+        db.createUser({
+          user: process.env.MONGODB_USER,
+          pwd: process.env.MONGODB_PASSWORD,
+          roles: [ { role: "readWrite", db: process.env.MONGO_INITDB_DATABASE } ]
+        });
+        print("SUCCESS: User '" + process.env.MONGODB_USER + "' created successfully");
+        print("  Database: " + process.env.MONGO_INITDB_DATABASE);
+        print("  Role: readWrite");
+
+        // Verify the user was created
+        const verifyUser = db.getUser(process.env.MONGODB_USER);
+        if (verifyUser) {
+          print("VERIFIED: User creation confirmed");
+        } else {
+          print("WARNING: User creation succeeded but verification failed");
+        }
+      }
+    } catch (error) {
+      print("ERROR during user creation: " + error);
+      quit(1);
+    }
+
+    print("=== MongoDB User Creation Script Completed Successfully ===");

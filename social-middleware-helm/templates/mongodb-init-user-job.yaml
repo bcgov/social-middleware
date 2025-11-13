@@ -1,0 +1,134 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: mongodb-init-user-{{ .Release.Revision }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: mongodb-init-user
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+  annotations:
+    # Run this job after MongoDB deployment is created
+    helm.sh/hook: post-install,post-upgrade
+    helm.sh/hook-weight: "5"
+    helm.sh/hook-delete-policy: before-hook-creation
+spec:
+  backoffLimit: 3
+  template:
+    metadata:
+      labels:
+        app: mongodb-init-user
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: init-user
+          image: {{ .Values.mongodb.image }}
+          command:
+            - /bin/sh
+            - -c
+            - |
+              echo "=== MongoDB User Initialization Job Starting ==="
+              echo "Waiting for MongoDB to be ready..."
+
+              # Wait for MongoDB to be ready (max 60 seconds)
+              COUNTER=0
+              MAX_TRIES=60
+
+              while [ $COUNTER -lt $MAX_TRIES ]; do
+                echo "Attempt $((COUNTER + 1))/$MAX_TRIES: Checking MongoDB connection..."
+
+                if mongosh "mongodb://$MONGODB_SERVICE:$MONGODB_PORT/admin" \
+                  --quiet \
+                  --eval "db.adminCommand('ping')" > /dev/null 2>&1; then
+                  echo "SUCCESS: MongoDB is ready!"
+                  break
+                fi
+
+                COUNTER=$((COUNTER + 1))
+                if [ $COUNTER -eq $MAX_TRIES ]; then
+                  echo "ERROR: MongoDB did not become ready after $MAX_TRIES attempts"
+                  exit 1
+                fi
+
+                sleep 1
+              done
+
+              echo ""
+              echo "=== Creating MongoDB User ==="
+              echo "Database: $MONGO_INITDB_DATABASE"
+              echo "Username: $MONGODB_USER"
+
+              # Create user (idempotent - only creates if doesn't exist)
+              mongosh "mongodb://$MONGODB_SERVICE:$MONGODB_PORT/$MONGO_INITDB_DATABASE" \
+                --quiet \
+                --eval "
+                  // Check if user already exists
+                  const existingUser = db.getUser('$MONGODB_USER');
+
+                  if (existingUser) {
+                    print('INFO: User \'$MONGODB_USER\' already exists');
+                    print('Roles: ' + JSON.stringify(existingUser.roles));
+                    quit(0);
+                  }
+
+                  // Create new user
+                  print('Creating user \'$MONGODB_USER\'...');
+                  db.createUser({
+                    user: '$MONGODB_USER',
+                    pwd: '$MONGODB_PASSWORD',
+                    roles: [ { role: 'readWrite', db: '$MONGO_INITDB_DATABASE' } ]
+                  });
+
+                  // Verify creation
+                  const verifyUser = db.getUser('$MONGODB_USER');
+                  if (verifyUser) {
+                    print('SUCCESS: User \'$MONGODB_USER\' created successfully');
+                    print('Database: $MONGO_INITDB_DATABASE');
+                    print('Roles: ' + JSON.stringify(verifyUser.roles));
+                  } else {
+                    print('ERROR: User creation failed');
+                    quit(1);
+                  }
+                "
+
+              EXIT_CODE=$?
+
+              if [ $EXIT_CODE -eq 0 ]; then
+                echo ""
+                echo "=== User Initialization Complete ==="
+
+                # Test authentication
+                echo "Testing user authentication..."
+                if mongosh "mongodb://$MONGODB_USER:$MONGODB_PASSWORD@$MONGODB_SERVICE:$MONGODB_PORT/$MONGO_INITDB_DATABASE?tls=true&tlsAllowInvalidCertificates=true" \
+                  --quiet \
+                  --eval "db.runCommand({connectionStatus: 1})" > /dev/null 2>&1; then
+                  echo "SUCCESS: Authentication test passed"
+                else
+                  echo "WARNING: Authentication test failed"
+                  exit 1
+                fi
+              else
+                echo "ERROR: Failed to create user"
+                exit 1
+              fi
+
+              echo "=== MongoDB User Initialization Job Complete ==="
+          env:
+            - name: MONGODB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: mongodb
+                  key: database-user
+            - name: MONGODB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mongodb
+                  key: database-password
+            - name: MONGO_INITDB_DATABASE
+              valueFrom:
+                secretKeyRef:
+                  name: mongodb
+                  key: database-name
+            - name: MONGODB_SERVICE
+              value: "{{ .Values.mongodb.podlabel }}"
+            - name: MONGODB_PORT
+              value: "{{ .Values.mongodb.port }}"

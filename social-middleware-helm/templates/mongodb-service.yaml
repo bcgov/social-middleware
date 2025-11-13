@@ -3,6 +3,8 @@ kind: Service
 metadata:
   name: {{ .Values.mongodb.podlabel }}
   namespace: {{ .Release.Namespace }}
+  annotations:
+    service.beta.openshift.io/serving-cert-secret-name: mongodb-tls
   labels:
     app: {{ .Values.mongodb.podlabel }}
 spec:
