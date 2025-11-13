@@ -26,7 +26,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
         let uri = '';
 
         if (user && pass) {
-          uri = `mongodb://${user}:${pass}@${host}:${port}/${db}`;
+          uri = `mongodb://${user}:${pass}@${host}:${port}/${db}?authSource=${db}`;
         } else {
           uri = `mongodb://${host}:${port}/${db}`;
         }
