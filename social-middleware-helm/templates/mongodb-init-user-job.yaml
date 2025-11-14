@@ -1,17 +1,18 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: mongodb-init-user-{{ .Release.Revision }}
+  name: mongodb-verify-users-{{ .Release.Revision }}
   namespace: {{ .Release.Namespace }}
   labels:
-    app: mongodb-init-user
+    app: mongodb-verify-users
     app.kubernetes.io/managed-by: {{ .Release.Service }}
   annotations:
-    # Run this job after MongoDB deployment is created
-    helm.sh/hook: post-install,post-upgrade
-    helm.sh/hook-weight: "5"
-    helm.sh/hook-delete-policy: before-hook-creation
-    "helm.sh/hook-delete-policy": hook-succeeded
+    # DISABLED: User initialization is now handled by the MongoDB pod itself
+    # This job can be manually created for verification purposes
+    # helm.sh/hook: post-install,post-upgrade
+    # helm.sh/hook-weight: "5"
+    # helm.sh/hook-delete-policy: before-hook-creation
+    # "helm.sh/hook-delete-policy": hook-succeeded
 spec:
   backoffLimit: 3
   template:
@@ -27,7 +28,9 @@ spec:
             - /bin/sh
             - -c
             - |
-              echo "=== MongoDB User Initialization Job Starting ==="
+              echo "=== MongoDB User Verification Job ==="
+              echo "NOTE: This job only verifies users exist. User creation is handled by the MongoDB pod."
+              echo ""
               echo "Waiting for MongoDB to be ready..."
 
               # Wait for MongoDB to be ready (max 60 seconds)
@@ -37,84 +40,53 @@ spec:
               while [ $COUNTER -lt $MAX_TRIES ]; do
                 echo "Attempt $((COUNTER + 1))/$MAX_TRIES: Checking MongoDB connection..."
 
-                if mongosh "mongodb://$MONGODB_SERVICE:$MONGODB_PORT/admin?tls=true&tlsAllowInvalidCertificates=true" \
+                if mongosh "mongodb://$MONGODB_USER:$MONGODB_PASSWORD@$MONGODB_SERVICE:$MONGODB_PORT/$MONGO_INITDB_DATABASE?tls=true&tlsAllowInvalidCertificates=true" \
                   --quiet \
                   --eval "db.adminCommand('ping')" > /dev/null 2>&1; then
-                  echo "SUCCESS: MongoDB is ready!"
+                  echo "SUCCESS: MongoDB is ready and authentication works!"
                   break
                 fi
 
                 COUNTER=$((COUNTER + 1))
                 if [ $COUNTER -eq $MAX_TRIES ]; then
-                  echo "ERROR: MongoDB did not become ready after $MAX_TRIES attempts"
+                  echo "ERROR: Could not connect to MongoDB after $MAX_TRIES attempts"
                   exit 1
                 fi
 
-                sleep 1
+                sleep 2
               done
 
               echo ""
-              echo "=== Creating MongoDB User ==="
-              echo "Database: $MONGO_INITDB_DATABASE"
-              echo "Username: $MONGODB_USER"
+              echo "=== Verifying MongoDB Users ==="
 
-              # Create user (idempotent - only creates if doesn't exist)
-              # Use TLS connection (required by MongoDB config)
-              # Localhost exception allows connection without auth before first user is created
-              mongosh "mongodb://$MONGODB_SERVICE:$MONGODB_PORT/$MONGO_INITDB_DATABASE?tls=true&tlsAllowInvalidCertificates=true" \
+              # Verify application user exists and has correct roles
+              mongosh "mongodb://$MONGODB_USER:$MONGODB_PASSWORD@$MONGODB_SERVICE:$MONGODB_PORT/$MONGO_INITDB_DATABASE?tls=true&tlsAllowInvalidCertificates=true" \
                 --quiet \
                 --eval "
-                  // Check if user already exists
-                  const existingUser = db.getUser('$MONGODB_USER');
+                  print('Checking application user: $MONGODB_USER');
+                  const user = db.getUser('$MONGODB_USER');
 
-                  if (existingUser) {
-                    print('INFO: User \'$MONGODB_USER\' already exists');
-                    print('Roles: ' + JSON.stringify(existingUser.roles));
-                    quit(0);
-                  }
-
-                  // Create new user
-                  print('Creating user \'$MONGODB_USER\'...');
-                  db.createUser({
-                    user: '$MONGODB_USER',
-                    pwd: '$MONGODB_PASSWORD',
-                    roles: [ { role: 'readWrite', db: '$MONGO_INITDB_DATABASE' } ]
-                  });
-
-                  // Verify creation
-                  const verifyUser = db.getUser('$MONGODB_USER');
-                  if (verifyUser) {
-                    print('SUCCESS: User \'$MONGODB_USER\' created successfully');
-                    print('Database: $MONGO_INITDB_DATABASE');
-                    print('Roles: ' + JSON.stringify(verifyUser.roles));
-                  } else {
-                    print('ERROR: User creation failed');
+                  if (!user) {
+                    print('ERROR: User does not exist');
                     quit(1);
                   }
+
+                  print('SUCCESS: User exists');
+                  print('Database: $MONGO_INITDB_DATABASE');
+                  print('Roles: ' + JSON.stringify(user.roles));
+
+                  // Test connection status
+                  const status = db.runCommand({connectionStatus: 1});
+                  print('Authenticated as: ' + JSON.stringify(status.authInfo.authenticatedUsers));
                 "
 
-              EXIT_CODE=$?
-
-              if [ $EXIT_CODE -eq 0 ]; then
+              if [ $? -eq 0 ]; then
                 echo ""
-                echo "=== User Initialization Complete ==="
-
-                # Test authentication
-                echo "Testing user authentication..."
-                if mongosh "mongodb://$MONGODB_USER:$MONGODB_PASSWORD@$MONGODB_SERVICE:$MONGODB_PORT/$MONGO_INITDB_DATABASE?tls=true&tlsAllowInvalidCertificates=true" \
-                  --quiet \
-                  --eval "db.runCommand({connectionStatus: 1})" > /dev/null 2>&1; then
-                  echo "SUCCESS: Authentication test passed"
-                else
-                  echo "WARNING: Authentication test failed"
-                  exit 1
-                fi
+                echo "=== Verification Complete - All Users Configured Correctly ==="
               else
-                echo "ERROR: Failed to create user"
+                echo "ERROR: Verification failed"
                 exit 1
               fi
-
-              echo "=== MongoDB User Initialization Job Complete ==="
           env:
             - name: MONGODB_USER
               valueFrom:

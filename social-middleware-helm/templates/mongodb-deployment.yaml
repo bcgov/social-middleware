@@ -55,20 +55,22 @@ spec:
               drop:
                 - ALL
           command:
-            - mongod
-            - --bind_ip_all
-            - --auth
-            - --tlsMode
-            - requireTLS
-            - --tlsCertificateKeyFile
-            - /etc/mongodb-ssl/mongodb.pem
-            - --tlsCAFile
-            - /etc/mongodb-ssl/ca.crt
-            - --tlsAllowConnectionsWithoutCertificates
+            - /bin/sh
+            - /scripts/mongodb-wrapper.sh
           ports:
             - containerPort: {{ .Values.mongodb.port }}
               protocol: TCP
           env:
+            - name: MONGODB_ADMIN_USER
+              valueFrom:
+                secretKeyRef:
+                  name: mongodb
+                  key: database-admin-user
+            - name: MONGODB_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mongodb
+                  key: database-admin-password
             - name: MONGODB_USER
               valueFrom:
                 secretKeyRef:
@@ -89,6 +91,9 @@ spec:
               mountPath: /data/db
             - name: mongodb-ssl
               mountPath: /etc/mongodb-ssl
+              readOnly: true
+            - name: mongodb-init-script
+              mountPath: /scripts
               readOnly: true
           resources:
             limits:
@@ -112,3 +117,7 @@ spec:
             defaultMode: 0444
         - name: mongodb-ssl
           emptyDir: {}
+        - name: mongodb-init-script
+          configMap:
+            name: mongodb-init-script
+            defaultMode: 0555

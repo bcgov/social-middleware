@@ -1,0 +1,125 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mongodb-init-script
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: {{ .Values.mongodb.podlabel }}
+data:
+  mongodb-wrapper.sh: |
+    #!/bin/sh
+    set -e
+
+    echo "=== MongoDB Startup with User Initialization ==="
+
+    # Check if initialization has already been done
+    if [ -f /data/db/.mongodb-initialized ]; then
+      echo "MongoDB already initialized, starting normally..."
+      exec mongod --bind_ip_all --auth --tlsMode requireTLS \
+        --tlsCertificateKeyFile /etc/mongodb-ssl/mongodb.pem \
+        --tlsCAFile /etc/mongodb-ssl/ca.crt \
+        --tlsAllowConnectionsWithoutCertificates
+    fi
+
+    echo "First-time initialization detected..."
+
+    # Start MongoDB in background
+    echo "Starting MongoDB in background..."
+    mongod --bind_ip_all --auth --tlsMode requireTLS \
+      --tlsCertificateKeyFile /etc/mongodb-ssl/mongodb.pem \
+      --tlsCAFile /etc/mongodb-ssl/ca.crt \
+      --tlsAllowConnectionsWithoutCertificates &
+
+    MONGOD_PID=$!
+    echo "MongoDB started with PID: $MONGOD_PID"
+
+    # Wait for MongoDB to be ready
+    echo "Waiting for MongoDB to be ready..."
+    COUNTER=0
+    MAX_TRIES=30
+
+    while [ $COUNTER -lt $MAX_TRIES ]; do
+      if mongosh "mongodb://127.0.0.1:27017/admin?tls=true&tlsAllowInvalidCertificates=true" \
+        --quiet \
+        --eval "db.adminCommand('ping')" > /dev/null 2>&1; then
+        echo "MongoDB is ready!"
+        break
+      fi
+
+      COUNTER=$((COUNTER + 1))
+      if [ $COUNTER -eq $MAX_TRIES ]; then
+        echo "ERROR: MongoDB did not start after $MAX_TRIES attempts"
+        kill $MONGOD_PID 2>/dev/null || true
+        exit 1
+      fi
+
+      sleep 2
+    done
+
+    echo ""
+    echo "=== Creating Admin User ==="
+
+    # Create admin user using localhost exception
+    # The localhost exception allows this to work even with --auth enabled
+    mongosh "mongodb://127.0.0.1:27017/admin?tls=true&tlsAllowInvalidCertificates=true" \
+      --quiet \
+      --eval "
+        // Create admin user with root privileges
+        print('Creating admin user: $MONGODB_ADMIN_USER');
+        db.createUser({
+          user: '$MONGODB_ADMIN_USER',
+          pwd: '$MONGODB_ADMIN_PASSWORD',
+          roles: [
+            { role: 'root', db: 'admin' }
+          ]
+        });
+        print('SUCCESS: Admin user created');
+      "
+
+    if [ $? -ne 0 ]; then
+      echo "ERROR: Failed to create admin user"
+      kill $MONGOD_PID 2>/dev/null || true
+      exit 1
+    fi
+
+    echo ""
+    echo "=== Creating Application User ==="
+
+    # Connect with admin credentials to create the application user
+    mongosh "mongodb://$MONGODB_ADMIN_USER:$MONGODB_ADMIN_PASSWORD@127.0.0.1:27017/$MONGO_INITDB_DATABASE?tls=true&tlsAllowInvalidCertificates=true&authSource=admin" \
+      --quiet \
+      --eval "
+        // Create application user
+        print('Creating application user: $MONGODB_USER');
+        db.createUser({
+          user: '$MONGODB_USER',
+          pwd: '$MONGODB_PASSWORD',
+          roles: [
+            { role: 'readWrite', db: '$MONGO_INITDB_DATABASE' }
+          ]
+        });
+        print('SUCCESS: Application user created for database: $MONGO_INITDB_DATABASE');
+      "
+
+    if [ $? -ne 0 ]; then
+      echo "ERROR: Failed to create application user"
+      kill $MONGOD_PID 2>/dev/null || true
+      exit 1
+    fi
+
+    # Create marker file to indicate initialization is complete
+    touch /data/db/.mongodb-initialized
+
+    echo ""
+    echo "=== User Initialization Complete ==="
+    echo "Switching to foreground mode..."
+
+    # Kill background mongod
+    kill $MONGOD_PID 2>/dev/null || true
+    wait $MONGOD_PID 2>/dev/null || true
+
+    # Start mongod in foreground
+    exec mongod --bind_ip_all --auth --tlsMode requireTLS \
+      --tlsCertificateKeyFile /etc/mongodb-ssl/mongodb.pem \
+      --tlsCAFile /etc/mongodb-ssl/ca.crt \
+      --tlsAllowConnectionsWithoutCertificates
