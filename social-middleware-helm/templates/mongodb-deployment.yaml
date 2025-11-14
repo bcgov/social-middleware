@@ -17,23 +17,17 @@ spec:
       labels:
         app: {{ .Values.mongodb.podlabel }}
     spec:
-      securityContext:
-        runAsNonRoot: true
-        runAsUser: 999
-        fsGroup: 999
-        seccompProfile:
-          type: RuntimeDefault
+      serviceAccountName: {{ .Values.mongodb.podlabel }}-sa
       initContainers:
         # Combine tls.crt and tls.key into a single PEM file for MongoDB
         # and copy the CA certificate for the chain of trust
         - name: prepare-tls
+          image: {{ .Values.mongodb.image }}
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
               drop:
                 - ALL
-            readOnlyRootFilesystem: false
-          image: {{ .Values.mongodb.image }}
           command:
             - /bin/sh
             - -c
@@ -60,7 +54,6 @@ spec:
             capabilities:
               drop:
                 - ALL
-            readOnlyRootFilesystem: false
           command:
             - mongod
             - --bind_ip_all
