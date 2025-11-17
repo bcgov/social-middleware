@@ -1,5 +1,11 @@
 // auth/dto/create-user.dto.ts
-import { IsString, IsOptional, IsEmail, IsNotEmpty } from 'class-validator';
+import {
+  IsString,
+  IsOptional,
+  IsEmail,
+  IsNotEmpty,
+  MaxLength,
+} from 'class-validator';
 import { Transform } from 'class-transformer';
 import { GenderTypes } from '../../household/enums/gender-types.enum';
 
@@ -16,10 +22,12 @@ export class CreateUserDto {
     }
     return '';
   })
+  @MaxLength(50)
   first_name?: string;
 
   @IsString()
   @IsNotEmpty()
+  @MaxLength(50)
   last_name!: string;
 
   @IsString()
@@ -32,6 +40,7 @@ export class CreateUserDto {
 
   @IsEmail()
   @IsNotEmpty()
+  @MaxLength(350)
   email!: string;
 
   @IsString()
@@ -40,10 +49,12 @@ export class CreateUserDto {
 
   @IsString()
   @IsNotEmpty()
+  @MaxLength(200)
   street_address!: string;
 
   @IsString()
   @IsNotEmpty()
+  @MaxLength(50)
   city!: string;
 
   @IsString()
@@ -52,9 +63,11 @@ export class CreateUserDto {
 
   @IsString()
   @IsNotEmpty()
+  @MaxLength(10)
   region!: string;
 
   @IsString()
   @IsNotEmpty()
+  @MaxLength(10)
   postal_code!: string;
 }
