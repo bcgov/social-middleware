@@ -6,6 +6,7 @@ import * as cookieParser from 'cookie-parser';
 import { Logger } from 'nestjs-pino';
 import { ValidationPipe } from '@nestjs/common';
 import { BullDashboardService } from './bull-dashboard/bull-dashboard.service';
+import { json, urlencoded } from 'express';
 
 async function bootstrap() {
   try {
@@ -15,6 +16,11 @@ async function bootstrap() {
 
     const logger = app.get(Logger);
     app.useLogger(logger);
+
+    // NestJS/Express defaults to 100KB body size limit
+    // config enables attachments greater than 100KB
+    app.use(json({ limit: '10mb' }));
+    app.use(urlencoded({ extended: true, limit: '10mb' }));
 
     const bullDashboard = app.get(BullDashboardService);
     app.use('/admin/queues', bullDashboard.getRouter());
