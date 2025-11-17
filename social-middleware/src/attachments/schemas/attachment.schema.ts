@@ -20,13 +20,16 @@ export class Attachment {
   applicationFormId!: string | null;
 
   @Prop({ required: true, enum: Object.values(AttachmentType) })
-  attachmentTyp!: AttachmentType;
+  attachmentType!: AttachmentType;
 
   @Prop({ required: true, type: String })
   fileName!: string;
 
-  @Prop({ required: true, type: Number })
+  @Prop({ required: true, type: String })
   fileType!: string; // MIME type
+
+  @Prop({ required: true, type: Number })
+  fileSize!: number;
 
   @Prop({ required: true, type: String })
   fileData!: string; // base64 encoded file content
@@ -45,4 +48,4 @@ export class Attachment {
   sentToICMAt!: Date;
 }
 
-export const AttachmentSchma = SchemaFactory.createForClass(Attachment);
+export const AttachmentSchema = SchemaFactory.createForClass(Attachment);

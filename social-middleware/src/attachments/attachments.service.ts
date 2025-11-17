@@ -56,7 +56,20 @@ export class AttachmentsService {
       .lean()
       .exec();
 
-    return attachments as GetAttachmentDto[];
+    return attachments.map((attachment) => ({
+      attachmentId: attachment.attachmentId,
+      applicationPackageId: attachment.applicationPackageId,
+      householdMemberId: attachment.householdMemberId,
+      applicationFormId: attachment.applicationFormId,
+      attachmentType: attachment.attachmentType,
+      fileName: attachment.fileName,
+      fileType: attachment.fileType,
+      fileSize: attachment.fileSize,
+      description: attachment.description,
+      uploadedBy: attachment.uploadedBy,
+      createdAt: attachment.createdAt,
+      updatedAt: attachment.updatedAt,
+    }));
   }
 
   async findByHouseholdMemberId(
@@ -69,7 +82,20 @@ export class AttachmentsService {
       .lean()
       .exec();
 
-    return attachments as GetAttachmentDto[];
+    return attachments.map((attachment) => ({
+      attachmentId: attachment.attachmentId,
+      applicationPackageId: attachment.applicationPackageId,
+      householdMemberId: attachment.householdMemberId,
+      applicationFormId: attachment.applicationFormId,
+      attachmentType: attachment.attachmentType,
+      fileName: attachment.fileName,
+      fileType: attachment.fileType,
+      fileSize: attachment.fileSize,
+      description: attachment.description,
+      uploadedBy: attachment.uploadedBy,
+      createdAt: attachment.createdAt,
+      updatedAt: attachment.updatedAt,
+    }));
   }
 
   async findById(attachmentId: string): Promise<AttachmentDocument | null> {
