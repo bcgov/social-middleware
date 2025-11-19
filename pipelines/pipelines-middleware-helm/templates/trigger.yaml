@@ -22,7 +22,7 @@ spec:
               body.head_commit.modified.exists(file,
                 file.startsWith('social-middleware')
                 || file.startsWith('social-middleware-helm')
-                || file.startsWith('pipelines-mid')
+                || file.startsWith('pipelines')
               )
             )
     - ref:
