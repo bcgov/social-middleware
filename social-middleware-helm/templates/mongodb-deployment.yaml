@@ -97,11 +97,11 @@ spec:
               readOnly: true
           resources:
             limits:
-              cpu: "1000m"
+              cpu: "300m"
               memory: 512Mi
             requests:
-              cpu: "500m"
-              memory: 256Mi
+              cpu: "20m"
+              memory: 128Mi
       restartPolicy: Always
       volumes:
         - name: mongodb-data
