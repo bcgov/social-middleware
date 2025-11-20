@@ -9,13 +9,13 @@ export enum ApplicationFormType {
 }
 
 export const FormId: Record<ApplicationFormType, string> = {
-  [ApplicationFormType.REFERRAL]: 'CF0001_Referral',
-  [ApplicationFormType.ABOUTME]: 'CF0001_AboutMe',
+  [ApplicationFormType.REFERRAL]: 'CF0041',
+  [ApplicationFormType.ABOUTME]: 'CF0040',
   [ApplicationFormType.HOUSEHOLD]: 'HOUSEHOLD',
-  [ApplicationFormType.REFERENCES]: 'CF0001_References',
-  [ApplicationFormType.PLACEMENT]: 'CF0001_Placement',
-  [ApplicationFormType.CONSENT]: 'CF0001_Consents',
-  [ApplicationFormType.SCREENING]: 'CF0001_Referral',
+  [ApplicationFormType.PLACEMENT]: 'CF0043',
+  [ApplicationFormType.REFERENCES]: 'CF0044',
+  [ApplicationFormType.CONSENT]: 'CF0045',
+  [ApplicationFormType.SCREENING]: 'CF0040',
 };
 
 // helper
