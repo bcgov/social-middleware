@@ -13,10 +13,17 @@ spec:
             - key: branchName
               expression: "body.ref.split('/')[2]"
         - name: filter
-          value: >
-            body.ref.split('/')[2] == 'main' &&
-            body.head_commit.modified.exists(file,
-              file.startsWith('social-middleware') || file.startsWith('social-middleware-helm') || file.startsWith('pipelines-middleware-helm')
+          value: |
+            (
+              body.ref.split('/')[2] in ['main', 'prod', 'dev', 'develop', 'test']
+            )
+            &&
+            (
+              body.head_commit.modified.exists(file,
+                file.startsWith('social-middleware')
+                || file.startsWith('social-middleware-helm')
+                || file.startsWith('pipelines')
+              )
             )
     - ref:
         name: github
