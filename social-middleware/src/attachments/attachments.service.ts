@@ -50,7 +50,7 @@ export class AttachmentsService {
     userId: string,
   ): Promise<GetAttachmentDto[]> {
     const attachments = await this.attachmentModel
-      .find({ applicationPackageId, userId })
+      .find({ applicationPackageId, uploadedBy: userId })
       .select('-fileData') // Exclude file data for list view
       .sort({ createdAt: -1 })
       .lean()
