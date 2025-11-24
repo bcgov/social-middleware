@@ -5,7 +5,7 @@ metadata:
   labels:
     app.openshift.io/runtime: redis
 spec:
-  replicas: 1
+  replicas: 0
   selector:
     matchLabels:
       app: redis

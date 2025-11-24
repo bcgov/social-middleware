@@ -17,11 +17,17 @@ spec:
       labels:
         app: {{ .Values.mongodb.podlabel }}
     spec:
+      serviceAccountName: {{ .Values.mongodb.podlabel }}-sa
       initContainers:
         # Combine tls.crt and tls.key into a single PEM file for MongoDB
         # and copy the CA certificate for the chain of trust
         - name: prepare-tls
           image: {{ .Values.mongodb.image }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
           command:
             - /bin/sh
             - -c
@@ -43,20 +49,28 @@ spec:
         - name: {{ .Values.mongodb.podlabel }}
           image: {{ .Values.mongodb.image }}
           imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
           command:
-            - mongod
-            - --bind_ip_all
-            - --tlsMode
-            - preferTLS
-            - --tlsCertificateKeyFile
-            - /etc/mongodb-ssl/mongodb.pem
-            - --tlsCAFile
-            - /etc/mongodb-ssl/ca.crt
-            - --tlsAllowConnectionsWithoutCertificates
+            - /bin/sh
+            - /scripts/mongodb-wrapper.sh
           ports:
             - containerPort: {{ .Values.mongodb.port }}
               protocol: TCP
           env:
+            - name: MONGODB_ADMIN_USER
+              valueFrom:
+                secretKeyRef:
+                  name: mongodb
+                  key: database-admin-user
+            - name: MONGODB_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mongodb
+                  key: database-admin-password
             - name: MONGODB_USER
               valueFrom:
                 secretKeyRef:
@@ -78,9 +92,16 @@ spec:
             - name: mongodb-ssl
               mountPath: /etc/mongodb-ssl
               readOnly: true
+            - name: mongodb-init-script
+              mountPath: /scripts
+              readOnly: true
           resources:
             limits:
+              cpu: "300m"
               memory: 512Mi
+            requests:
+              cpu: "20m"
+              memory: 128Mi
       restartPolicy: Always
       volumes:
         - name: mongodb-data
@@ -96,3 +117,7 @@ spec:
             defaultMode: 0444
         - name: mongodb-ssl
           emptyDir: {}
+        - name: mongodb-init-script
+          configMap:
+            name: mongodb-init-script
+            defaultMode: 0555

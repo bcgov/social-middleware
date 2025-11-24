@@ -78,7 +78,7 @@ spec:
         - name: IMAGE
           value: $(params.imageUrl)
         - name: IMAGE_TAG
-          value: $(tasks.generate-id.results.short-commit)
+          value: $(params.branchName)
         - name: IMAGE_REGISTRY
           value: $(params.imageRegistry)
         - name: IMAGE_REGISTRY_USER
@@ -112,7 +112,7 @@ spec:
         - name: IMAGE
           value: $(params.imageUrl)
         - name: IMAGE_TAG
-          value: $(tasks.generate-id.results.short-commit)
+          value: $(params.branchName)
       runAfter:
         - buildah
       taskRef:
