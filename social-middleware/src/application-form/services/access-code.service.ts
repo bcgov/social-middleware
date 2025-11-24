@@ -9,7 +9,7 @@ import {
   ApplicationForm,
   ApplicationFormDocument,
 } from '../schemas/application-form.schema';
-import { HouseholdService } from '../../household/household.service';
+import { HouseholdService } from '../../household/services/household.service';
 import { PinoLogger } from 'nestjs-pino';
 
 @Injectable()
