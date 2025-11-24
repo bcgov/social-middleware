@@ -229,4 +229,38 @@ export class ApplicationFormsController {
       ApplicationFormStatus.DRAFT
     );
   }
+  @Post(':applicationFormId/mark-attached')
+  @UseGuards(SessionAuthGuard)
+  @ApiOperation({ summary: 'Mark application form as having user-attached documents' })
+  @ApiParam({
+    name: 'applicationFormId',
+    required: true,
+    description: 'The screening form ID to mark as having attached documents',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Application form successfully marked as attached',
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized - invalid or missing session',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Application form not found or access denied',
+  })
+  async markFormAsAttached(
+    @Param('applicationFormId') applicationFormId: string,
+    @Req() request: Request,
+  ): Promise<{ success: boolean }> {
+    const userId = this.sessionUtil.extractUserIdFromRequest(request);
+
+    await this.applicationFormsService.markUserAttachedForm(
+      applicationFormId,
+      userId,
+    );
+
+    return { success: true };
+  }
+
 }
