@@ -276,6 +276,14 @@ export class HouseholdService {
     }
   }
 
+  async findPrimaryApplicant(
+    applicationPackageId: string,
+  ): Promise<HouseholdMembersDocument | null> {
+    return await this.householdMemberModel
+      .findOne({ applicationPackageId })
+      .sort({ createdAt: 1 }) // Get the first one created
+      .exec();
+  }
   // used when a household member is removed by the front end
   // e.g. the applicant removes a household member that may have been saved
   //
@@ -346,6 +354,15 @@ export class HouseholdService {
         'Could not delete household members',
       );
     }
+  }
+
+  async markScreeningProvided(householdMemberId: string): Promise<void> {
+    await this.householdMemberModel
+      .findOneAndUpdate(
+        { householdMemberId },
+        { $set: { screeningProvided: true } },
+      )
+      .exec();
   }
 
   async validateHouseholdCompletion(
