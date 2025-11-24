@@ -126,13 +126,20 @@ export class HouseholdController {
           HttpStatus.NOT_FOUND,
         );
       }
-      // Get application forms if user is associated
+
       let applicationForms: GetApplicationFormDto[] = [];
-      // TODO: we should filter by applicationPackageId??
+
+      // Get application forms if user is associated
       if (householdMember.userId) {
         applicationForms =
           await this.applicationFormService.getApplicationFormsByUser(
             householdMember.userId,
+          );
+      } else {
+        // otherwise get the forms for this household member
+        applicationForms =
+          await this.applicationFormService.getApplicationFormByHouseholdId(
+            householdMemberId,
           );
       }
 
