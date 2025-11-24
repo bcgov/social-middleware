@@ -17,8 +17,6 @@ import { CreateApplicationDto } from '../dto/create-application.dto';
 import { PinoLogger } from 'nestjs-pino';
 import { HouseholdService } from 'src/household/services/household.service';
 import { UserService } from 'src/auth/user.service';
-//import { RelationshipToPrimary } from 'src/household/enums/relationship-to-primary.enum';
-//import { ApplicationSubmissionService } from 'src/application-submission/application-submission.service';
 import { GenderTypes } from 'src/household/enums/gender-types.enum';
 
 @Processor('applicationQueue')
