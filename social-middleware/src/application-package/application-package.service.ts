@@ -90,18 +90,6 @@ export class ApplicationPackageService {
 
     const appPackage = await initialPackage.save();
 
-    // create referral as the first application Form
-    const referralDto = {
-      applicationPackageId: appPackage.applicationPackageId,
-      formId: 'CF0001_Referral', // TODO: Make data driven
-      userId: userId,
-      type: ApplicationFormType.REFERRAL,
-      formParameters: {},
-    };
-
-    const referral =
-      await this.applicationFormService.createApplicationForm(referralDto);
-
     // the primary applicant is the first household member
     const user = await this.userService.findOne(userId);
 
@@ -116,7 +104,22 @@ export class ApplicationPackageService {
       genderType: this.userUtil.sexToGenderType(user.sex),
     };
 
-    await this.householdService.createMember(primaryHouseholdMemberDto);
+    const primaryHouseholdMember = await this.householdService.createMember(
+      primaryHouseholdMemberDto,
+    );
+
+    // create referral as the first application Form
+    const referralDto = {
+      applicationPackageId: appPackage.applicationPackageId,
+      formId: 'CF0001_Referral', // TODO: Make data driven
+      userId: userId,
+      householdMemberId: primaryHouseholdMember.householdMemberId,
+      type: ApplicationFormType.REFERRAL,
+      formParameters: {},
+    };
+
+    const referral =
+      await this.applicationFormService.createApplicationForm(referralDto);
 
     this.logger.info(
       {
@@ -283,7 +286,24 @@ export class ApplicationPackageService {
       );
 
       // TODO: handle withdrawl, cancellations, etc.
-      let newStatus: ApplicationPackageStatus;
+      // let newStatus: ApplicationPackageStatus;
+
+      // Get the primary applicant's householdMemberId
+      // At this point, the primary applicant should be the only household member
+      const primaryApplicantMember =
+        await this.householdService.findPrimaryApplicant(
+          applicationPackage.applicationPackageId,
+        );
+
+      if (!primaryApplicantMember) {
+        this.logger.error(
+          { applicationPackageId: applicationPackage.applicationPackageId },
+          'Primary applicant household member not found',
+        );
+        throw new InternalServerErrorException(
+          'Primary applicant household member not found',
+        );
+      }
 
       if (
         newStage === ServiceRequestStage.APPLICATION &&
@@ -294,6 +314,7 @@ export class ApplicationPackageService {
           applicationPackageId: applicationPackage.applicationPackageId,
           formId: getFormIdForFormType(ApplicationFormType.ABOUTME),
           userId: applicationPackage.userId,
+          householdMemberId: primaryApplicantMember.householdMemberId,
           type: ApplicationFormType.ABOUTME,
           formParameters: {},
         };
@@ -307,6 +328,7 @@ export class ApplicationPackageService {
           applicationPackageId: applicationPackage.applicationPackageId,
           formId: getFormIdForFormType(ApplicationFormType.HOUSEHOLD),
           userId: applicationPackage.userId,
+          householdMemberId: primaryApplicantMember.householdMemberId,
           type: ApplicationFormType.HOUSEHOLD,
           formParameters: {},
         };
@@ -317,6 +339,7 @@ export class ApplicationPackageService {
           applicationPackageId: applicationPackage.applicationPackageId,
           formId: getFormIdForFormType(ApplicationFormType.PLACEMENT),
           userId: applicationPackage.userId,
+          householdMemberId: primaryApplicantMember.householdMemberId,
           type: ApplicationFormType.PLACEMENT,
           formParameters: {},
         };
@@ -327,6 +350,7 @@ export class ApplicationPackageService {
           applicationPackageId: applicationPackage.applicationPackageId,
           formId: getFormIdForFormType(ApplicationFormType.REFERENCES),
           userId: applicationPackage.userId,
+          householdMemberId: primaryApplicantMember.householdMemberId,
           type: ApplicationFormType.REFERENCES,
           formParameters: {},
         };
@@ -337,6 +361,7 @@ export class ApplicationPackageService {
           applicationPackageId: applicationPackage.applicationPackageId,
           formId: getFormIdForFormType(ApplicationFormType.CONSENT),
           userId: applicationPackage.userId,
+          householdMemberId: primaryApplicantMember.householdMemberId,
           type: ApplicationFormType.CONSENT,
           formParameters: {},
         };
@@ -903,6 +928,10 @@ export class ApplicationPackageService {
     }
   }
 
+  // we lock an applicationPackage when the user has completed all the forms
+  // and described a complete household definition
+  // after locking, the adult household members will be notified to complete their
+  // screening forms as applicable
   async lockApplicationPackage(
     applicationPackageId: string,
     userId: string,
@@ -910,7 +939,7 @@ export class ApplicationPackageService {
     try {
       this.logger.info(
         { applicationPackageId, userId },
-        'locking application package validation and processing',
+        'Attempting to lock application package',
       );
 
       // Verify ownership
@@ -920,7 +949,7 @@ export class ApplicationPackageService {
 
       if (!applicationPackage) {
         throw new NotFoundException(
-          `Application package ${applicationPackageId} not found or not owned by user`,
+          `Application package ${applicationPackageId} not found or not owned by user, will not lock.`,
         );
       }
       // validate household completion
@@ -975,6 +1004,7 @@ export class ApplicationPackageService {
           status: ApplicationPackageStatus.CONSENT,
         };
       } else {
+        // there were no household screenings required.. we can skip the Consent status
         // everything is ready - proceed for final submission
         const submissionResult = await this.submitApplicationPackage(
           applicationPackageId,
@@ -996,7 +1026,7 @@ export class ApplicationPackageService {
     } catch (error) {
       this.logger.error(
         { error, applicationPackageId, userId },
-        'Failed to validate and process application',
+        'Error locking the application package',
       );
       throw error;
     }
