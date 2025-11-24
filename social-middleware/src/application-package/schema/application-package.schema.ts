@@ -46,6 +46,7 @@ export class ApplicationPackage {
   })
   status!: ApplicationPackageStatus;
 
+  //TODO: Remove ReferralState
   @Prop({
     required: true,
     enum: ReferralState,
@@ -59,6 +60,7 @@ export class ApplicationPackage {
   @Prop({ required: false, default: null })
   hasHousehold!: string;
 
+  //TODO: Remove hasSupportNetwork once we receive confirmation we will no longer collect it.
   @Prop({ required: false, default: null })
   hasSupportNetwork!: string;
 
