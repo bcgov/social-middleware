@@ -1,10 +1,9 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
+import { Document } from 'mongoose';
 import { v4 as uuidv4 } from 'uuid';
 import { MemberTypes } from '../enums/member-types.enum';
 import { GenderTypes } from '../enums/gender-types.enum';
 import { RelationshipToPrimary } from '../enums/relationship-to-primary.enum';
-
-export type HouseholdMembersDocument = HouseholdMembers & Document;
 
 @Schema({ timestamps: true })
 export class HouseholdMembers {
@@ -53,6 +52,9 @@ export class HouseholdMembers {
   @Prop({ type: Boolean, default: false })
   requireScreening!: boolean;
 
+  @Prop({ type: Boolean, default: false })
+  screeningProvided!: boolean;
+
   @Prop({ required: false, type: Boolean, default: false })
   isInvited!: boolean;
 
@@ -64,6 +66,8 @@ export class HouseholdMembers {
 
   createdAt!: Date;
 }
+
+export type HouseholdMembersDocument = HouseholdMembers & Document;
 
 export const HouseholdMembersSchema =
   SchemaFactory.createForClass(HouseholdMembers);
