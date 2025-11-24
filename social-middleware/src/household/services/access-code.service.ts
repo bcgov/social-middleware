@@ -67,6 +67,14 @@ export class AccessCodeService {
    * Generate a 6 digit secure access code
    */
   generateAccessCode(length = 6): string {
+    // Development override for testing
+    // if (
+    //   process.env.NODE_ENV === 'development' &&
+    //   process.env.STATIC_ACCESS_CODE === 'true'
+    // ) {
+    //   return 'FOSTER';
+    // }
+
     // note we remove ambiguous characters like I, 1, O, 0
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
     let result = '';
