@@ -32,7 +32,7 @@ spec:
       name: helm-deploy
       resources: {}
       script: |
-        helm upgrade --install $(params.HELM_RELEASE) --set image.tag=$(params.IMAGE_TAG) -f $(params.HELM_DIR)/$(params.HELM_VALUES) $(params.HELM_DIR) --namespace f6e00d-dev
+        helm upgrade --install $(params.HELM_RELEASE) --set image.tag=$(params.IMAGE_TAG) -f $(params.HELM_DIR)/$(params.HELM_VALUES) $(params.HELM_DIR) --namespace f6e00d-$(params.IMAGE_TAG)
       workingDir: $(workspaces.source.path)
   workspaces:
     - name: source
