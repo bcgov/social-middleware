@@ -15,7 +15,7 @@ spec:
         - name: filter
           value: |
             (
-              body.ref.split('/')[2] in ['main', 'prod', 'dev', 'develop', 'test']
+              body.ref.split('/')[2] in ['main', 'dev', 'test']
             )
             &&
             (
