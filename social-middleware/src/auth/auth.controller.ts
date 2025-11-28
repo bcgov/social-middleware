@@ -67,6 +67,7 @@ export class AuthController {
   private readonly jwtSecret: string;
   private readonly nodeEnv: string;
   private readonly frontendURL: string;
+  private readonly middlewareURL: string;
 
   constructor(
     private readonly httpService: HttpService,
@@ -84,12 +85,123 @@ export class AuthController {
     this.jwtSecret = this.configService.get<string>('JWT_SECRET')!;
     this.nodeEnv = this.configService.get<string>('NODE_ENV', 'development');
     this.frontendURL = this.configService.get<string>('FRONTEND_URL')!;
+    this.middlewareURL = this.configService.get<string>('MIDDLEWARE_URL')!;
     this.logger.setContext(AuthController.name);
+  }
+
+  @Get('login')
+  @ApiOperation({
+    summary: 'Initiate BC Services Card authentication',
+    description: 'Redirects user to BC Services Card login page with proper OAuth parameters'
+  })
+  @ApiResponse({
+    status: 302,
+    description: 'Redirect to BC Services Card authentication',
+  })
+  login(@Res() res: Response): void {
+    this.logger.info('Initiating BC Services Card login flow');
+
+    // Generate and store state for CSRF protection (in a real app, store this in session/Redis)
+    const state = this.generateRandomState();
+
+    const params = new URLSearchParams({
+      response_type: 'code',
+      client_id: this.bcscClientId,
+      redirect_uri: `${this.middlewareURL}/auth/callback`,
+      scope: 'openid profile email',
+      state: state,
+      prompt: 'login'
+    });
+
+    const authUrl = `${this.bcscAuthority}/protocol/openid-connect/auth?${params}`;
+
+    this.logger.info({ authUrl, state }, 'Redirecting to BC Services Card');
+
+    // Store state in a cookie for verification in callback
+    res.cookie('oauth_state', state, {
+      httpOnly: true,
+      secure: this.nodeEnv === 'production' || this.frontendURL?.startsWith('https://'),
+      sameSite: 'lax',
+      maxAge: 10 * 60 * 1000, // 10 minutes
+    });
+
+    res.redirect(authUrl);
+  }
+
+  private generateRandomState(): string {
+    return Math.random().toString(36).substring(2, 15) +
+           Math.random().toString(36).substring(2, 15);
+  }
+
+  @Get('callback')
+  @ApiOperation({ summary: 'Callback from BC Service Card Authentication' })
+  @ApiResponse({
+    status: 302,
+    description: 'Redirect to frontend after successful authentication',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Bad Request - Missing or invalid authorization code/state',
+  })
+  @ApiCookieAuth('session')
+  @ApiCookieAuth('refresh_token')
+  @ApiCookieAuth('id_token')
+  async authCallbackGet(
+    @Req() req: Request,
+    @Res() res: Response,
+  ): Promise<void> {
+    try {
+      const code = req.query.code as string;
+      const state = req.query.state as string;
+      const error = req.query.error as string;
+
+      this.logger.info({ code: !!code, state: !!state, error }, 'Auth callback received');
+
+      // Check for OAuth errors
+      if (error) {
+        this.logger.error({ error }, 'OAuth error in callback');
+        return res.redirect(`${this.frontendURL}/login?error=${encodeURIComponent(error)}`);
+      }
+
+      // Verify state parameter
+      const savedState = req.cookies.oauth_state as string;
+
+      this.logger.debug({ receivedState: state, savedState }, 'Verifying state parameter');
+
+      if (!state || !savedState || state !== savedState) {
+        this.logger.error({ state, savedState }, 'State mismatch - possible CSRF attack');
+        return res.redirect(`${this.frontendURL}/login?error=invalid_state`);
+      }
+
+      // Clear state cookie
+      res.clearCookie('oauth_state');
+
+      if (!code) {
+        this.logger.error('No authorization code received');
+        return res.redirect(`${this.frontendURL}/login?error=no_code`);
+      }
+
+      // Process the authentication
+      const redirectUri = `${this.middlewareURL}/auth/callback`;
+
+      this.logger.info({ redirectUri }, 'Processing authentication with redirect_uri');
+
+      const result = await this.processAuthCallback(code, redirectUri, res);
+
+      this.logger.info({ userId: result.user.id }, 'Authentication successful, redirecting to dashboard');
+
+      // Redirect to frontend dashboard after successful auth
+      res.redirect(`${this.frontendURL}/dashboard`);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error({ error }, 'Error in auth callback');
+      res.redirect(`${this.frontendURL}/login?error=${encodeURIComponent('auth_failed')}`);
+    }
   }
 
   @Post('callback')
   @HttpCode(201)
-  @ApiOperation({ summary: 'Callback from BC Service Card Authentication' })
+  @ApiOperation({ summary: 'Callback from BC Service Card Authentication (Legacy POST endpoint)' })
   @ApiBody({ type: AuthCallbackDto })
   @ApiResponse({
     status: 201,
@@ -185,6 +297,8 @@ export class AuthController {
     try {
       const { code, redirect_uri } = body;
 
+      this.logger.info({ code: !!code, redirect_uri }, 'POST /auth/callback called (legacy endpoint)');
+
       if (!code) {
         this.logger.error({ body }, 'No authorization code provided');
         throw new BadRequestException('Authorization code required');
@@ -195,150 +309,11 @@ export class AuthController {
         throw new BadRequestException('Redirect uri required');
       }
 
-      this.logger.info('Validation passed. Exchanging code for tokens...');
-
-      // Prepare token exchange request
-      const tokenParams = new URLSearchParams({
-        grant_type: 'authorization_code',
-        client_id: this.bcscClientId,
-        client_secret: this.bcscClientSecret,
-        code: code,
-        redirect_uri: redirect_uri,
-      });
-
-      // Exchange authorization code for tokens with BC Services Card
-      const tokenResponse = await firstValueFrom(
-        this.httpService.post(
-          `${this.bcscAuthority}/protocol/openid-connect/token`,
-          tokenParams,
-          {
-            headers: {
-              'Content-Type': 'application/x-www-form-urlencoded',
-              Accept: 'application/json',
-            },
-          },
-        ),
-      );
-
-      this.logger.info('Token exchange successful');
-
-      const tokenData = tokenResponse.data as TokenResponse;
-      const { access_token, id_token, refresh_token } = tokenData;
-
-      // Get user info from BC Services Card
-      this.logger.info('Fetching user info...');
-      const userInfoResponse = await firstValueFrom(
-        this.httpService.get(
-          `${this.bcscAuthority}/protocol/openid-connect/userinfo`,
-          {
-            headers: {
-              Authorization: `Bearer ${access_token}`,
-              Accept: 'application/json',
-            },
-          },
-        ),
-      );
-
-      const userInfo = userInfoResponse.data as UserInfo;
-
-      this.logger.debug({ userInfo }, 'Full userInfo response');
-
-      //  Persist user to database
-      const userData: CreateUserDto = {
-        bc_services_card_id: userInfo.sub,
-        first_name: userInfo.given_name || '(Mononym)',
-        last_name: userInfo.family_name,
-        dateOfBirth: this.userUtil.icmDateFormat(userInfo.birthdate),
-        sex: userInfo.gender,
-        gender: this.userUtil.sexToGenderType(userInfo.gender),
-        email: userInfo.email,
-        street_address: userInfo.address.street_address,
-        city: userInfo.address.locality,
-        country: userInfo.address.country,
-        region: userInfo.address.region,
-        postal_code: userInfo.address.postal_code,
-      };
-
-      this.logger.info(userData, 'Finding or creating user in database...');
-      const user = await this.userService.findOrCreate(userData);
-      this.logger.info({ id: user.id, email: user.email }, 'User persisted');
-
-      // Update last login
-      await this.userService.updateLastLogin(user.id);
-      this.logger.info('Last login updated');
-
-      // Create session token for portal
-      const sessionToken = jwt.sign(
-        {
-          sub: userInfo.sub,
-          email: userInfo.email,
-          name:
-            userInfo.name || `${userInfo.given_name} ${userInfo.family_name}`,
-          userId: user.id.toString(),
-          iat: Math.floor(Date.now() / 1000),
-        },
-        this.jwtSecret,
-        {
-          expiresIn: '24h',
-        },
-      );
-
-      this.logger.info('Setting cookies...');
-
-      // Set HTTP-only cookies using NestJS response
-      // TO DO: Offload these to OpenShift config
-      res.cookie('session', sessionToken, {
-        httpOnly: true,
-        secure:
-          this.nodeEnv === 'production' ||
-          this.frontendURL?.startsWith('https://'),
-        sameSite: 'lax',
-        maxAge: 24 * 60 * 60 * 1000, // 24 hours
-      });
-
-      this.logger.info('Session token cookie set');
-
-      if (refresh_token) {
-        res.cookie('refresh_token', refresh_token, {
-          httpOnly: true,
-          secure:
-            this.nodeEnv === 'production' ||
-            this.frontendURL?.startsWith('https://'),
-          sameSite: 'lax',
-          maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
-        });
-        this.logger.info('Refresh token cookie set');
-      }
-
-      await this.authService.login(user, userData);
-      // Store id_token for logout
-      if (id_token) {
-        res.cookie('id_token', id_token, {
-          httpOnly: true,
-          secure:
-            this.nodeEnv === 'production' ||
-            this.frontendURL?.startsWith('https://'),
-          sameSite: 'lax',
-          maxAge: 24 * 60 * 60 * 1000, // 24 hours
-        });
-        this.logger.info('ID token cookie set');
-      }
-
-      // Return safe user data to frontend
-      return {
-        user: {
-          id: userInfo.sub,
-          email: userInfo.email,
-          name:
-            userInfo.name || `${userInfo.given_name} ${userInfo.family_name}`,
-          given_name: userInfo.given_name,
-          family_name: userInfo.family_name,
-        },
-      };
+      // Use shared processing method
+      return await this.processAuthCallback(code, redirect_uri, res);
     } catch (error: unknown) {
       const errorMessage =
         error instanceof Error ? error.message : 'Unknown error';
-      //const errorStatus = error instanceof Error ? error.response?.status : 'Unknown error';
 
       this.logger.error(
         { error },
@@ -472,6 +447,160 @@ export class AuthController {
         HttpStatus.UNAUTHORIZED,
       );
     }
+  }
+
+  /**
+   * Shared method to process authentication callback
+   * Used by both GET (new flow) and POST (legacy) callback endpoints
+   */
+  private async processAuthCallback(
+    code: string,
+    redirect_uri: string,
+    res: Response,
+  ) {
+    this.logger.info({ code: !!code, redirect_uri }, 'Processing auth callback');
+
+    // Prepare token exchange request
+    const tokenParams = new URLSearchParams({
+      grant_type: 'authorization_code',
+      client_id: this.bcscClientId,
+      client_secret: this.bcscClientSecret,
+      code: code,
+      redirect_uri: redirect_uri,
+    });
+
+    this.logger.info('Exchanging authorization code for tokens...');
+
+    // Exchange authorization code for tokens with BC Services Card
+    const tokenResponse = await firstValueFrom(
+      this.httpService.post(
+        `${this.bcscAuthority}/protocol/openid-connect/token`,
+        tokenParams,
+        {
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            Accept: 'application/json',
+          },
+        },
+      ),
+    );
+
+    this.logger.info('Token exchange successful');
+
+    const tokenData = tokenResponse.data as TokenResponse;
+    const { access_token, id_token, refresh_token } = tokenData;
+
+    // Get user info from BC Services Card
+    this.logger.info('Fetching user info from BCSC...');
+    const userInfoResponse = await firstValueFrom(
+      this.httpService.get(
+        `${this.bcscAuthority}/protocol/openid-connect/userinfo`,
+        {
+          headers: {
+            Authorization: `Bearer ${access_token}`,
+            Accept: 'application/json',
+          },
+        },
+      ),
+    );
+
+    const userInfo = userInfoResponse.data as UserInfo;
+
+    this.logger.debug({ userInfo }, 'Full userInfo response from BCSC');
+
+    //  Persist user to database
+    const userData: CreateUserDto = {
+      bc_services_card_id: userInfo.sub,
+      first_name: userInfo.given_name || '(Mononym)',
+      last_name: userInfo.family_name,
+      dateOfBirth: this.userUtil.icmDateFormat(userInfo.birthdate),
+      sex: userInfo.gender,
+      gender: this.userUtil.sexToGenderType(userInfo.gender),
+      email: userInfo.email,
+      street_address: userInfo.address.street_address,
+      city: userInfo.address.locality,
+      country: userInfo.address.country,
+      region: userInfo.address.region,
+      postal_code: userInfo.address.postal_code,
+    };
+
+    this.logger.info({ bc_services_card_id: userData.bc_services_card_id }, 'Finding or creating user in database...');
+    const user = await this.userService.findOrCreate(userData);
+    this.logger.info({ id: user.id, email: user.email }, 'User persisted');
+
+    // Update last login
+    await this.userService.updateLastLogin(user.id);
+    this.logger.info('Last login updated');
+
+    // Create session token for portal
+    const sessionToken = jwt.sign(
+      {
+        sub: userInfo.sub,
+        email: userInfo.email,
+        name:
+          userInfo.name || `${userInfo.given_name} ${userInfo.family_name}`,
+        userId: user.id.toString(),
+        iat: Math.floor(Date.now() / 1000),
+      },
+      this.jwtSecret,
+      {
+        expiresIn: '24h',
+      },
+    );
+
+    this.logger.info('Setting authentication cookies...');
+
+    // Set HTTP-only cookies using NestJS response
+    // TO DO: Offload these to OpenShift config
+    res.cookie('session', sessionToken, {
+      httpOnly: true,
+      secure:
+        this.nodeEnv === 'production' ||
+        this.frontendURL?.startsWith('https://'),
+      sameSite: 'lax',
+      maxAge: 24 * 60 * 60 * 1000, // 24 hours
+    });
+
+    this.logger.info('Session token cookie set');
+
+    if (refresh_token) {
+      res.cookie('refresh_token', refresh_token, {
+        httpOnly: true,
+        secure:
+          this.nodeEnv === 'production' ||
+          this.frontendURL?.startsWith('https://'),
+        sameSite: 'lax',
+        maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+      });
+      this.logger.info('Refresh token cookie set');
+    }
+
+    await this.authService.login(user, userData);
+
+    // Store id_token for logout
+    if (id_token) {
+      res.cookie('id_token', id_token, {
+        httpOnly: true,
+        secure:
+          this.nodeEnv === 'production' ||
+          this.frontendURL?.startsWith('https://'),
+        sameSite: 'lax',
+        maxAge: 24 * 60 * 60 * 1000, // 24 hours
+      });
+      this.logger.info('ID token cookie set');
+    }
+
+    // Return safe user data
+    return {
+      user: {
+        id: userInfo.sub,
+        email: userInfo.email,
+        name:
+          userInfo.name || `${userInfo.given_name} ${userInfo.family_name}`,
+        given_name: userInfo.given_name,
+        family_name: userInfo.family_name,
+      },
+    };
   }
 
   @Get('logout')
