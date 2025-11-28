@@ -155,7 +155,7 @@ export class AuthController {
   }
 
   @Get('callback')
-  @ApiOperation({ summary: 'Callback from BC Service Card Authentication' })
+  @ApiOperation({ summary: 'Callback from BC Service Card Authentication - Handled by Kong OIDC plugin' })
   @ApiResponse({
     status: 302,
     description: 'Redirect to frontend after successful authentication',
@@ -172,11 +172,33 @@ export class AuthController {
     @Res() res: Response,
   ): Promise<void> {
     try {
+      this.logger.info('========== /auth/callback ENDPOINT CALLED ==========');
+
+      // Log all headers to see what Kong OIDC is sending
+      this.logger.info({ headers: req.headers }, 'Request headers from Kong');
+
+      // Check if Kong OIDC plugin has already handled authentication
+      // Kong OIDC sets headers like X-Userinfo, X-Access-Token, etc.
+      const userInfoHeader = req.headers['x-userinfo'] as string;
+      const accessTokenHeader = req.headers['authorization'] as string;
+
+      this.logger.info({
+        hasUserInfo: !!userInfoHeader,
+        hasAccessToken: !!accessTokenHeader,
+      }, 'Kong OIDC headers check');
+
+      if (userInfoHeader) {
+        // Kong OIDC plugin handled authentication, process user info
+        this.logger.info('Kong OIDC plugin provided user info, processing...');
+        return await this.handleKongOidcCallback(req, res);
+      }
+
+      // Fallback to direct OAuth flow (if Kong OIDC is not enabled)
       const code = req.query.code as string;
       const state = req.query.state as string;
       const error = req.query.error as string;
 
-      this.logger.info({ code: !!code, state: !!state, error }, 'Auth callback received');
+      this.logger.info({ code: !!code, state: !!state, error }, 'Fallback: Auth callback received without Kong OIDC');
 
       // Check for OAuth errors
       if (error) {
@@ -216,6 +238,84 @@ export class AuthController {
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       this.logger.error({ error }, 'Error in auth callback');
+      res.redirect(`${this.frontendURL}/login?error=${encodeURIComponent('auth_failed')}`);
+    }
+  }
+
+  /**
+   * Handle authentication callback when Kong OIDC plugin has already processed the OAuth flow
+   */
+  private async handleKongOidcCallback(
+    req: Request,
+    res: Response,
+  ): Promise<void> {
+    try {
+      // Parse user info from Kong OIDC header
+      const userInfoHeader = req.headers['x-userinfo'] as string;
+      const userInfo: UserInfo = JSON.parse(Buffer.from(userInfoHeader, 'base64').toString('utf-8'));
+
+      this.logger.info({ userInfo }, 'Parsed user info from Kong OIDC');
+
+      // Persist user to database
+      const userData: CreateUserDto = {
+        bc_services_card_id: userInfo.sub,
+        first_name: userInfo.given_name || '(Mononym)',
+        last_name: userInfo.family_name,
+        dateOfBirth: this.userUtil.icmDateFormat(userInfo.birthdate),
+        sex: userInfo.gender,
+        gender: this.userUtil.sexToGenderType(userInfo.gender),
+        email: userInfo.email,
+        street_address: userInfo.address.street_address,
+        city: userInfo.address.locality,
+        country: userInfo.address.country,
+        region: userInfo.address.region,
+        postal_code: userInfo.address.postal_code,
+      };
+
+      this.logger.info({ bc_services_card_id: userData.bc_services_card_id }, 'Finding or creating user in database...');
+      const user = await this.userService.findOrCreate(userData);
+      this.logger.info({ id: user.id, email: user.email }, 'User persisted');
+
+      // Update last login
+      await this.userService.updateLastLogin(user.id);
+      this.logger.info('Last login updated');
+
+      // Create session token for portal
+      const sessionToken = jwt.sign(
+        {
+          sub: userInfo.sub,
+          email: userInfo.email,
+          name: userInfo.name || `${userInfo.given_name} ${userInfo.family_name}`,
+          userId: user.id.toString(),
+          iat: Math.floor(Date.now() / 1000),
+        },
+        this.jwtSecret,
+        {
+          expiresIn: '24h',
+        },
+      );
+
+      this.logger.info('Setting authentication cookie for middleware session...');
+
+      // Set HTTP-only cookie for middleware session tracking
+      res.cookie('session', sessionToken, {
+        httpOnly: true,
+        secure: this.nodeEnv === 'production' || this.frontendURL?.startsWith('https://'),
+        sameSite: 'lax',
+        maxAge: 24 * 60 * 60 * 1000, // 24 hours
+      });
+
+      this.logger.info('Session cookie set by middleware');
+
+      await this.authService.login(user, userData);
+
+      this.logger.info('Kong OIDC authentication complete, redirecting to dashboard');
+
+      // Redirect to frontend dashboard
+      res.redirect(`${this.frontendURL}/dashboard`);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error({ error }, 'Error processing Kong OIDC callback');
       res.redirect(`${this.frontendURL}/login?error=${encodeURIComponent('auth_failed')}`);
     }
   }
