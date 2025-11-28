@@ -57,29 +57,19 @@ export class AuthController {
   }
 
   /**
-   * Login endpoint - Kong OIDC handles authentication
-   * If user is not authenticated, Kong redirects to BCSC
-   * If user is authenticated, Kong forwards request here with user info
+   * Login endpoint - redirects to /oidc-redirect where Kong OIDC handles authentication
    */
   @Get('login')
-  @ApiOperation({ summary: 'Login endpoint (Kong OIDC handles OAuth)' })
-  async login(@Req() req: Request, @Res() res: Response) {
-    this.logger.info('========== /auth/login reached ==========');
-    this.logger.info({ headers: req.headers }, 'Headers from Kong');
-
-    // Check if Kong OIDC has authenticated the user
-    const userInfoHeader = req.headers['x-userinfo'] as string;
-
-    if (userInfoHeader) {
-      // User is authenticated by Kong OIDC, process login
-      this.logger.info('User authenticated by Kong OIDC at /auth/login');
-      return this.handleKongOidcCallback(req, res);
-    }
-
-    // No user info - Kong should have redirected to BCSC
-    // This shouldn't happen if Kong OIDC is configured correctly
-    this.logger.warn('No x-userinfo header at /auth/login - Kong OIDC may not be configured');
-    return res.redirect(`${this.frontendURL}/login?error=oidc_not_configured`);
+  @ApiOperation({ summary: 'Initiate login - redirects to Kong OIDC endpoint' })
+  login(@Req() req: Request, @Res() res: Response) {
+    this.logger.info('Login requested, redirecting to /oidc-redirect for OIDC flow');
+    // Redirect to /oidc-redirect where Kong OIDC plugin will:
+    // 1. See user is not authenticated (no session)
+    // 2. Redirect to BCSC OAuth with redirect_uri=/oidc-redirect
+    // 3. BCSC redirects back to /oidc-redirect with code
+    // 4. Kong exchanges code for tokens
+    // 5. Kong redirects to frontend dashboard (login_redirect_uri)
+    return res.redirect('/oidc-redirect');
   }
 
   /**
