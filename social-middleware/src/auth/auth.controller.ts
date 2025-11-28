@@ -112,20 +112,41 @@ export class AuthController {
       method: req.method,
       url: req.url,
       query: req.query,
-      headers: req.headers,
-      cookies: req.cookies,
-    }, 'Full request details');
+    }, 'Request details');
+
+    // Middleware handles OAuth flow
+    const state = this.generateRandomState();
+    const redirectUri = `${this.configService.get<string>('MIDDLEWARE_URL') || 'https://social-middleware.test.api.gov.bc.ca'}/auth/callback`;
 
     this.logger.info({
-      frontendURL: this.frontendURL,
-      redirectTarget: `${this.frontendURL}/dashboard`,
-    }, 'Redirecting to frontend dashboard');
+      redirectUri,
+      state,
+      bcscClientId: this.bcscClientId,
+      bcscAuthority: this.bcscAuthority,
+    }, 'Initiating OAuth flow');
 
-    // When gateway OIDC plugin is active, authentication is already complete
-    // The gateway sets user info in headers, so just redirect to frontend
-    res.redirect(`${this.frontendURL}/dashboard`);
+    const params = new URLSearchParams({
+      response_type: 'code',
+      client_id: this.bcscClientId,
+      redirect_uri: redirectUri,
+      scope: 'openid profile email',
+      state: state,
+      prompt: 'login'
+    });
 
-    this.logger.info('Redirect response sent');
+    const authUrl = `${this.bcscAuthority}/protocol/openid-connect/auth?${params}`;
+
+    this.logger.info({ authUrl }, 'Redirecting to BCSC');
+
+    // Store state in cookie for verification
+    res.cookie('oauth_state', state, {
+      httpOnly: true,
+      secure: this.nodeEnv === 'production' || this.nodeEnv === 'test',
+      sameSite: 'lax',
+      maxAge: 10 * 60 * 1000, // 10 minutes
+    });
+
+    res.redirect(authUrl);
   }
 
   private generateRandomState(): string {
