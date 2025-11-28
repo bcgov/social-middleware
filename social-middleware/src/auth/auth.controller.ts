@@ -57,19 +57,29 @@ export class AuthController {
   }
 
   /**
-   * Login endpoint - redirects to /oidc-redirect where Kong OIDC handles authentication
+   * Login endpoint - Kong OIDC plugin intercepts this request
+   * If user is not authenticated, Kong redirects to BCSC
+   * If user is authenticated (after BCSC callback), Kong injects X-Userinfo and forwards here
    */
   @Get('login')
-  @ApiOperation({ summary: 'Initiate login - redirects to Kong OIDC endpoint' })
-  login(@Req() req: Request, @Res() res: Response) {
-    this.logger.info('Login requested, redirecting to /oidc-redirect for OIDC flow');
-    // Redirect to /oidc-redirect where Kong OIDC plugin will:
-    // 1. See user is not authenticated (no session)
-    // 2. Redirect to BCSC OAuth with redirect_uri=/oidc-redirect
-    // 3. BCSC redirects back to /oidc-redirect with code
-    // 4. Kong exchanges code for tokens
-    // 5. Kong redirects to frontend dashboard (login_redirect_uri)
-    return res.redirect('/oidc-redirect');
+  @ApiOperation({ summary: 'Handle authenticated login from Kong OIDC' })
+  async login(@Req() req: Request, @Res() res: Response) {
+    this.logger.info('========== /auth/login reached ==========');
+    this.logger.info({ headers: req.headers }, 'Headers from Kong');
+
+    // Kong OIDC plugin will intercept unauthenticated requests and redirect to BCSC
+    // If we reach here, Kong has authenticated the user and injected X-Userinfo
+    const userInfoHeader = req.headers['x-userinfo'] as string;
+
+    if (!userInfoHeader) {
+      this.logger.error('Missing X-Userinfo from Kong OIDC - plugin may not be configured correctly');
+      this.logger.error('This endpoint should only be reached AFTER Kong OIDC authentication');
+      return res.redirect(`${this.frontendURL}/login?error=oidc_not_configured`);
+    }
+
+    this.logger.info('User authenticated by Kong OIDC, processing user data...');
+    // Process the authenticated user (create/update in DB, set session cookie)
+    return this.handleKongOidcCallback(req, res);
   }
 
   /**
