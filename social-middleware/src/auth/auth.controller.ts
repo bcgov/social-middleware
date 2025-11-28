@@ -65,13 +65,19 @@ export class AuthController {
    * This endpoint should NEVER be reached by the middleware - Kong intercepts it
    */
   @Get('login')
-  @ApiOperation({ summary: 'Initiate OIDC login (intercepted by Kong)' })
-  login(@Req() req: Request, @Res() res: Response) {
-    this.logger.warn('⚠️  /auth/login reached middleware - this should be intercepted by Kong OIDC plugin!');
-    this.logger.info('Kong OIDC should redirect to BCSC before reaching here');
+  @ApiOperation({ summary: 'Handle login after Kong OIDC authentication' })
+  async login(@Req() req: Request, @Res() res: Response) {
+    this.logger.info('========== /auth/login reached ==========');
 
-    // If we somehow reach here, redirect back to login page
-    return res.redirect(`${this.frontendURL}/login?error=kong_oidc_not_configured`);
+    const userInfoHeader = req.headers['x-userinfo'] as string;
+
+    if (!userInfoHeader) {
+      this.logger.warn('No X-Userinfo header - Kong OIDC did not authenticate');
+      return res.redirect(`${this.frontendURL}/login?error=not_authenticated`);
+    }
+
+    this.logger.info('Kong OIDC authenticated user successfully, processing...');
+    return this.handleKongOidcCallback(req, res);
   }
 
   /**
