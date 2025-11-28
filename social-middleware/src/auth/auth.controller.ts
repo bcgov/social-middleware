@@ -58,28 +58,20 @@ export class AuthController {
 
   /**
    * Login endpoint - Kong OIDC plugin intercepts this request
-   * If user is not authenticated, Kong redirects to BCSC
-   * If user is authenticated (after BCSC callback), Kong injects X-Userinfo and forwards here
+   * If user is not authenticated, Kong redirects to BCSC OAuth
+   * Kong is configured with redirect_uri=/auth/callback, so after OAuth
+   * the user will be sent to /auth/callback endpoint
+   *
+   * This endpoint should NEVER be reached by the middleware - Kong intercepts it
    */
   @Get('login')
-  @ApiOperation({ summary: 'Handle authenticated login from Kong OIDC' })
-  async login(@Req() req: Request, @Res() res: Response) {
-    this.logger.info('========== /auth/login reached ==========');
-    this.logger.info({ headers: req.headers }, 'Headers from Kong');
+  @ApiOperation({ summary: 'Initiate OIDC login (intercepted by Kong)' })
+  login(@Req() req: Request, @Res() res: Response) {
+    this.logger.warn('⚠️  /auth/login reached middleware - this should be intercepted by Kong OIDC plugin!');
+    this.logger.info('Kong OIDC should redirect to BCSC before reaching here');
 
-    // Kong OIDC plugin will intercept unauthenticated requests and redirect to BCSC
-    // If we reach here, Kong has authenticated the user and injected X-Userinfo
-    const userInfoHeader = req.headers['x-userinfo'] as string;
-
-    if (!userInfoHeader) {
-      this.logger.error('Missing X-Userinfo from Kong OIDC - plugin may not be configured correctly');
-      this.logger.error('This endpoint should only be reached AFTER Kong OIDC authentication');
-      return res.redirect(`${this.frontendURL}/login?error=oidc_not_configured`);
-    }
-
-    this.logger.info('User authenticated by Kong OIDC, processing user data...');
-    // Process the authenticated user (create/update in DB, set session cookie)
-    return this.handleKongOidcCallback(req, res);
+    // If we somehow reach here, redirect back to login page
+    return res.redirect(`${this.frontendURL}/login?error=kong_oidc_not_configured`);
   }
 
   /**
