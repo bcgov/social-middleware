@@ -107,46 +107,11 @@ export class AuthController {
     description: 'Redirect to BC Services Card authentication',
   })
   login(@Res() res: Response): void {
-    this.logger.info('Initiating BC Services Card login flow');
+    this.logger.info('Login endpoint called - gateway should have handled authentication, redirecting to frontend dashboard');
 
-    // Generate and store state for CSRF protection (in a real app, store this in session/Redis)
-    const state = this.generateRandomState();
-
-    const redirectUri = `${this.middlewareURL}/auth/callback`;
-
-    this.logger.info({
-      middlewareURL: this.middlewareURL,
-      redirectUri: redirectUri,
-      redirectUriLength: redirectUri.length,
-      state: state,
-    }, 'Building OAuth parameters');
-
-    const params = new URLSearchParams({
-      response_type: 'code',
-      client_id: this.bcscClientId,
-      redirect_uri: redirectUri,
-      scope: 'openid profile email',
-      state: state,
-      prompt: 'login'
-    });
-
-    const authUrl = `${this.bcscAuthority}/protocol/openid-connect/auth?${params}`;
-
-    this.logger.info({
-      authUrl,
-      state,
-      paramsString: params.toString(),
-    }, 'Redirecting to BC Services Card');
-
-    // Store state in a cookie for verification in callback
-    res.cookie('oauth_state', state, {
-      httpOnly: true,
-      secure: this.nodeEnv === 'production' || this.frontendURL?.startsWith('https://'),
-      sameSite: 'lax',
-      maxAge: 10 * 60 * 1000, // 10 minutes
-    });
-
-    res.redirect(authUrl);
+    // When gateway OIDC plugin is active, authentication is already complete
+    // The gateway sets user info in headers, so just redirect to frontend
+    res.redirect(`${this.frontendURL}/dashboard`);
   }
 
   private generateRandomState(): string {
