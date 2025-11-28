@@ -84,9 +84,17 @@ export class AuthController {
     this.bcscAuthority = this.configService.get<string>('BCSC_AUTHORITY')!;
     this.jwtSecret = this.configService.get<string>('JWT_SECRET')!;
     this.nodeEnv = this.configService.get<string>('NODE_ENV', 'development');
-    this.frontendURL = this.configService.get<string>('FRONTEND_URL')!;
-    this.middlewareURL = this.configService.get<string>('MIDDLEWARE_URL')!;
+    this.frontendURL = this.configService.get<string>('FRONTEND_URL')!.trim();
+    this.middlewareURL = this.configService.get<string>('MIDDLEWARE_URL')!.trim();
     this.logger.setContext(AuthController.name);
+
+    // Log configuration for debugging
+    this.logger.info({
+      middlewareURL: this.middlewareURL,
+      frontendURL: this.frontendURL,
+      bcscAuthority: this.bcscAuthority,
+      nodeEnv: this.nodeEnv,
+    }, 'AuthController initialized with configuration');
   }
 
   @Get('login')
@@ -104,10 +112,19 @@ export class AuthController {
     // Generate and store state for CSRF protection (in a real app, store this in session/Redis)
     const state = this.generateRandomState();
 
+    const redirectUri = `${this.middlewareURL}/auth/callback`;
+
+    this.logger.info({
+      middlewareURL: this.middlewareURL,
+      redirectUri: redirectUri,
+      redirectUriLength: redirectUri.length,
+      state: state,
+    }, 'Building OAuth parameters');
+
     const params = new URLSearchParams({
       response_type: 'code',
       client_id: this.bcscClientId,
-      redirect_uri: `${this.middlewareURL}/auth/callback`,
+      redirect_uri: redirectUri,
       scope: 'openid profile email',
       state: state,
       prompt: 'login'
@@ -115,7 +132,11 @@ export class AuthController {
 
     const authUrl = `${this.bcscAuthority}/protocol/openid-connect/auth?${params}`;
 
-    this.logger.info({ authUrl, state }, 'Redirecting to BC Services Card');
+    this.logger.info({
+      authUrl,
+      state,
+      paramsString: params.toString(),
+    }, 'Redirecting to BC Services Card');
 
     // Store state in a cookie for verification in callback
     res.cookie('oauth_state', state, {
