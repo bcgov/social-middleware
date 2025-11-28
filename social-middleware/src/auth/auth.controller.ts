@@ -57,15 +57,29 @@ export class AuthController {
   }
 
   /**
-   * NOTE:
-   * Kong handles all OAuth login redirections.
-   * This endpoint is ONLY a frontend redirect (not an OAuth flow).
+   * Login endpoint - Kong OIDC handles authentication
+   * If user is not authenticated, Kong redirects to BCSC
+   * If user is authenticated, Kong forwards request here with user info
    */
   @Get('login')
-  @ApiOperation({ summary: 'Frontend login redirect (Kong handles OAuth)' })
-  loginRedirect(@Res() res: Response) {
-    this.logger.info('Redirecting user to frontend login page...');
-    return res.redirect(`${this.frontendURL}/login`);
+  @ApiOperation({ summary: 'Login endpoint (Kong OIDC handles OAuth)' })
+  async login(@Req() req: Request, @Res() res: Response) {
+    this.logger.info('========== /auth/login reached ==========');
+    this.logger.info({ headers: req.headers }, 'Headers from Kong');
+
+    // Check if Kong OIDC has authenticated the user
+    const userInfoHeader = req.headers['x-userinfo'] as string;
+
+    if (userInfoHeader) {
+      // User is authenticated by Kong OIDC, process login
+      this.logger.info('User authenticated by Kong OIDC at /auth/login');
+      return this.handleKongOidcCallback(req, res);
+    }
+
+    // No user info - Kong should have redirected to BCSC
+    // This shouldn't happen if Kong OIDC is configured correctly
+    this.logger.warn('No x-userinfo header at /auth/login - Kong OIDC may not be configured');
+    return res.redirect(`${this.frontendURL}/login?error=oidc_not_configured`);
   }
 
   /**
@@ -163,6 +177,49 @@ export class AuthController {
       this.logger.error({ err }, 'Error during OIDC callback processing');
       return res.redirect(
         `${this.frontendURL}/login?error=auth_processing_failed`,
+      );
+    }
+  }
+
+  /**
+   * Check authentication status
+   * Returns user info if session cookie is valid
+   */
+  @Get('status')
+  @ApiOperation({ summary: 'Check authentication status' })
+  @ApiResponse({
+    status: 200,
+    description: 'User is authenticated',
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'User is not authenticated',
+  })
+  getStatus(@Req() req: Request) {
+    try {
+      const sessionToken = req.cookies.session as string;
+
+      if (!sessionToken) {
+        throw new HttpException(
+          { error: 'Not authenticated' },
+          HttpStatus.UNAUTHORIZED,
+        );
+      }
+
+      const decoded = jwt.verify(sessionToken, this.jwtSecret) as any;
+
+      return {
+        user: {
+          id: decoded.sub,
+          email: decoded.email,
+          name: decoded.name,
+        },
+      };
+    } catch (error) {
+      this.logger.error({ error }, 'Session validation error');
+      throw new HttpException(
+        { error: 'Invalid session' },
+        HttpStatus.UNAUTHORIZED,
       );
     }
   }
