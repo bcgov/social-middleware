@@ -106,12 +106,26 @@ export class AuthController {
     status: 302,
     description: 'Redirect to BC Services Card authentication',
   })
-  login(@Res() res: Response): void {
-    this.logger.info('Login endpoint called - gateway should have handled authentication, redirecting to frontend dashboard');
+  login(@Req() req: Request, @Res() res: Response): void {
+    this.logger.info('========== /auth/login ENDPOINT CALLED ==========');
+    this.logger.info({
+      method: req.method,
+      url: req.url,
+      query: req.query,
+      headers: req.headers,
+      cookies: req.cookies,
+    }, 'Full request details');
+
+    this.logger.info({
+      frontendURL: this.frontendURL,
+      redirectTarget: `${this.frontendURL}/dashboard`,
+    }, 'Redirecting to frontend dashboard');
 
     // When gateway OIDC plugin is active, authentication is already complete
     // The gateway sets user info in headers, so just redirect to frontend
     res.redirect(`${this.frontendURL}/dashboard`);
+
+    this.logger.info('Redirect response sent');
   }
 
   private generateRandomState(): string {
