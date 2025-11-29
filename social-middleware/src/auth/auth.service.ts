@@ -40,7 +40,7 @@ export class AuthService {
       bc_services_card_id: userData.bc_services_card_id,
       timestamp: new Date(),
       firstName: userData.first_name || '',
-      lastName: userData.last_name,
+      lastName: userData.last_name || '',
       email: userData.email,
     });
   }
