@@ -23,16 +23,16 @@ interface UserInfo {
   sub: string;
   email: string;
   name?: string;
-  given_name: string;
-  family_name: string;
-  gender: string;
-  birthdate: string;
-  address: {
-    street_address: string;
-    country: string;
-    region: string;
-    locality: string;
-    postal_code: string;
+  given_name?: string;
+  family_name?: string;
+  gender?: string;
+  birthdate?: string;
+  address?: {
+    street_address?: string;
+    country?: string;
+    region?: string;
+    locality?: string;
+    postal_code?: string;
   };
 }
 
@@ -124,16 +124,16 @@ export class AuthController {
       const userData: CreateUserDto = {
         bc_services_card_id: userInfo.sub,
         first_name: userInfo.given_name || '(Mononym)',
-        last_name: userInfo.family_name,
-        dateOfBirth: this.userUtil.icmDateFormat(userInfo.birthdate),
-        sex: userInfo.gender,
-        gender: this.userUtil.sexToGenderType(userInfo.gender),
+        last_name: userInfo.family_name || 'Unknown',
+        dateOfBirth: userInfo.birthdate ? this.userUtil.icmDateFormat(userInfo.birthdate) : undefined,
+        sex: userInfo.gender || undefined,
+        gender: userInfo.gender ? this.userUtil.sexToGenderType(userInfo.gender) : undefined,
         email: userInfo.email,
-        street_address: userInfo.address.street_address,
-        city: userInfo.address.locality,
-        country: userInfo.address.country,
-        region: userInfo.address.region,
-        postal_code: userInfo.address.postal_code,
+        street_address: userInfo.address?.street_address || undefined,
+        city: userInfo.address?.locality || undefined,
+        country: userInfo.address?.country || undefined,
+        region: userInfo.address?.region || undefined,
+        postal_code: userInfo.address?.postal_code || undefined,
       };
 
       this.logger.info('Finding or creating user...');
