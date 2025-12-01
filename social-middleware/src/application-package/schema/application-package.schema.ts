@@ -9,6 +9,7 @@ import {
   ApplicationPackageStatus,
   ServiceRequestStage,
 } from '../enums/application-package-status.enum';
+import { SubmissionStatus } from '../enums/submission-status.enum';
 
 export type ApplicationPackageDocument = ApplicationPackage & Document;
 
@@ -69,6 +70,22 @@ export class ApplicationPackage {
 
   @Prop({ required: false, default: null })
   submittedAt!: Date;
+
+  @Prop({ required: false, default: 0 })
+  submissionAttempts!: number; // track how many times we've tried to submit
+
+  @Prop({ required: false, default: null })
+  lastSubmissionAttempt!: Date; // when was the last attempt
+
+  @Prop({ required: false, default: null })
+  lastSubmissionError!: string; // error message from the last failed attempt
+
+  @Prop({
+    required: false,
+    enum: SubmissionStatus,
+    default: SubmissionStatus.PENDING,
+  })
+  submissionStatus!: string;
 
   @Prop({ required: false, default: () => Date() })
   updatedAt!: Date;
