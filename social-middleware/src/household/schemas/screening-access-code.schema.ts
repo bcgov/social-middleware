@@ -11,8 +11,9 @@ export class ScreeningAccessCode {
   @Prop({ required: true })
   applicationPackageId!: string; // reference to parent caregiver application
 
-  @Prop({ required: true })
-  applicationFormId!: string; // reference to screening application
+  // removed
+  //@Prop({ required: true })
+  //applicationFormId!: string; // reference to screening application
 
   @Prop({ required: true })
   householdMemberId!: string; // reference to household member record
