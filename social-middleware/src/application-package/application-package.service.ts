@@ -20,12 +20,14 @@ import {
   ApplicationFormType,
   getFormIdForFormType,
 } from '../application-form/enums/application-form-types.enum';
+import { ApplicationPackageQueueService } from './queue/application-package-queue.service';
 import { CreateApplicationPackageDto } from './dto/create-application-package.dto';
 import { UpdateApplicationPackageDto } from './dto/update-application-package.dto';
 import { CancelApplicationPackageDto } from './dto/cancel-application-package.dto';
 import { HouseholdService } from '../household/services/household.service';
 import { AccessCodeService } from '../household/services/access-code.service';
 import { UserService } from '../auth/user.service';
+import { ConfigService } from '@nestjs/config';
 import { UserUtil } from '../common/utils/user.util';
 import { calculateAge } from '../common/utils/age.util';
 import { formatDateForSiebel } from '../common/utils/date.util';
@@ -54,8 +56,10 @@ export class ApplicationPackageService {
     private readonly accessCodeService: AccessCodeService,
     private readonly householdService: HouseholdService,
     private readonly userService: UserService,
+    private readonly configService: ConfigService,
     private readonly siebelApiService: SiebelApiService,
     private readonly userUtil: UserUtil,
+    private readonly applicationPackageQueueService: ApplicationPackageQueueService,
     @InjectPinoLogger(ApplicationFormService.name)
     private readonly logger: PinoLogger,
   ) {}
@@ -555,6 +559,12 @@ export class ApplicationPackageService {
 
       if (isInitialSubmission) {
         // create the service request
+        // keep track of which environment we're using
+        const nodeEnv = this.configService.get<string>(
+          'NODE_ENV',
+          'development',
+        );
+        const envSuffix = nodeEnv.toLowerCase().includes('prod') ? '' : nodeEnv;
         const srPayload = {
           Id: 'NULL',
           Status: 'Open',
@@ -565,7 +575,7 @@ export class ApplicationPackageService {
           'ICM Stage': 'Application',
           'ICM BCSC DID': primaryUser.bc_services_card_id,
           'Service Office': 'MCFD',
-          'Comm Method': 'Client Portal',
+          'Comm Method': `Client Portal ${envSuffix}`, // ADD ENVIRONMENT DESCRIPTION
           Memo: 'Created By Portal',
         };
 
@@ -1038,16 +1048,8 @@ export class ApplicationPackageService {
   ) {
     for (const member of nonSelfAdultMembers) {
       // create screening application form
-      const screeningForm =
-        await this.applicationFormService.createScreeningForm(
-          applicationPackageId,
-          member.householdMemberId,
-        );
-
-      // generate access code and associate with form
-      await this.accessCodeService.createAccessCode(
+      await this.applicationFormService.createScreeningFormsAndAccessCode(
         applicationPackageId,
-        screeningForm.screeningApplicationFormId,
         member.householdMemberId,
       );
     }
