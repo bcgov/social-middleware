@@ -76,7 +76,6 @@ export class HouseholdAccessCodeController {
       if (result.success) {
         return {
           success: true,
-          applicationFormId: result.applicationFormId,
           message: 'Access code associated successfully',
         };
       } else {
