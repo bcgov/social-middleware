@@ -23,6 +23,7 @@ import { CreateApplicationFormDto } from '../dto/create-application-form.dto';
 import {
   ApplicationFormType,
   getFormIdForFormType,
+  getScreeningFormRecipe,
 } from '../enums/application-form-types.enum';
 import { ApplicationFormStatus } from '../enums/application-form-status.enum';
 import { AccessCodeService } from '../../household/services/access-code.service';
@@ -35,6 +36,9 @@ import {
 } from 'src/application-package/schema/application-package.schema';
 import { NewTokenDto } from '../dto/new-token.dto';
 import { SubmitApplicationFormDto } from '../dto/submit-application-form.dto';
+import { EventEmitter2 } from '@nestjs/event-emitter';
+import { FormCompletedEvent } from '../events/form-completed.event';
+import { RelationshipToPrimary } from '../../household/enums/relationship-to-primary.enum';
 
 @Injectable()
 export class ApplicationFormService {
@@ -47,6 +51,7 @@ export class ApplicationFormService {
     private applicationPackageModel: Model<ApplicationPackageDocument>,
     @InjectPinoLogger(ApplicationFormService.name)
     private readonly logger: PinoLogger,
+    private readonly eventEmitter: EventEmitter2,
     private readonly accessCodeService: AccessCodeService,
     private readonly householdService: HouseholdService,
   ) {}
@@ -104,47 +109,48 @@ export class ApplicationFormService {
     }
   }
 
-  async createScreeningForm(
+  async createScreeningFormsAndAccessCode(
     applicationPackageId: string,
     householdMemberId: string,
-    //userId?: string, // optional
   ): Promise<{
-    screeningApplicationFormId: string;
-    accessCode?: string; // only if userId not provided
-    expiresAt?: Date; // only if userId not provided
+    accessCode?: string; 
+    expiresAt?: Date; 
   }> {
     try {
-      this.logger.info('Creating new screening record');
-      const screeningDto = {
-        applicationPackageId: applicationPackageId,
-        formId: getFormIdForFormType(ApplicationFormType.SCREENING),
-        //userId: null,
-        householdMemberId: householdMemberId,
-        type: ApplicationFormType.SCREENING,
-        formParameters: {},
-      };
 
-      const screeningApplicationFormId =
-        await this.createApplicationForm(screeningDto);
+      this.logger.info('Creating Screening Forms and Access Code');
+
+      const householdMember = await this.householdService.findById(householdMemberId);
+
+      if(!householdMember) {
+        throw new InternalServerErrorException(
+          'Household member not found',
+        );
+      }
+
+      const formsToCreate = getScreeningFormRecipe(householdMember.relationshipToPrimary)
+
+      for(const formType of formsToCreate) {
+
+        const formDto = {
+          applicationPackageId: applicationPackageId,
+          formId: getFormIdForFormType(formType),
+          householdMemberId: householdMemberId,
+          type: formType,
+          formParameters: {},
+        };
+
+        await this.createApplicationForm(formDto);
+
+      }
 
       const { accessCode, expiresAt } =
         await this.accessCodeService.createAccessCode(
           applicationPackageId,
-          screeningApplicationFormId.applicationFormId,
           householdMemberId,
         );
 
-      //const screeningApplicationId = uuidv4();
-      //const accessCode = !userId
-      //  ? this.accessCodeService.generateAccessCode()
-      //  : undefined;
-      //const expiresAt = !userId
-      //  ? new Date(Date.now() + 72 * 60 * 60 * 1000) // 72 hours
-      //  : undefined;
-
       return {
-        screeningApplicationFormId:
-          screeningApplicationFormId.applicationFormId,
         accessCode,
         expiresAt,
       };
@@ -447,6 +453,43 @@ export class ApplicationFormService {
     }
   }
 
+  
+  async getApplicationFormsForUser(userId: string): Promise<GetApplicationFormDto[][]>{
+    // returns applicationForms grouped by householdMemberId; 
+    // used to access household screenings
+    // it's possible (but perhaps unusual) that an user is part of multiple household definitions
+    // so it needs to be an array
+    try {
+      // get all households the user belongs to
+      const householdMembers = await this.householdService.findByUserId(userId);
+      // ignore the ones they are the primary applicant on; they will be accessed through the applicationPackage
+      const nonPrimaryMembers = householdMembers.filter(member=> member.relationshipToPrimary != RelationshipToPrimary.Self);
+      // get all forms related to those household memberships
+      const allForms = await Promise.all(
+        // for each household
+        nonPrimaryMembers.map(async (member) => {
+          // get the application forms that belong to that household membership
+          const forms = this.getApplicationFormByHouseholdId(member.householdMemberId);
+          // filter to the forms that are allowed for screenings; this depends on the relationship they have
+          // e.g. spouses get a different screening form than a non-spouse household member
+          const allowedFormTypes = getScreeningFormRecipe(member.relationshipToPrimary);
+          return (await forms).filter(form => allowedFormTypes.includes(form.type));
+        })
+      );
+      // only return array values for households that include forms (e.g. not primary applicant forms)
+      return allForms.filter(formArray => formArray.length > 0);
+    } catch(error) {
+      this.logger.error(
+        { error, userId },
+        'No household records found for user',
+      );
+      throw error;
+    }
+
+    
+
+  }
+
   // used by front end to determine the current state of the applicationForm
   async getApplicationFormByHouseholdId(
     householdMemberId: string,
@@ -520,6 +563,42 @@ export class ApplicationFormService {
     }
   }
 
+  // for the front-end. we need to verify whether a user is associated with a householdMemberId
+  // in order to show them their forms
+  async verifyHouseholdMemberAccess(
+    householdMemberId: string,
+    userId: string,
+  ): Promise<boolean> {
+    try {
+      const householdMember = await this.householdService.findById(householdMemberId);
+
+      if (!householdMember) {
+        this.logger.warn(
+          { householdMemberId, userId },
+          'Household member not found for access verification',
+        );
+        return false;
+      }
+
+      // Check if the household member is associated with this user
+      if (householdMember.userId !== userId) {
+        this.logger.warn(
+          { householdMemberId, requestUserId: userId, householdUserId: householdMember.userId },
+          'User does not have access to this household member',
+        );
+        return false;
+      }
+
+      return true;
+    } catch (error) {
+      this.logger.error(
+        { error, householdMemberId, userId },
+        'Error verifying household member access',
+      );
+      return false;
+    }
+  }
+
   async submitApplicationForm(
     dto: SubmitApplicationFormDto,
     status: ApplicationFormStatus
@@ -560,8 +639,10 @@ export class ApplicationFormService {
       // if we just completed a screening form, then we need to mark it complete on the household record too
       if(updated.type === ApplicationFormType.SCREENING) {
         await this.householdService.markScreeningProvided(updated.householdMemberId);
-      }
+        // lets trigger a completeness check
 
+        this.eventEmitter.emit('form.completed', new FormCompletedEvent(updated.applicationFormId, updated.applicationPackageId, updated.type,));
+      }
       this.logger.info('Application saved  to DB ', record.applicationFormId);
     } catch (err) {
       if (err instanceof HttpException) {
@@ -595,7 +676,7 @@ export class ApplicationFormService {
       await this.applicationFormModel
         .findOneAndUpdate( 
           { applicationFormId: { $eq: applicationFormId} }, 
-          { $set: {userAttachedForm: true} }, 
+          { $set: {userAttachedForm: true, status: ApplicationFormStatus.COMPLETE} }, 
           { new: true},
         )
         .exec();
@@ -607,7 +688,17 @@ export class ApplicationFormService {
           { householdMemberId: form.householdMemberId },
           'Marked household member screening as provided',
         );
-      }  
+      }
+      
+      // lets trigger a completeness check
+      this.eventEmitter.emit(
+        'form.completed',
+        new FormCompletedEvent(
+          form.applicationFormId,
+          form.applicationPackageId,
+          form.type,
+        ),
+      );
 
       this.logger.info({
         applicationFormId
