@@ -255,6 +255,27 @@ export class HouseholdService {
     }
   }
 
+  async findByUserId(userId: string): Promise<HouseholdMembersDocument[]> {
+    try {
+      const members = await this.householdMemberModel.find({ userId }).exec();
+
+      this.logger.log(
+        `Found ${members.length} household members for userId:${userId}`,
+      );
+
+      return members;
+    } catch (error: unknown) {
+      const err = error as Error;
+      this.logger.error(
+        `Error finding household members for userId=${userId}: ${err.message}`,
+        err.stack,
+      );
+      throw new InternalServerErrorException(
+        'Failed to find household members by userId',
+      );
+    }
+  }
+
   // list all household members for an applicationID
   async findAllHouseholdMembers(
     applicationPackageId: string,
