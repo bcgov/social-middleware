@@ -381,7 +381,7 @@ export class HouseholdService {
     await this.householdMemberModel
       .findOneAndUpdate(
         { householdMemberId },
-        { $set: { screeningProvided: true } },
+        { $set: { screeningInfoProvided: true } },
       )
       .exec();
   }

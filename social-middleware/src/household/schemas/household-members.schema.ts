@@ -53,7 +53,7 @@ export class HouseholdMembers {
   requireScreening!: boolean;
 
   @Prop({ type: Boolean, default: false })
-  screeningProvided!: boolean;
+  screeningInfoProvided!: boolean;
 
   @Prop({ required: false, type: Boolean, default: false })
   isInvited!: boolean;
