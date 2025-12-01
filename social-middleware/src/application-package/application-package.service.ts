@@ -572,11 +572,11 @@ export class ApplicationPackageService {
           Type: 'Caregiver Application',
           'SR Sub Type': applicationPackage.subtype,
           'SR Sub Sub Type': applicationPackage.subsubtype,
-          'ICM Stage': 'Application',
+          'ICM Stage': 'Application', // Stage will be updated by activity plan on creation
           'ICM BCSC DID': primaryUser.bc_services_card_id,
           'Service Office': 'MCFD',
-          'Comm Method': `Client Portal ${envSuffix}`, // ADD ENVIRONMENT DESCRIPTION
-          Memo: 'Created By Portal',
+          'Comm Method': 'Client Portal',
+          Memo: `Created By ${envSuffix} Portal`, // ADD ENVIRONMENT DESCRIPTION
         };
 
         const siebelResponse =
