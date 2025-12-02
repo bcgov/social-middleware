@@ -19,12 +19,15 @@ export class CreateUserDto {
   first_name?: string;
 
   @IsString()
+  @IsNotEmpty()
   last_name!: string;
 
   @IsString()
+  @IsNotEmpty()
   sex!: string;
 
   @IsString()
+  @IsNotEmpty()
   gender!: GenderTypes;
 
   @IsEmail()
@@ -32,20 +35,26 @@ export class CreateUserDto {
   email!: string;
 
   @IsString()
+  @IsNotEmpty()
   dateOfBirth!: string;
 
   @IsString()
+  @IsNotEmpty()
   street_address!: string;
 
   @IsString()
+  @IsNotEmpty()
   city!: string;
 
   @IsString()
+  @IsNotEmpty()
   country!: string;
 
   @IsString()
+  @IsNotEmpty()
   region!: string;
 
   @IsString()
+  @IsNotEmpty()
   postal_code!: string;
 }
