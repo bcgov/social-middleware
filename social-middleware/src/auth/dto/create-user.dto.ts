@@ -18,43 +18,34 @@ export class CreateUserDto {
   })
   first_name?: string;
 
-  @IsOptional()
   @IsString()
-  last_name?: string;
+  last_name!: string;
 
-  @IsOptional()
   @IsString()
-  sex?: string;
+  sex!: string;
 
-  @IsOptional()
   @IsString()
-  gender?: GenderTypes;
+  gender!: GenderTypes;
 
   @IsEmail()
   @IsNotEmpty()
   email!: string;
 
-  @IsOptional()
   @IsString()
-  dateOfBirth?: string;
+  dateOfBirth!: string;
 
-  @IsOptional()
   @IsString()
-  street_address?: string;
+  street_address!: string;
 
-  @IsOptional()
   @IsString()
-  city?: string;
+  city!: string;
 
-  @IsOptional()
   @IsString()
-  country?: string;
+  country!: string;
 
-  @IsOptional()
   @IsString()
-  region?: string;
+  region!: string;
 
-  @IsOptional()
   @IsString()
-  postal_code?: string;
+  postal_code!: string;
 }

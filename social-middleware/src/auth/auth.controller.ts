@@ -23,16 +23,16 @@ interface UserInfo {
   sub: string;
   email: string;
   name?: string;
-  given_name?: string;
-  family_name?: string;
-  gender?: string;
-  birthdate?: string;
-  address?: {
-    street_address?: string;
-    country?: string;
-    region?: string;
-    locality?: string;
-    postal_code?: string;
+  given_name: string;
+  family_name: string;
+  gender: string;
+  birthdate: string;
+  address: {
+    street_address: string;
+    country: string;
+    region: string;
+    locality: string;
+    postal_code: string;
   };
 }
 
@@ -124,21 +124,21 @@ export class AuthController {
       const userData: CreateUserDto = {
         bc_services_card_id: userInfo.sub,
         first_name: userInfo.given_name || '(Mononym)',
-        last_name: userInfo.family_name || 'Unknown',
-        dateOfBirth: userInfo.birthdate ? this.userUtil.icmDateFormat(userInfo.birthdate) : undefined,
-        sex: userInfo.gender || undefined,
-        gender: userInfo.gender ? this.userUtil.sexToGenderType(userInfo.gender) : undefined,
+        last_name: userInfo.family_name,
+        dateOfBirth: this.userUtil.icmDateFormat(userInfo.birthdate),
+        sex: userInfo.gender,
+        gender: this.userUtil.sexToGenderType(userInfo.gender),
         email: userInfo.email,
-        street_address: userInfo.address?.street_address || undefined,
-        city: userInfo.address?.locality || undefined,
-        country: userInfo.address?.country || undefined,
-        region: userInfo.address?.region || undefined,
-        postal_code: userInfo.address?.postal_code || undefined,
+        street_address: userInfo.address.street_address,
+        city: userInfo.address.locality,
+        country: userInfo.address.country,
+        region: userInfo.address.region,
+        postal_code: userInfo.address.postal_code,
       };
 
-      this.logger.info('Finding or creating user...');
+      this.logger.info(userData, 'Finding or creating user in database...');
       const user = await this.userService.findOrCreate(userData);
-      this.logger.info({ userId: user.id }, 'User persisted');
+      this.logger.info({ id: user.id, email: user.email }, 'User persisted');
 
       await this.userService.updateLastLogin(user.id);
 
@@ -148,13 +148,14 @@ export class AuthController {
           sub: userInfo.sub,
           email: userInfo.email,
           name:
-            userInfo.name ||
-            `${userInfo.given_name} ${userInfo.family_name}`,
+            userInfo.name || `${userInfo.given_name} ${userInfo.family_name}`,
           userId: user.id.toString(),
           iat: Math.floor(Date.now() / 1000),
         },
         this.jwtSecret,
-        { expiresIn: '24h' },
+        { 
+          expiresIn: '24h'
+        },
       );
 
       // Set session cookie
@@ -162,9 +163,9 @@ export class AuthController {
         httpOnly: true,
         secure:
           this.nodeEnv === 'production' ||
-          this.frontendURL.startsWith('https://'),
+          this.frontendURL?.startsWith('https://'),
         sameSite: 'lax',
-        maxAge: 24 * 60 * 60 * 1000,
+        maxAge: 24 * 60 * 60 * 1000,  // 24 hours
       });
 
       this.logger.info('Session cookie set — redirecting to dashboard...');

@@ -58,8 +58,8 @@ export class HouseholdAccessCodeController {
       }
 
       const userData = {
-        lastName: user.last_name || '',
-        dateOfBirth: user.dateOfBirth || '',
+        lastName: user.last_name,
+        dateOfBirth: user.dateOfBirth,
       };
 
       this.logger.debug(

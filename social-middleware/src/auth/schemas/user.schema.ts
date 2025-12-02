@@ -15,32 +15,32 @@ export class User {
   @Prop({ required: true, default: '' })
   first_name!: string;
 
-  @Prop({ required: false })
-  last_name?: string;
+  @Prop({ required: true })
+  last_name!: string;
 
   @Prop({ required: true })
   email!: string;
 
-  @Prop({ required: false })
-  dateOfBirth?: string;
+  @Prop({ required: true })
+  dateOfBirth!: string;
 
-  @Prop({ required: false })
-  street_address?: string;
+  @Prop({ required: true })
+  street_address!: string;
 
-  @Prop({ required: false })
-  city?: string;
+  @Prop({ required: true })
+  city!: string;
 
-  @Prop({ required: false })
-  country?: string;
+  @Prop({ required: true })
+  country!: string;
 
-  @Prop({ required: false })
-  region?: string;
+  @Prop({ required: true })
+  region!: string;
 
-  @Prop({ required: false })
-  postal_code?: string;
+  @Prop({ required: true })
+  postal_code!: string;
 
-  @Prop({ required: false })
-  sex?: string;
+  @Prop({ required: true })
+  sex!: string;
 
   @Prop({ required: false })
   contactId!: string; // row ID from ICM
