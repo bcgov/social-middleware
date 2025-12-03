@@ -18,8 +18,9 @@ import { SubmissionStatus } from '../enums/submission-status.enum';
 import { ApplicationFormService } from 'src/application-form/services/application-form.service';
 import { HouseholdService } from 'src/household/services/household.service';
 import { forwardRef, Inject, Injectable } from '@nestjs/common';
-import { ApplicationFormType } from '../../application-form/enums/application-form-types.enum';
+//import { ApplicationFormType } from '../../application-form/enums/application-form-types.enum';
 import { ApplicationFormStatus } from '../../application-form/enums/application-form-status.enum';
+import { RelationshipToPrimary } from '../../household/enums/relationship-to-primary.enum';
 
 @Injectable()
 @Processor('applicationPackageQueue')
@@ -163,33 +164,51 @@ export class ApplicationPackageProcessor {
         return { isComplete: false, status: applicationPackage.status };
       }
 
-      // Check if all screening forms are complete
+      // get all the application forms
       const allApplicationForms =
         await this.applicationFormService.findAllByApplicationPackageId(
           applicationPackageId,
         );
+      //get all household members
+      const householdMembers =
+        await this.householdService.findAllHouseholdMembers(
+          applicationPackageId,
+        );
 
-      const screeningForms = allApplicationForms.filter(
-        (form) => form.type === ApplicationFormType.SCREENING,
+      const primaryApplicant = householdMembers.find(
+        (member) => member.relationshipToPrimary === RelationshipToPrimary.Self,
       );
 
-      const incompleteScreeningForms = screeningForms.filter(
-        (form) => form.status !== ApplicationFormStatus.COMPLETE,
-      );
-
-      if (screeningForms.length > 0 && incompleteScreeningForms.length > 0) {
-        this.logger.info(
-          {
-            applicationPackageId,
-            totalScreeningForms: screeningForms.length,
-            incompleteCount: incompleteScreeningForms.length,
-          },
-          'Screening forms not yet complete',
+      if (!primaryApplicant) {
+        this.logger.error(
+          { applicationPackageId },
+          'No primary applicant found for application package',
         );
         return { isComplete: false, status: ApplicationPackageStatus.CONSENT };
       }
 
-      // Validate household completion
+      // Get all forms for the primary applicant
+      const primaryApplicantForms = allApplicationForms.filter(
+        (form) => form.householdMemberId === primaryApplicant.householdMemberId,
+      );
+
+      const incompletePrimaryForms = primaryApplicantForms.filter(
+        (form) => form.status !== ApplicationFormStatus.COMPLETE,
+      );
+
+      if (incompletePrimaryForms.length > 0) {
+        this.logger.info(
+          {
+            applicationPackageId,
+            totalPrimaryForms: primaryApplicantForms.length,
+            incompleteCount: incompletePrimaryForms.length,
+          },
+          'Primary applicant forms not yet complete',
+        );
+        return { isComplete: false, status: ApplicationPackageStatus.CONSENT };
+      }
+
+      // Validate household information completion
       const householdValidation =
         await this.householdService.validateHouseholdCompletion(
           applicationPackageId,
@@ -204,6 +223,42 @@ export class ApplicationPackageProcessor {
         );
         return { isComplete: false, status: ApplicationPackageStatus.CONSENT };
       }
+
+      // now let's check the household members requiring screening have screeningInfoProvided = true
+
+      const membersRequiringScreening = householdMembers.filter(
+        (member) => member.requireScreening === true,
+      );
+
+      const membersWithoutScreening = membersRequiringScreening.filter(
+        (member) => member.screeningInfoProvided !== true,
+      );
+
+      if (membersWithoutScreening.length > 0) {
+        this.logger.info(
+          {
+            applicationPackageId,
+            totalRequiringScreening: membersRequiringScreening.length,
+            missingScreeningCount: membersWithoutScreening.length,
+            membersWithoutScreening: membersWithoutScreening.map((m) => ({
+              householdMemberId: m.householdMemberId,
+              name: `${m.firstName} ${m.lastName}`,
+              relationshipToPrimary: m.relationshipToPrimary,
+            })),
+          },
+          'Household members requiring screening have not provided screening info',
+        );
+        return { isComplete: false, status: ApplicationPackageStatus.CONSENT };
+      }
+
+      this.logger.info(
+        {
+          applicationPackageId,
+          primaryFormsCompleted: primaryApplicantForms.length,
+          screeningMembersCompleted: membersRequiringScreening.length,
+        },
+        'All primary applicant forms complete and all required screening info provided',
+      );
 
       // Package is complete! Update to READY and enqueue submission
       await this.applicationPackageModel.findOneAndUpdate(
