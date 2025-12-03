@@ -82,6 +82,8 @@ export class ApplicationFormService {
 
       this.logger.info({ applicationFormId }, 'Saved application form to DB');
 
+      const apiUrl = this.configService.get<string>('API_URL') || 'http://localhost:3001';
+
       const newFormDto = {
         applicationFormId: applicationFormId,
         type: FormType.New,
@@ -89,6 +91,8 @@ export class ApplicationFormService {
         formParameters: {
           formId: dto.formId,
           language: 'en',
+          apiUrl: `${apiUrl}/forms/validateTokenAndGetParameters`,
+          apiMethod: 'POST',
         },
       };
 
