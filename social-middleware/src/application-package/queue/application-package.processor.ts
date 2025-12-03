@@ -21,6 +21,7 @@ import { forwardRef, Inject, Injectable } from '@nestjs/common';
 //import { ApplicationFormType } from '../../application-form/enums/application-form-types.enum';
 import { ApplicationFormStatus } from '../../application-form/enums/application-form-status.enum';
 import { RelationshipToPrimary } from '../../household/enums/relationship-to-primary.enum';
+import { ApplicationFormType } from '../../application-form/enums/application-form-types.enum';
 
 @Injectable()
 @Processor('applicationPackageQueue')
@@ -189,7 +190,10 @@ export class ApplicationPackageProcessor {
 
       // Get all forms for the primary applicant
       const primaryApplicantForms = allApplicationForms.filter(
-        (form) => form.householdMemberId === primaryApplicant.householdMemberId,
+        (form) =>
+          form.householdMemberId === primaryApplicant.householdMemberId &&
+          form.type !== ApplicationFormType.REFERRAL &&
+          form.type !== ApplicationFormType.HOUSEHOLD,
       );
 
       const incompletePrimaryForms = primaryApplicantForms.filter(
