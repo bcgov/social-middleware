@@ -26,7 +26,6 @@ export class AccessCodeService {
   // service to create an access code record
   async createAccessCode(
     applicationPackageId: string,
-    applicationFormId: string,
     householdMemberId: string,
   ): Promise<{
     accessCode: string;
@@ -42,7 +41,6 @@ export class AccessCodeService {
       const accessCodeRecord = new this.screeningAccessCodeModel({
         accessCode,
         applicationPackageId,
-        applicationFormId,
         householdMemberId,
         isUsed: false,
         expiresAt,
@@ -67,6 +65,14 @@ export class AccessCodeService {
    * Generate a 6 digit secure access code
    */
   generateAccessCode(length = 6): string {
+    // Development override for testing
+    // if (
+    //   process.env.NODE_ENV === 'development' &&
+    //   process.env.STATIC_ACCESS_CODE === 'true'
+    // ) {
+    //   return 'FOSTER';
+    // }
+
     // note we remove ambiguous characters like I, 1, O, 0
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
     let result = '';
@@ -91,8 +97,8 @@ export class AccessCodeService {
     },
   ): Promise<{
     success: boolean;
-    applicationFormId?: string;
     error?: string;
+    householdMemberId?: string | null;
   }> {
     try {
       // locate a valid access code record with the accessCode provided
@@ -172,12 +178,7 @@ export class AccessCodeService {
           isUsed: true,
         },
       );
-      // and link the screening form that the primary applicant generated to the household user
-      // TODO: if we end up generating multiple forms for the household user, we will need to change this
-      await this.applicationFormModel.findOneAndUpdate(
-        { applicationFormId: accessCodeRecord.applicationFormId },
-        { userId: userId },
-      );
+
       // now let's link the household record to the user
       await this.householdService.associateUserWithMember(
         accessCodeRecord.householdMemberId,
@@ -200,14 +201,13 @@ export class AccessCodeService {
           accessCode,
           userId,
           householdMemberId: accessCodeRecord.householdMemberId,
-          applicationFormId: accessCodeRecord.applicationFormId,
         },
         'Successfully validated and associated user with screening application',
       );
 
       return {
         success: true,
-        applicationFormId: accessCodeRecord.applicationFormId,
+        householdMemberId: accessCodeRecord.householdMemberId,
       };
     } catch (error: unknown) {
       this.logger.error(

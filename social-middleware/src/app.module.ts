@@ -15,6 +15,7 @@ import { BullDashboardModule } from './bull-dashboard/bull-dashboard.module';
 import { SiebelModule } from './siebel/siebel.module';
 import { ScheduleModule } from '@nestjs/schedule';
 import { AttachmentsModule } from './attachments/attachments.module';
+import { EventEmitterModule } from '@nestjs/event-emitter';
 
 @Module({})
 export class AppModule {
@@ -61,6 +62,7 @@ export class AppModule {
         ...(isDevelopment ? [DevToolsModule] : []),
         BullDashboardModule,
         SiebelModule,
+        EventEmitterModule.forRoot(),
       ],
     };
   }

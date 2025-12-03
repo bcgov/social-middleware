@@ -9,7 +9,7 @@ import {
   ApplicationForm,
   ApplicationFormDocument,
 } from '../schemas/application-form.schema';
-import { HouseholdService } from '../../household/household.service';
+import { HouseholdService } from '../../household/services/household.service';
 import { PinoLogger } from 'nestjs-pino';
 
 @Injectable()
@@ -121,10 +121,10 @@ export class AccessCodeService {
         },
       );
 
-      await this.applicationFormModel.findOneAndUpdate(
-        { applicationId: accessCodeRecord.applicationFormId },
-        { primary_applicantId: userId },
-      );
+      //await this.applicationFormModel.findOneAndUpdate(
+      //  { applicationId: accessCodeRecord.applicationFormId },
+      //  { primary_applicantId: userId },
+      //);
 
       await this.householdService.associateUserWithMember(
         accessCodeRecord.householdMemberId,
@@ -136,14 +136,12 @@ export class AccessCodeService {
           accessCode,
           userId,
           householdMemberId: accessCodeRecord.householdMemberId,
-          applicationFormId: accessCodeRecord.applicationFormId,
         },
         'Successfully validated and associated user with screening application',
       );
 
       return {
         success: true,
-        applicationFormId: accessCodeRecord.applicationFormId,
       };
     } catch (error) {
       this.logger.error(

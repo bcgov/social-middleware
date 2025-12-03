@@ -20,12 +20,14 @@ import {
   ApplicationFormType,
   getFormIdForFormType,
 } from '../application-form/enums/application-form-types.enum';
+import { ApplicationPackageQueueService } from './queue/application-package-queue.service';
 import { CreateApplicationPackageDto } from './dto/create-application-package.dto';
 import { UpdateApplicationPackageDto } from './dto/update-application-package.dto';
 import { CancelApplicationPackageDto } from './dto/cancel-application-package.dto';
 import { HouseholdService } from '../household/services/household.service';
 import { AccessCodeService } from '../household/services/access-code.service';
 import { UserService } from '../auth/user.service';
+import { ConfigService } from '@nestjs/config';
 import { UserUtil } from '../common/utils/user.util';
 import { calculateAge } from '../common/utils/age.util';
 import { formatDateForSiebel } from '../common/utils/date.util';
@@ -54,8 +56,10 @@ export class ApplicationPackageService {
     private readonly accessCodeService: AccessCodeService,
     private readonly householdService: HouseholdService,
     private readonly userService: UserService,
+    private readonly configService: ConfigService,
     private readonly siebelApiService: SiebelApiService,
     private readonly userUtil: UserUtil,
+    private readonly applicationPackageQueueService: ApplicationPackageQueueService,
     @InjectPinoLogger(ApplicationFormService.name)
     private readonly logger: PinoLogger,
   ) {}
@@ -90,18 +94,6 @@ export class ApplicationPackageService {
 
     const appPackage = await initialPackage.save();
 
-    // create referral as the first application Form
-    const referralDto = {
-      applicationPackageId: appPackage.applicationPackageId,
-      formId: 'CF0001_Referral', // TODO: Make data driven
-      userId: userId,
-      type: ApplicationFormType.REFERRAL,
-      formParameters: {},
-    };
-
-    const referral =
-      await this.applicationFormService.createApplicationForm(referralDto);
-
     // the primary applicant is the first household member
     const user = await this.userService.findOne(userId);
 
@@ -116,7 +108,22 @@ export class ApplicationPackageService {
       genderType: this.userUtil.sexToGenderType(user.sex),
     };
 
-    await this.householdService.createMember(primaryHouseholdMemberDto);
+    const primaryHouseholdMember = await this.householdService.createMember(
+      primaryHouseholdMemberDto,
+    );
+
+    // create referral as the first application Form
+    const referralDto = {
+      applicationPackageId: appPackage.applicationPackageId,
+      formId: 'CF0001_Referral', // TODO: Make data driven
+      userId: userId,
+      householdMemberId: primaryHouseholdMember.householdMemberId,
+      type: ApplicationFormType.REFERRAL,
+      formParameters: {},
+    };
+
+    const referral =
+      await this.applicationFormService.createApplicationForm(referralDto);
 
     this.logger.info(
       {
@@ -283,7 +290,24 @@ export class ApplicationPackageService {
       );
 
       // TODO: handle withdrawl, cancellations, etc.
-      let newStatus: ApplicationPackageStatus;
+      // let newStatus: ApplicationPackageStatus;
+
+      // Get the primary applicant's householdMemberId
+      // At this point, the primary applicant should be the only household member
+      const primaryApplicantMember =
+        await this.householdService.findPrimaryApplicant(
+          applicationPackage.applicationPackageId,
+        );
+
+      if (!primaryApplicantMember) {
+        this.logger.error(
+          { applicationPackageId: applicationPackage.applicationPackageId },
+          'Primary applicant household member not found',
+        );
+        throw new InternalServerErrorException(
+          'Primary applicant household member not found',
+        );
+      }
 
       if (
         newStage === ServiceRequestStage.APPLICATION &&
@@ -294,6 +318,7 @@ export class ApplicationPackageService {
           applicationPackageId: applicationPackage.applicationPackageId,
           formId: getFormIdForFormType(ApplicationFormType.ABOUTME),
           userId: applicationPackage.userId,
+          householdMemberId: primaryApplicantMember.householdMemberId,
           type: ApplicationFormType.ABOUTME,
           formParameters: {},
         };
@@ -307,6 +332,7 @@ export class ApplicationPackageService {
           applicationPackageId: applicationPackage.applicationPackageId,
           formId: getFormIdForFormType(ApplicationFormType.HOUSEHOLD),
           userId: applicationPackage.userId,
+          householdMemberId: primaryApplicantMember.householdMemberId,
           type: ApplicationFormType.HOUSEHOLD,
           formParameters: {},
         };
@@ -317,6 +343,7 @@ export class ApplicationPackageService {
           applicationPackageId: applicationPackage.applicationPackageId,
           formId: getFormIdForFormType(ApplicationFormType.PLACEMENT),
           userId: applicationPackage.userId,
+          householdMemberId: primaryApplicantMember.householdMemberId,
           type: ApplicationFormType.PLACEMENT,
           formParameters: {},
         };
@@ -327,6 +354,7 @@ export class ApplicationPackageService {
           applicationPackageId: applicationPackage.applicationPackageId,
           formId: getFormIdForFormType(ApplicationFormType.REFERENCES),
           userId: applicationPackage.userId,
+          householdMemberId: primaryApplicantMember.householdMemberId,
           type: ApplicationFormType.REFERENCES,
           formParameters: {},
         };
@@ -337,6 +365,7 @@ export class ApplicationPackageService {
           applicationPackageId: applicationPackage.applicationPackageId,
           formId: getFormIdForFormType(ApplicationFormType.CONSENT),
           userId: applicationPackage.userId,
+          householdMemberId: primaryApplicantMember.householdMemberId,
           type: ApplicationFormType.CONSENT,
           formParameters: {},
         };
@@ -530,6 +559,12 @@ export class ApplicationPackageService {
 
       if (isInitialSubmission) {
         // create the service request
+        // keep track of which environment we're using
+        const nodeEnv = this.configService.get<string>(
+          'NODE_ENV',
+          'development',
+        );
+        const envSuffix = nodeEnv.toLowerCase().includes('prod') ? '' : nodeEnv;
         const srPayload = {
           Id: 'NULL',
           Status: 'Open',
@@ -537,11 +572,11 @@ export class ApplicationPackageService {
           Type: 'Caregiver Application',
           'SR Sub Type': applicationPackage.subtype,
           'SR Sub Sub Type': applicationPackage.subsubtype,
-          'ICM Stage': 'Application',
+          'ICM Stage': 'Application', // Stage will be updated by activity plan on creation
           'ICM BCSC DID': primaryUser.bc_services_card_id,
           'Service Office': 'MCFD',
           'Comm Method': 'Client Portal',
-          Memo: 'Created By Portal',
+          Memo: `Created By ${envSuffix} Portal`, // ADD ENVIRONMENT DESCRIPTION
         };
 
         const siebelResponse =
@@ -903,6 +938,10 @@ export class ApplicationPackageService {
     }
   }
 
+  // we lock an applicationPackage when the user has completed all the forms
+  // and described a complete household definition
+  // after locking, the adult household members will be notified to complete their
+  // screening forms as applicable
   async lockApplicationPackage(
     applicationPackageId: string,
     userId: string,
@@ -910,7 +949,7 @@ export class ApplicationPackageService {
     try {
       this.logger.info(
         { applicationPackageId, userId },
-        'locking application package validation and processing',
+        'Attempting to lock application package',
       );
 
       // Verify ownership
@@ -920,7 +959,7 @@ export class ApplicationPackageService {
 
       if (!applicationPackage) {
         throw new NotFoundException(
-          `Application package ${applicationPackageId} not found or not owned by user`,
+          `Application package ${applicationPackageId} not found or not owned by user, will not lock.`,
         );
       }
       // validate household completion
@@ -975,6 +1014,7 @@ export class ApplicationPackageService {
           status: ApplicationPackageStatus.CONSENT,
         };
       } else {
+        // there were no household screenings required.. we can skip the Consent status
         // everything is ready - proceed for final submission
         const submissionResult = await this.submitApplicationPackage(
           applicationPackageId,
@@ -996,7 +1036,7 @@ export class ApplicationPackageService {
     } catch (error) {
       this.logger.error(
         { error, applicationPackageId, userId },
-        'Failed to validate and process application',
+        'Error locking the application package',
       );
       throw error;
     }
@@ -1008,16 +1048,8 @@ export class ApplicationPackageService {
   ) {
     for (const member of nonSelfAdultMembers) {
       // create screening application form
-      const screeningForm =
-        await this.applicationFormService.createScreeningForm(
-          applicationPackageId,
-          member.householdMemberId,
-        );
-
-      // generate access code and associate with form
-      await this.accessCodeService.createAccessCode(
+      await this.applicationFormService.createScreeningFormsAndAccessCode(
         applicationPackageId,
-        screeningForm.screeningApplicationFormId,
         member.householdMemberId,
       );
     }

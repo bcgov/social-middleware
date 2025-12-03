@@ -74,6 +74,27 @@ export class AttachmentsController {
     );
   }
 
+  @Get('/household-member/:householdMemberId')
+  @ApiOperation({ summary: 'Get attachments by householdMember ID' })
+  @ApiParam({ name: 'householdMemberId', type: String })
+  @ApiResponse({
+    status: 200,
+    description: 'Attachments retrieved successfully',
+    type: [GetAttachmentDto],
+  })
+
+  //TODO: ADD SESSION PROTECTION
+  async getByApplicationPackageAndHouseholdMemberId(
+    @Param('householdMemberId') householdMemberId: string,
+    // @Req() request: Request,
+  ): Promise<GetAttachmentDto[]> {
+    //const userId = this.sessionUtil.extractUserIdFromRequest(request);
+    // TODO: Add session protection
+    return await this.attachmentsService.findByHouseholdMemberId(
+      householdMemberId,
+    );
+  }
+
   /* not required for now
   @Get('household-member/:householdMemberId')
   @ApiOperation({ summary: 'Get attachments by household member ID' })
