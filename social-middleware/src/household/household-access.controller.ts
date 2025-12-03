@@ -46,7 +46,7 @@ export class HouseholdAccessCodeController {
     @Req() request: Request,
   ): Promise<{
     success: boolean;
-    applicationFormId?: string;
+    householdMemberId?: string;
     message: string;
   }> {
     try {
@@ -76,6 +76,7 @@ export class HouseholdAccessCodeController {
       if (result.success) {
         return {
           success: true,
+          householdMemberId: result.householdMemberId ?? undefined,
           message: 'Access code associated successfully',
         };
       } else {

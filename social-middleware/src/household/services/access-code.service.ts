@@ -98,6 +98,7 @@ export class AccessCodeService {
   ): Promise<{
     success: boolean;
     error?: string;
+    householdMemberId?: string | null;
   }> {
     try {
       // locate a valid access code record with the accessCode provided
@@ -206,6 +207,7 @@ export class AccessCodeService {
 
       return {
         success: true,
+        householdMemberId: accessCodeRecord.householdMemberId,
       };
     } catch (error: unknown) {
       this.logger.error(
