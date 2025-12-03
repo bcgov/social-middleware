@@ -115,7 +115,7 @@ export class ApplicationPackageService {
     // create referral as the first application Form
     const referralDto = {
       applicationPackageId: appPackage.applicationPackageId,
-      formId: 'CF0001_Referral', // TODO: Make data driven
+      formId: getFormIdForFormType(ApplicationFormType.REFERRAL),
       userId: userId,
       householdMemberId: primaryHouseholdMember.householdMemberId,
       type: ApplicationFormType.REFERRAL,
