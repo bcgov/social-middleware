@@ -160,8 +160,8 @@ export class AuthController {
         },
       );
 
-      // Set session cookie
-      res.cookie('session', sessionToken, {
+      // Set session cookie (named app_session to avoid conflict with Kong's session cookie)
+      res.cookie('app_session', sessionToken, {
         httpOnly: true,
         secure:
           this.nodeEnv === 'production' ||
@@ -171,7 +171,7 @@ export class AuthController {
         domain: this.cookieDomain,
       });
 
-      this.logger.info('Session cookie set — redirecting to dashboard...');
+      this.logger.info('App session cookie set — redirecting to dashboard...');
 
       // Redirect user to frontend dashboard
       return res.redirect(`${this.frontendURL}/dashboard`);
@@ -199,7 +199,7 @@ export class AuthController {
   })
   getStatus(@Req() req: Request) {
     try {
-      const sessionToken = req.cookies.session as string;
+      const sessionToken = req.cookies.app_session as string;
 
       if (!sessionToken) {
         throw new HttpException(
@@ -234,7 +234,7 @@ export class AuthController {
   logout(@Req() req: Request, @Res() res: Response): void {
     this.logger.info('Logging out user, clearing cookies...');
 
-    res.clearCookie('session', {
+    res.clearCookie('app_session', {
       httpOnly: true,
       secure:
         this.nodeEnv === 'production' ||
