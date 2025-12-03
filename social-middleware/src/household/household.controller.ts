@@ -5,12 +5,19 @@ import {
   Body,
   Logger,
   HttpException,
+  UseGuards,
   HttpStatus,
+  Req,
   Get,
   Delete,
+  Inject,
+  forwardRef,
   ValidationPipe,
+  BadRequestException,
+  UnauthorizedException,
+  NotFoundException,
 } from '@nestjs/common';
-import { Inject, forwardRef } from '@nestjs/common';
+import { Request } from 'express';
 import { SessionUtil } from '../common/utils/session.util';
 import { HouseholdService } from './services/household.service';
 import { AccessCodeService } from './services/access-code.service';
@@ -27,6 +34,8 @@ import {
   ApiOkResponse,
 } from '@nestjs/swagger';
 import { HouseholdMemberWithFormsDto } from './dto/household-member-with-forms.dto';
+import { SessionAuthGuard } from '../auth/session-auth.guard';
+import { ApplicationFormStatus } from '../application-form/enums/application-form-status.enum';
 //TODO: ADD SESSION AUTH GUARD
 @ApiTags('Household Members')
 @Controller('application-package/:applicationPackageId/household-members')
@@ -158,6 +167,121 @@ export class HouseholdController {
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
+  }
+
+  @Post(':householdMemberId/confirm-screening-package')
+  @UseGuards(SessionAuthGuard)
+  @ApiOperation({
+    summary: 'Confirm screening package completion by household member',
+    description:
+      'Called when household member reviews and confirms their screening package submission',
+  })
+  async confirmScreeningPackage(
+    @Param('householdMemberId') householdMemberId: string,
+    @Req() request: Request,
+  ): Promise<{ success: boolean; message: string }> {
+    const userId = this.sessionUtil.extractUserIdFromRequest(request);
+
+    // verify the user is associated with this household member
+    const member = await this.householdService.findById(householdMemberId);
+    if (!member) {
+      throw new NotFoundException('Household member not found');
+    }
+
+    if (member.userId !== userId) {
+      throw new UnauthorizedException('Not authorized');
+    }
+    // get all screeningforms for the household member
+    const forms =
+      await this.applicationFormService.getApplicationFormByHouseholdId(
+        householdMemberId,
+      );
+    const incompleteForms = forms.filter(
+      (form) => form.status !== ApplicationFormStatus.COMPLETE,
+    );
+
+    if (incompleteForms.length > 0) {
+      throw new BadRequestException(
+        `Cannot confirm screening package - ${incompleteForms.length} of ${forms.length} forms 
+  are incomplete`,
+      );
+    }
+    await this.householdService.markScreeningProvided(householdMemberId);
+    this.logger.log(
+      `Household member ${householdMemberId} confirmed screening package completion (${forms.length} forms)`,
+    );
+
+    return {
+      success: true,
+      message: `Screening package confirmed (${forms.length} forms completed)`,
+    };
+  }
+
+  @Post(':householdMemberId/mark-screening-documents-attached')
+  @UseGuards(SessionAuthGuard)
+  @ApiOperation({
+    summary: 'Mark all screening documents as attached for a household member',
+    description:
+      'Called when primary applicant confirms they have uploaded all screening documents on behalf of household member',
+  })
+  @ApiResponse({
+    status: 200,
+    description:
+      'All screening forms marked as complete with attached documents',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'No screening forms found for household member',
+  })
+  async markScreeningDocumentsAttached(
+    @Param('applicationPackageId') applicationPackageId: string,
+    @Param('householdMemberId') householdMemberId: string,
+    @Req() request: Request,
+  ): Promise<{ success: boolean; formsUpdated: number }> {
+    const userId = this.sessionUtil.extractUserIdFromRequest(request);
+
+    // Verify household member exists and belongs to this application package
+    const member = await this.householdService.findById(householdMemberId);
+    if (!member) {
+      throw new NotFoundException('Household member not found');
+    }
+
+    if (member.applicationPackageId !== applicationPackageId) {
+      throw new UnauthorizedException(
+        'Household member does not belong to this application package',
+      );
+    }
+
+    // Get all application forms for this household member
+    const forms =
+      await this.applicationFormService.getApplicationFormByHouseholdId(
+        householdMemberId,
+      );
+
+    if (forms.length === 0) {
+      throw new NotFoundException(
+        `No forms found for household member ${householdMemberId}`,
+      );
+    }
+
+    // Mark all screening forms as complete with user-attached documents
+    await this.applicationFormService.markUserAttachedForms(
+      householdMemberId,
+      userId,
+    );
+
+    // Mark household member screening as provided
+    await this.householdService.markScreeningProvided(householdMemberId);
+
+    this.logger.log(
+      `Marked ${forms.length} screening form(s) as attached for household member 
+  ${householdMemberId}`,
+    );
+
+    return {
+      success: true,
+      formsUpdated: forms.length,
+    };
   }
 
   @Delete(':householdMemberId')
