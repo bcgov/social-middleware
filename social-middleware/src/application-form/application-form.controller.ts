@@ -74,21 +74,20 @@ export class ApplicationFormsController {
     const dto: NewTokenDto = {
       applicationFormId,
     };
-
+    // check the ownership of the form; they can own it directly or via household membership
     const ownsForm = await this.applicationFormsService.confirmOwnership(
       applicationFormId,
       userId,
     );
 
-    if (ownsForm) {
-      const formAccessToken =
-        await this.applicationFormsService.newFormAccessToken(dto);
-      return { formAccessToken };
-    } else {
+    if (!ownsForm) {
       throw new UnauthorizedException(
         'Invalid applicationForm or unauthorized access',
       );
     }
+
+    const formAccessToken = await this.applicationFormsService.newFormAccessToken(dto);
+    return { formAccessToken };
   }
 
   @Get(':applicationFormId')
@@ -121,20 +120,25 @@ export class ApplicationFormsController {
   ): Promise<GetApplicationFormDto> {
     const userId = this.sessionUtil.extractUserIdFromRequest(request);
 
-    const applicationForm =
-      await this.applicationFormsService.getApplicationFormById(
-        applicationFormId,
-        userId,
-      );
+    // Check ownership first
+    const ownsForm = await this.applicationFormsService.confirmOwnership(
+      applicationFormId,
+      userId,
+    );
 
-    if (!applicationForm) {
-      // if we didn't find it this way, let's check through the household approach
-      // TODO
-      //const householdMemberId
-
-      throw new NotFoundException(
+    if (!ownsForm) {
+      throw new UnauthorizedException(
         'Application form not found or access denied',
       );
+    }
+
+    // If ownership confirmed, fetch and return the form
+    const applicationForm = await this.applicationFormsService.getApplicationFormById(
+      applicationFormId
+    );
+
+    if (!applicationForm) {
+      throw new NotFoundException('Application form not found');
     }
 
     return applicationForm;
@@ -265,38 +269,4 @@ export class ApplicationFormsController {
       ApplicationFormStatus.DRAFT
     );
   }
-  @Post(':applicationFormId/mark-attached')
-  @UseGuards(SessionAuthGuard)
-  @ApiOperation({ summary: 'Mark application form as having user-attached documents' })
-  @ApiParam({
-    name: 'applicationFormId',
-    required: true,
-    description: 'The screening form ID to mark as having attached documents',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Application form successfully marked as attached',
-  })
-  @ApiResponse({
-    status: 401,
-    description: 'Unauthorized - invalid or missing session',
-  })
-  @ApiResponse({
-    status: 404,
-    description: 'Application form not found or access denied',
-  })
-  async markFormAsAttached(
-    @Param('applicationFormId') applicationFormId: string,
-    @Req() request: Request,
-  ): Promise<{ success: boolean }> {
-    const userId = this.sessionUtil.extractUserIdFromRequest(request);
-
-    await this.applicationFormsService.markUserAttachedForm(
-      applicationFormId,
-      userId,
-    );
-
-    return { success: true };
-  }
-
 }
