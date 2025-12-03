@@ -42,6 +42,7 @@ export class AuthController {
   private readonly jwtSecret: string;
   private readonly nodeEnv: string;
   private readonly frontendURL: string;
+  private readonly cookieDomain: string | undefined;
 
   constructor(
     private readonly userService: UserService,
@@ -53,6 +54,7 @@ export class AuthController {
     this.jwtSecret = this.configService.get<string>('JWT_SECRET')!;
     this.nodeEnv = this.configService.get<string>('NODE_ENV', 'development');
     this.frontendURL = this.configService.get<string>('FRONTEND_URL')!.trim();
+    this.cookieDomain = this.configService.get<string>('COOKIE_DOMAIN') || undefined;
     this.logger.setContext(AuthController.name);
   }
 
@@ -166,6 +168,7 @@ export class AuthController {
           this.frontendURL?.startsWith('https://'),
         sameSite: 'lax',
         maxAge: 24 * 60 * 60 * 1000,  // 24 hours
+        domain: this.cookieDomain,
       });
 
       this.logger.info('Session cookie set — redirecting to dashboard...');
@@ -237,6 +240,7 @@ export class AuthController {
         this.nodeEnv === 'production' ||
         this.frontendURL.startsWith('https://'),
       sameSite: 'lax',
+      domain: this.cookieDomain,
     });
 
     return res.redirect(`${this.frontendURL}/login`);
