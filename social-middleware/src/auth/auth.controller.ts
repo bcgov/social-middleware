@@ -349,7 +349,7 @@ export class AuthController {
         {
           error: 'Authentication failed',
           details:
-            this.nodeEnv === 'development'
+            this.nodeEnv === 'local'
               ? errorMessage
               : ' An error occurred during authentication',
         },
