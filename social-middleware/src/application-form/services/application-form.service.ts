@@ -37,7 +37,6 @@ import {
 import { NewTokenDto } from '../dto/new-token.dto';
 import { SubmitApplicationFormDto } from '../dto/submit-application-form.dto';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { FormCompletedEvent } from '../events/form-completed.event';
 import { RelationshipToPrimary } from '../../household/enums/relationship-to-primary.enum';
 
 @Injectable()
@@ -222,15 +221,64 @@ export class ApplicationFormService {
     }
   }
 
+  // a user can own a form
+  // but so can a householdMember
   async confirmOwnership(
     applicationFormId: string,
     userId: string,
   ): Promise<boolean> {
-    const applicationForm = await this.applicationFormModel
+    try {
+
+
+    // check direct ownership
+    const directOwnership = await this.applicationFormModel
       .findOne({ applicationFormId: { $eq: applicationFormId }, userId })
       .lean()
       .exec();
-    return !!applicationForm;
+
+    if (directOwnership) {
+      this.logger.info(
+        {applicationFormId, userId},
+        'Form owned by user',
+      );
+      return true;
+    }
+
+    // check via householdmembership
+    const householdMembers = await this.householdService.findByUserId(userId);
+
+    if (!householdMembers || householdMembers.length === 0) {
+      this.logger.info(
+        {applicationFormId, userId},
+        'No household memberships found for user; no form ownership possible',
+      );
+      return false;
+    }
+    // there may be multiple memberships for the user
+    for (const member of householdMembers) {
+      const householdForm = await this.applicationFormModel.findOne({applicationFormId: {$eq: applicationFormId}, householdMemberId: member.householdMemberId,}).lean().exec();
+
+      if (householdForm) {
+        this.logger.info(
+          { applicationFormId, userId, householdMemberId: member.householdMemberId },
+          'Form owned via household member association',
+        );
+        return true;
+      }
+    }
+
+    this.logger.info (
+      { applicationFormId, userId},
+      'Form not found for user or their household memberships',
+    );
+    return false;
+  } catch (error) {
+    this.logger.error(
+      { error, applicationFormId, userId },
+      'Error confirming form ownership',
+    );
+    return false;
+  }
   }
 
   async getApplicationFormsByUser(
@@ -386,11 +434,10 @@ export class ApplicationFormService {
   // used by front end to determine the current state of the applicationForm
   async getApplicationFormById(
     applicationFormId: string,
-    userId: string,
   ): Promise<GetApplicationFormDto | null> {
     try {
       this.logger.info(
-        { applicationFormId, userId },
+        { applicationFormId },
         'Fetching application form by ID',
       );
 
@@ -399,7 +446,6 @@ export class ApplicationFormService {
         .findOne(
           {
             applicationFormId: { $eq: applicationFormId },
-            userId: { $eq: userId },
           },
           { formData: 0 },
         )
@@ -408,7 +454,7 @@ export class ApplicationFormService {
 
       if (!form) {
         this.logger.info(
-          { applicationFormId, userId },
+          { applicationFormId},
           'Application form not found or access denied',
         );
         return null;
@@ -437,14 +483,14 @@ export class ApplicationFormService {
       };
 
       this.logger.info(
-        { applicationFormId, userId },
+        { applicationFormId},
         'Application form fetched successfully',
       );
 
       return result;
     } catch (error) {
       this.logger.error(
-        { error, applicationFormId, userId },
+        { error, applicationFormId},
         'Failed to fetch application form by ID',
       );
       throw new InternalServerErrorException(
@@ -452,7 +498,6 @@ export class ApplicationFormService {
       );
     }
   }
-
   
   async getApplicationFormsForUser(userId: string): Promise<GetApplicationFormDto[][]>{
     // returns applicationForms grouped by householdMemberId; 
@@ -485,9 +530,6 @@ export class ApplicationFormService {
       );
       throw error;
     }
-
-    
-
   }
 
   // used by front end to determine the current state of the applicationForm
@@ -636,13 +678,6 @@ export class ApplicationFormService {
         );
       }
 
-      // if we just completed a screening form, then we need to mark it complete on the household record too
-      if(updated.type === ApplicationFormType.SCREENING) {
-        await this.householdService.markScreeningProvided(updated.householdMemberId);
-        // lets trigger a completeness check
-
-        this.eventEmitter.emit('form.completed', new FormCompletedEvent(updated.applicationFormId, updated.applicationPackageId, updated.type,));
-      }
       this.logger.info('Application saved  to DB ', record.applicationFormId);
     } catch (err) {
       if (err instanceof HttpException) {
@@ -654,61 +689,39 @@ export class ApplicationFormService {
     }
   }
 
-  async markUserAttachedForm(
-    applicationFormId: string,
+  async markUserAttachedForms(
+    householdMemberId: string,
     userId: string,
   ): Promise<void> {
     try {
       this.logger.info(
-        {applicationFormId, userId},
+        {householdMemberId, userId},
         'Marking application form as user attached',
       )
 
-      // verify ownership -the form must belong to this user
-      const form = await this.applicationFormModel.findOne({applicationFormId: { $eq: applicationFormId },}).exec();
-
-      if (!form) {
-        throw new NotFoundException(
-          `Application form ${applicationFormId} not found or access denied`,
-        );
-      }
-
       await this.applicationFormModel
-        .findOneAndUpdate( 
-          { applicationFormId: { $eq: applicationFormId} }, 
-          { $set: {userAttachedForm: true, status: ApplicationFormStatus.COMPLETE} }, 
-          { new: true},
+        .updateMany( 
+          { householdMemberId: { $eq: householdMemberId} }, 
+          //{ $set: {userAttachedForm: true, status: ApplicationFormStatus.COMPLETE} }, 
+          //{ new: true},
+          {
+            $set: {
+              userAttachedForm: true,
+              status: ApplicationFormStatus.COMPLETE,
+            }
+          }
         )
         .exec();
-
-      // If this is a screening form, update the household member's screeningProvided
-      if (form.type === ApplicationFormType.SCREENING && form.householdMemberId) {
-        await this.householdService.markScreeningProvided(form.householdMemberId);
-        this.logger.info(
-          { householdMemberId: form.householdMemberId },
-          'Marked household member screening as provided',
-        );
-      }
       
-      // lets trigger a completeness check
-      this.eventEmitter.emit(
-        'form.completed',
-        new FormCompletedEvent(
-          form.applicationFormId,
-          form.applicationPackageId,
-          form.type,
-        ),
-      );
-
       this.logger.info({
-        applicationFormId
+        householdMemberId,
       }, 'Successfully marked form as user attached',);
 
     } catch (error) {
       if (error instanceof NotFoundException) {
         throw error
       }
-      this.logger.error({ error, applicationFormId }, 'Failed to mark form as user attached');
+      this.logger.error({ error, householdMemberId }, 'Failed to mark form as user attached');
       throw new InternalServerErrorException(
         'Failed to update application form',
       );
