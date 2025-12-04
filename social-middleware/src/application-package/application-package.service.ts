@@ -39,6 +39,7 @@ import { ValidateHouseholdCompletionDto } from './dto/validate-application-packa
 //import { CreateApplicationFormDto } from '../application-form/dto/create-application-form.dto';
 import { HouseholdMembersDocument } from '../household/schemas/household-members.schema';
 import { ApplicationFormStatus } from '../application-form/enums/application-form-status.enum';
+import { AttachmentsService } from '../attachments/attachments.service';
 
 interface SiebelServiceRequestResponse {
   items?: {
@@ -60,6 +61,7 @@ export class ApplicationPackageService {
     private readonly siebelApiService: SiebelApiService,
     private readonly userUtil: UserUtil,
     private readonly applicationPackageQueueService: ApplicationPackageQueueService,
+    private readonly attachmentsService: AttachmentsService,
     @InjectPinoLogger(ApplicationFormService.name)
     private readonly logger: PinoLogger,
   ) {}
