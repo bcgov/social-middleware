@@ -810,9 +810,26 @@ export class ApplicationPackageService {
         );
       }
 
+      // track householdMemberIds that should use attachments instead of forms
+      const householdMembersUsingAttachments = new Set<string>();
+
       const attachmentResults = [];
       for (const form of formsToAttach) {
         try {
+          // if this form uses attached files, skip it and track the householdMemberId
+          if (form.userAttachedForm) {
+            householdMembersUsingAttachments.add(form.householdMemberId);
+            this.logger.info(
+              {
+                applicationFormId: form.applicationFormId,
+                householdMemberId: form.householdMemberId,
+                formType: form.type,
+              },
+              'Form marked with userAttachedForm - will use attachments instead',
+            );
+            continue; // skip this form
+          }
+
           if (form.formData) {
             let fileName = form.type as string;
 
@@ -872,6 +889,90 @@ export class ApplicationPackageService {
               serviceRequestId: serviceRequestId,
             },
             'Failed to create attachment for form',
+          );
+        }
+      }
+
+      // Second pass: attach all attachments for householdMembers using attachments
+      for (const householdMemberId of householdMembersUsingAttachments) {
+        try {
+          this.logger.info(
+            { householdMemberId },
+            'Fetching attachments for household member',
+          );
+
+          // Get all attachments for this household member (without file data)
+          const attachmentList =
+            await this.attachmentsService.findByHouseholdMemberId(
+              householdMemberId,
+            );
+
+          this.logger.info(
+            { householdMemberId, attachmentCount: attachmentList.length },
+            'Found attachments to upload',
+          );
+
+          // Upload each attachment to Siebel
+          for (const attachmentMeta of attachmentList) {
+            try {
+              // Get the full attachment with file data
+              const fullAttachment = await this.attachmentsService.findById(
+                attachmentMeta.attachmentId,
+              );
+
+              if (!fullAttachment || !fullAttachment.fileData) {
+                this.logger.warn(
+                  { attachmentId: attachmentMeta.attachmentId },
+                  'Attachment not found or has no file data',
+                );
+                continue;
+              }
+
+              const attachmentResult =
+                (await this.siebelApiService.createAttachment(
+                  serviceRequestId,
+                  {
+                    fileName: fullAttachment.fileName,
+                    fileContent: fullAttachment.fileData,
+                    fileType: fullAttachment.fileType,
+                    description:
+                      fullAttachment.description ||
+                      `Attachment for household member`,
+                  },
+                )) as { Id: string };
+
+              attachmentResults.push({
+                attachmentId: fullAttachment.attachmentId,
+                siebelAttachmentId: attachmentResult.Id,
+              });
+
+              this.logger.info(
+                {
+                  serviceRequestId: serviceRequestId,
+                  attachmentId: fullAttachment.attachmentId,
+                  fileName: fullAttachment.fileName,
+                  householdMemberId,
+                },
+                'Attachment uploaded successfully for household member',
+              );
+            } catch (error) {
+              this.logger.error(
+                {
+                  error,
+                  attachmentId: attachmentMeta.attachmentId,
+                  householdMemberId,
+                },
+                'Failed to upload attachment for household member',
+              );
+            }
+          }
+        } catch (error) {
+          this.logger.error(
+            {
+              error,
+              householdMemberId,
+            },
+            'Failed to fetch attachments for household member',
           );
         }
       }
