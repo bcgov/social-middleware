@@ -6,3 +6,10 @@ export enum AttachmentType {
   PROOF_OF_RESIDENCE = 'Proof of Residence',
   OTHER = 'Other',
 }
+
+export enum AllowedFileType {
+  PDF = '.pdf',
+  JPG = '.jpg',
+  JPEG = '.jpeg',
+  PNG = '.png',
+}
