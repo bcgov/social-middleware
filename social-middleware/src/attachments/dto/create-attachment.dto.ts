@@ -1,6 +1,9 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsString, IsEnum, IsOptional, IsNotEmpty } from 'class-validator';
-import { AttachmentType } from '../enums/attachment-types.enum';
+import {
+  AttachmentType,
+  AllowedFileType,
+} from '../enums/attachment-types.enum';
 
 export class CreateAttachmentDto {
   @ApiProperty()
@@ -27,8 +30,13 @@ export class CreateAttachmentDto {
   @IsNotEmpty()
   fileName!: string;
 
-  @ApiProperty()
-  @IsString()
+  @ApiProperty({
+    enum: AllowedFileType,
+    description: 'File type must be one of: .pdf, .jpg, .jpeg, .png',
+  })
+  @IsEnum(AllowedFileType, {
+    message: 'File type must be one of: .pdf, .jpg, .jpeg, .png',
+  })
   @IsNotEmpty()
   fileType!: string;
 
