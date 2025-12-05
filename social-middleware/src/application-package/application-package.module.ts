@@ -26,7 +26,7 @@ import { AttachmentsModule } from '../attachments/attachments.module';
     AuthModule,
     SiebelModule,
     CommonModule,
-    AttachmentsModule
+    AttachmentsModule,
     forwardRef(() => ApplicationPackageQueueModule),
   ],
   controllers: [ApplicationPackageController],
