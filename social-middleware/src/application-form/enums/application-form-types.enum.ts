@@ -12,8 +12,10 @@ export enum ApplicationFormType {
   ABOUTHOUSEHOLD = 'About Me (Household)',
 }
 
+// referral and household forms do not use FF forms;
 export const FormId: Record<ApplicationFormType, string> = {
-  [ApplicationFormType.REFERRAL]: 'CF0041',
+  //[ApplicationFormType.REFERRAL]: 'CF0041',
+  [ApplicationFormType.REFERRAL]: 'REFERRAL',
   [ApplicationFormType.ABOUTME]: 'CF0040',
   [ApplicationFormType.HOUSEHOLD]: 'HOUSEHOLD',
   [ApplicationFormType.PLACEMENT]: 'CF0043',
