@@ -635,6 +635,8 @@ export class ApplicationPackageService {
           Prov: primaryUser.region,
           PostalCode: primaryUser.postal_code,
           EmailAddress: primaryUser.email,
+          PrimaryPhone: primaryUser.primaryPhone,
+          SecondaryPhone: primaryUser.secondaryPhone,
           Gender: this.userUtil.sexToGenderType(primaryUser.sex),
           Relationship: 'Key player',
         };
@@ -772,6 +774,7 @@ export class ApplicationPackageService {
       // for an initial submission, there should only be a referral form
       let formsToAttach;
 
+      /*
       if (isInitialSubmission) {
         // get all application forms for this package
         const allApplicationForms =
@@ -791,7 +794,9 @@ export class ApplicationPackageService {
           },
           'Initial submission: attaching only REFERRAL forms',
         );
-      } else {
+      } else */
+
+      if (!isInitialSubmission) {
         // Subsequent submission: get ALL forms for the package (all users)
         const allApplicationForms =
           await this.applicationFormService.findAllByApplicationPackageId(
@@ -808,196 +813,199 @@ export class ApplicationPackageService {
           },
           'Subsequent submission: attaching non-REFERRAL forms',
         );
-      }
 
-      // track householdMemberIds that should use attachments instead of forms
-      const householdMembersUsingAttachments = new Set<string>();
+        // track householdMemberIds that should use attachments instead of forms
+        const householdMembersUsingAttachments = new Set<string>();
 
-      const attachmentResults = [];
-      for (const form of formsToAttach) {
-        try {
-          // if this form uses attached files, skip it and track the householdMemberId
-          if (form.userAttachedForm) {
-            householdMembersUsingAttachments.add(form.householdMemberId);
-            this.logger.info(
-              {
-                applicationFormId: form.applicationFormId,
-                householdMemberId: form.householdMemberId,
-                formType: form.type,
-              },
-              'Form marked with userAttachedForm - will use attachments instead',
-            );
-            continue; // skip this form
-          }
-
-          if (form.formData) {
-            let fileName = form.type as string;
-
-            // files need to have unique names, so for screening forms, add the household member's name
-            if (form.type === ApplicationFormType.SCREENING && form.userId) {
-              const householdMember = allHouseholdMembers.find(
-                (member) => member.userId === form.userId,
+        const attachmentResults = [];
+        for (const form of formsToAttach) {
+          try {
+            // if this form uses attached files, skip it and track the householdMemberId
+            if (form.userAttachedForm) {
+              householdMembersUsingAttachments.add(form.householdMemberId);
+              this.logger.info(
+                {
+                  applicationFormId: form.applicationFormId,
+                  householdMemberId: form.householdMemberId,
+                  formType: form.type,
+                },
+                'Form marked with userAttachedForm - will use attachments instead',
               );
-              if (householdMember) {
-                fileName = `${householdMember.firstName}_${householdMember.lastName}-SCREENING`;
-              } else {
-                this.logger.warn(
-                  {
-                    applicationFormId: form.applicationFormId,
-                    userId: form.userId,
-                  },
-                  'Could not find household member for screening form - using default filename',
-                );
-              }
+              continue; // skip this form
             }
 
-            const fileContent = form.formData; // Buffer.from(formDataString).toString('base64');
-            const description = `Caregiver Application ${form.type} form`;
+            if (form.formData) {
+              let fileName = form.type as string;
 
-            const attachmentResult =
-              (await this.siebelApiService.createAttachment(serviceRequestId, {
-                fileName: fileName,
-                fileContent: fileContent,
-                fileType: 'json',
-                description: description,
-              })) as { Id: string };
-
-            attachmentResults.push({
-              applicationFormId: form.applicationFormId,
-              attachmentId: attachmentResult.Id,
-            });
-
-            this.logger.info(
-              {
-                serviceRequestId: serviceRequestId,
-                applicationFormId: form.applicationFormId,
-                fileName: fileName,
-              },
-              'Attachment created successfully for form',
-            );
-          } else {
-            this.logger.warn(
-              { applicationFormId: form.applicationFormId },
-              'Skipping form with no data for attachment',
-            );
-          }
-        } catch (error) {
-          this.logger.error(
-            {
-              error,
-              applicationFormId: form.applicationFormId,
-              serviceRequestId: serviceRequestId,
-            },
-            'Failed to create attachment for form',
-          );
-        }
-      }
-
-      // Second pass: attach all attachments for householdMembers using attachments
-      for (const householdMemberId of householdMembersUsingAttachments) {
-        try {
-          this.logger.info(
-            { householdMemberId },
-            'Fetching attachments for household member',
-          );
-
-          // Get all attachments for this household member (without file data)
-          const attachmentList =
-            await this.attachmentsService.findByHouseholdMemberId(
-              householdMemberId,
-            );
-
-          this.logger.info(
-            { householdMemberId, attachmentCount: attachmentList.length },
-            'Found attachments to upload',
-          );
-
-          // Upload each attachment to Siebel
-          for (const attachmentMeta of attachmentList) {
-            try {
-              // Get the full attachment with file data
-              const fullAttachment = await this.attachmentsService.findById(
-                attachmentMeta.attachmentId,
-              );
-
-              if (!fullAttachment || !fullAttachment.fileData) {
-                this.logger.warn(
-                  { attachmentId: attachmentMeta.attachmentId },
-                  'Attachment not found or has no file data',
+              // files need to have unique names, so for screening forms, add the household member's name
+              if (form.type === ApplicationFormType.SCREENING && form.userId) {
+                const householdMember = allHouseholdMembers.find(
+                  (member) => member.userId === form.userId,
                 );
-                continue;
+                if (householdMember) {
+                  fileName = `${householdMember.firstName}_${householdMember.lastName}-SCREENING`;
+                } else {
+                  this.logger.warn(
+                    {
+                      applicationFormId: form.applicationFormId,
+                      userId: form.userId,
+                    },
+                    'Could not find household member for screening form - using default filename',
+                  );
+                }
               }
+
+              const fileContent = form.formData; // Buffer.from(formDataString).toString('base64');
+              const description = `Caregiver Application ${form.type} form`;
 
               const attachmentResult =
                 (await this.siebelApiService.createAttachment(
                   serviceRequestId,
                   {
-                    fileName: fullAttachment.fileName,
-                    fileContent: fullAttachment.fileData,
-                    fileType: fullAttachment.fileType,
-                    description:
-                      fullAttachment.description ||
-                      `Attachment for household member`,
+                    fileName: fileName,
+                    fileContent: fileContent,
+                    fileType: 'json',
+                    description: description,
                   },
                 )) as { Id: string };
 
               attachmentResults.push({
-                attachmentId: fullAttachment.attachmentId,
-                siebelAttachmentId: attachmentResult.Id,
+                applicationFormId: form.applicationFormId,
+                attachmentId: attachmentResult.Id,
               });
 
               this.logger.info(
                 {
                   serviceRequestId: serviceRequestId,
-                  attachmentId: fullAttachment.attachmentId,
-                  fileName: fullAttachment.fileName,
-                  householdMemberId,
+                  applicationFormId: form.applicationFormId,
+                  fileName: fileName,
                 },
-                'Attachment uploaded successfully for household member',
+                'Attachment created successfully for form',
               );
-            } catch (error) {
-              this.logger.error(
-                {
-                  error,
-                  attachmentId: attachmentMeta.attachmentId,
-                  householdMemberId,
-                },
-                'Failed to upload attachment for household member',
+            } else {
+              this.logger.warn(
+                { applicationFormId: form.applicationFormId },
+                'Skipping form with no data for attachment',
               );
             }
+          } catch (error) {
+            this.logger.error(
+              {
+                error,
+                applicationFormId: form.applicationFormId,
+                serviceRequestId: serviceRequestId,
+              },
+              'Failed to create attachment for form',
+            );
           }
-        } catch (error) {
-          this.logger.error(
+        }
+
+        // Second pass: attach all attachments for householdMembers using attachments
+        for (const householdMemberId of householdMembersUsingAttachments) {
+          try {
+            this.logger.info(
+              { householdMemberId },
+              'Fetching attachments for household member',
+            );
+
+            // Get all attachments for this household member (without file data)
+            const attachmentList =
+              await this.attachmentsService.findByHouseholdMemberId(
+                householdMemberId,
+              );
+
+            this.logger.info(
+              { householdMemberId, attachmentCount: attachmentList.length },
+              'Found attachments to upload',
+            );
+
+            // Upload each attachment to Siebel
+            for (const attachmentMeta of attachmentList) {
+              try {
+                // Get the full attachment with file data
+                const fullAttachment = await this.attachmentsService.findById(
+                  attachmentMeta.attachmentId,
+                );
+
+                if (!fullAttachment || !fullAttachment.fileData) {
+                  this.logger.warn(
+                    { attachmentId: attachmentMeta.attachmentId },
+                    'Attachment not found or has no file data',
+                  );
+                  continue;
+                }
+
+                const attachmentResult =
+                  (await this.siebelApiService.createAttachment(
+                    serviceRequestId,
+                    {
+                      fileName: fullAttachment.fileName,
+                      fileContent: fullAttachment.fileData,
+                      fileType: fullAttachment.fileType,
+                      description:
+                        fullAttachment.description ||
+                        `Attachment for household member`,
+                    },
+                  )) as { Id: string };
+
+                attachmentResults.push({
+                  attachmentId: fullAttachment.attachmentId,
+                  siebelAttachmentId: attachmentResult.Id,
+                });
+
+                this.logger.info(
+                  {
+                    serviceRequestId: serviceRequestId,
+                    attachmentId: fullAttachment.attachmentId,
+                    fileName: fullAttachment.fileName,
+                    householdMemberId,
+                  },
+                  'Attachment uploaded successfully for household member',
+                );
+              } catch (error) {
+                this.logger.error(
+                  {
+                    error,
+                    attachmentId: attachmentMeta.attachmentId,
+                    householdMemberId,
+                  },
+                  'Failed to upload attachment for household member',
+                );
+              }
+            }
+          } catch (error) {
+            this.logger.error(
+              {
+                error,
+                householdMemberId,
+              },
+              'Failed to fetch attachments for household member',
+            );
+          }
+        }
+
+        this.logger.info(
+          {
+            serviceRequestId: serviceRequestId,
+            totalForms: formsToAttach.length,
+            successfulAttachments: attachmentResults.length,
+          },
+          `Completed attachment creation for ${attachmentResults.length}/${formsToAttach.length} forms`,
+        );
+
+        // After the attachment loop, add this check:
+        if (attachmentResults.length !== formsToAttach.length) {
+          const failedCount = formsToAttach.length - attachmentResults.length;
+          this.logger.warn(
             {
-              error,
-              householdMemberId,
+              applicationPackageId,
+              expectedAttachments: formsToAttach.length,
+              successfulAttachments: attachmentResults.length,
+              failedAttachments: failedCount,
             },
-            'Failed to fetch attachments for household member',
+            'Some forms failed to attach to Siebel - submission continuing with partial attachments',
           );
         }
-      }
-
-      this.logger.info(
-        {
-          serviceRequestId: serviceRequestId,
-          totalForms: formsToAttach.length,
-          successfulAttachments: attachmentResults.length,
-        },
-        `Completed attachment creation for ${attachmentResults.length}/${formsToAttach.length} forms`,
-      );
-
-      // After the attachment loop, add this check:
-      if (attachmentResults.length !== formsToAttach.length) {
-        const failedCount = formsToAttach.length - attachmentResults.length;
-        this.logger.warn(
-          {
-            applicationPackageId,
-            expectedAttachments: formsToAttach.length,
-            successfulAttachments: attachmentResults.length,
-            failedAttachments: failedCount,
-          },
-          'Some forms failed to attach to Siebel - submission continuing with partial attachments',
-        );
       }
 
       await this.applicationPackageModel.findOneAndUpdate(
