@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Cron, CronExpression } from '@nestjs/schedule';
+import { Cron } from '@nestjs/schedule';
 import { ApplicationPackageQueueService } from './queue/application-package-queue.service';
 import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
 
@@ -12,10 +12,10 @@ export class ApplicationPackageSchedulerService {
   ) {}
 
   /**
-   * Runs every 5 minutes to check for packages needing processing
+   * Runs every 2 minutes to check for packages needing processing
    * Adjust the cron expression as needed
    */
-  @Cron(CronExpression.EVERY_5_MINUTES)
+  @Cron('*/2 * * * *') // every 2 minutes
   async scanForPackages() {
     this.logger.info('Cron job triggered: scanning for application packages');
 
