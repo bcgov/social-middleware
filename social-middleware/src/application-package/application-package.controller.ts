@@ -19,6 +19,7 @@ import {
 } from '@nestjs/swagger';
 import { ApplicationPackageService } from './application-package.service';
 import { ApplicationPackageStatus } from './enums/application-package-status.enum';
+import { SubmitReferralRequestDto } from './dto/submit-referral-request.dto';
 import { CreateApplicationPackageDto } from './dto/create-application-package.dto';
 import { UpdateApplicationPackageDto } from './dto/update-application-package.dto';
 import { ValidateHouseholdCompletionDto } from './dto/validate-application-package.dto';
@@ -305,6 +306,53 @@ export class ApplicationPackageController {
       this.logger.error(
         { error, applicationPackageId },
         'Failed to submit application package',
+      );
+      throw error;
+    }
+  }
+
+  @Post(':applicationPackageId/request-info-session')
+  @ApiOperation({ summary: 'Request a Caregiver Information Session' })
+  @ApiResponse({
+    status: 200,
+    description: 'Information Session successfully requested',
+    schema: {
+      type: 'object',
+      properties: {
+        serviceRequestId: { type: 'string' },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Application package not found or already submitted',
+  })
+  @ApiResponse({
+    status: 500,
+    description: 'Server error during submission',
+  })
+  async submitReferralRequest(
+    @Param('applicationPackageId') applicationPackageId: string,
+    @Body() dto: SubmitReferralRequestDto,
+    @Req() request: Request,
+  ): Promise<{ serviceRequestId: string }> {
+    try {
+      const userId = this.sessionUtil.extractUserIdFromRequest(request);
+
+      this.logger.info(
+        { applicationPackageId, userId },
+        'Submitting Infomation Session Request to Siebel',
+      );
+
+      return await this.applicationPackageService.submitReferralRequest(
+        applicationPackageId,
+        userId,
+        dto,
+      );
+    } catch (error) {
+      this.logger.error(
+        { error, applicationPackageId },
+        'Failed to request information session',
       );
       throw error;
     }
