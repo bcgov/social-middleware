@@ -21,9 +21,11 @@ import {
   getFormIdForFormType,
 } from '../application-form/enums/application-form-types.enum';
 import { ApplicationPackageQueueService } from './queue/application-package-queue.service';
+import { SubmitReferralRequestDto } from './dto/submit-referral-request.dto';
 import { CreateApplicationPackageDto } from './dto/create-application-package.dto';
 import { UpdateApplicationPackageDto } from './dto/update-application-package.dto';
 import { CancelApplicationPackageDto } from './dto/cancel-application-package.dto';
+
 import { HouseholdService } from '../household/services/household.service';
 import { AccessCodeService } from '../household/services/access-code.service';
 import { UserService } from '../auth/user.service';
@@ -495,6 +497,7 @@ export class ApplicationPackageService {
   async submitReferralRequest(
     applicationPackageId: string,
     userId: string,
+    dto: SubmitReferralRequestDto,
   ): Promise<{ serviceRequestId: string }> {
     try {
       this.logger.info(
@@ -521,6 +524,12 @@ export class ApplicationPackageService {
       // Get primary user
       const primaryUser = await this.userService.findOne(userId);
 
+      const updatedUser = await this.userService.update(userId, {
+        email: dto.email,
+        home_phone: dto.home_phone,
+        alternate_phone: dto.alternate_phone,
+      });
+
       // Create service request in Siebel
       const nodeEnv = this.configService.get<string>('NODE_ENV', 'development');
       const envSuffix = nodeEnv.toLowerCase().includes('prod') ? '' : nodeEnv; // say nothing in prod
@@ -533,7 +542,7 @@ export class ApplicationPackageService {
         'SR Sub Type': applicationPackage.subtype,
         'SR Sub Sub Type': applicationPackage.subsubtype,
         'ICM Stage': 'Application',
-        'ICM BCSC DID': primaryUser.bc_services_card_id,
+        'ICM BCSC DID': updatedUser.bc_services_card_id,
         'Service Office': 'MCFD',
         'Comm Method': 'Client Portal',
         Memo: `Created By ${envSuffix} Portal`,
@@ -571,9 +580,9 @@ export class ApplicationPackageService {
         City: primaryUser.city,
         Prov: primaryUser.region,
         PostalCode: primaryUser.postal_code,
-        EmailAddress: primaryUser.email,
-        PrimaryPhone: primaryUser.primaryPhone,
-        SecondaryPhone: primaryUser.secondaryPhone,
+        EmailAddress: dto.email,
+        HomePhone: dto.home_phone,
+        AlternatePhone: dto.alternate_phone || '',
         Gender: this.userUtil.sexToGenderType(primaryUser.sex),
         Relationship: 'Key player',
       };
@@ -581,9 +590,14 @@ export class ApplicationPackageService {
       const siebelProspectResponse =
         (await this.siebelApiService.createProspect(
           primaryUserProspectPayload,
-        )) as { Id: string };
+        )) as { items?: { Id?: string } };
 
-      if (!siebelProspectResponse.Id) {
+      this.logger.info(
+        { siebelProspectResponse, responseType: typeof siebelProspectResponse },
+        'Siebel prospect creation response received',
+      );
+
+      if (!siebelProspectResponse?.items?.Id) {
         this.logger.error('Failed to create prospect');
         throw new InternalServerErrorException('Failed to create prospect');
       }
@@ -743,8 +757,9 @@ export class ApplicationPackageService {
               City: memberUser.city,
               Prov: memberUser.region,
               PostalCode: memberUser.postal_code,
-              //TODO: ADD PHONE NUMBER
               EmailAddress: memberUser.email,
+              HomePhone: memberUser.home_phone || '',
+              AlternatePhone: memberUser.alternate_phone || '',
               Gender: this.userUtil.sexToGenderType(memberUser.sex),
               Relationship: householdMember.relationshipToPrimary,
             };
@@ -761,6 +776,8 @@ export class ApplicationPackageService {
               Prov: primaryApplicant.region,
               PostalCode: primaryApplicant.postal_code,
               EmailAddress: '', //householdMember.email,
+              HomePhone: '', //memberUser.homePhone || '',
+              AlternatePhone: '', // memberUser.alternatePhone || '',
               Gender: householdMember.genderType,
               Relationship: householdMember.relationshipToPrimary,
             };
