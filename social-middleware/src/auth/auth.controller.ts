@@ -228,12 +228,14 @@ export class AuthController {
 
   /**
    * Logout clears auth cookies and redirects user to frontend
+   * Kong OIDC plugin handles session termination and token revocation
    */
   @Get('logout')
   @ApiOperation({ summary: 'Clear session and redirect to login' })
   logout(@Req() req: Request, @Res() res: Response): void {
-    this.logger.info('Logging out user, clearing cookies...');
+    this.logger.info('Logging out user, clearing middleware session cookie...');
 
+    // Clear the middleware's app_session cookie
     res.clearCookie('app_session', {
       httpOnly: true,
       secure:
@@ -243,6 +245,12 @@ export class AuthController {
       domain: this.cookieDomain,
     });
 
+    // Kong OIDC plugin will handle:
+    // 1. Revoking tokens at BCSC
+    // 2. Clearing Kong's session cookie
+    // 3. Redirecting to redirect_after_logout_uri (configured in gateway)
+
+    // We still redirect here as a fallback in case Kong's redirect doesn't work
     return res.redirect(`${this.frontendURL}/login`);
   }
 }
