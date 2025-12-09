@@ -46,11 +46,11 @@ export class CreateUserDto {
 
   @IsPhoneNumber()
   @IsOptional()
-  primaryPhone?: string;
+  home_phone?: string;
 
   @IsPhoneNumber()
   @IsOptional()
-  secondaryPhone?: string;
+  alternate_phone?: string;
 
   @IsString()
   @IsNotEmpty()
