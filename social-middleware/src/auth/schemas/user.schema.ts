@@ -22,10 +22,10 @@ export class User {
   email!: string;
 
   @Prop({ required: false })
-  primaryPhone?: string;
+  home_phone?: string;
 
   @Prop({ required: false })
-  secondaryPhone?: string;
+  alternate_phone?: string;
 
   @Prop({ required: true })
   dateOfBirth!: string;
