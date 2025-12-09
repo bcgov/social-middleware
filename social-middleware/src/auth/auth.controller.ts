@@ -42,6 +42,7 @@ export class AuthController {
   private readonly jwtSecret: string;
   private readonly nodeEnv: string;
   private readonly frontendURL: string;
+  private readonly middlewareURL: string;
   private readonly cookieDomain: string | undefined;
 
   constructor(
@@ -54,6 +55,7 @@ export class AuthController {
     this.jwtSecret = this.configService.get<string>('JWT_SECRET')!;
     this.nodeEnv = this.configService.get<string>('NODE_ENV', 'development');
     this.frontendURL = this.configService.get<string>('FRONTEND_URL')!.trim();
+    this.middlewareURL = this.configService.get<string>('MIDDLEWARE_URL', 'http://localhost:3001')!.trim();
     this.cookieDomain = this.configService.get<string>('COOKIE_DOMAIN') || undefined;
     this.logger.setContext(AuthController.name);
   }
@@ -162,6 +164,7 @@ export class AuthController {
 
       // Set session cookie (named app_session to avoid conflict with Kong's session cookie)
       res.cookie('app_session', sessionToken, {
+        path: '/',
         httpOnly: true,
         secure:
           this.nodeEnv === 'production' ||
@@ -227,16 +230,19 @@ export class AuthController {
   }
 
   /**
-   * Logout clears auth cookies and redirects user to frontend
-   * Kong OIDC plugin handles session termination and token revocation
+   * Logout clears both middleware and Kong OIDC sessions
+   * This endpoint clears the middleware session, then redirects to Kong's /logout
+   * which will clear the OIDC session and redirect to the login page
    */
   @Get('logout')
-  @ApiOperation({ summary: 'Clear session and redirect to login' })
+  @ApiOperation({ summary: 'Clear session and redirect to Kong OIDC logout' })
   logout(@Req() req: Request, @Res() res: Response): void {
-    this.logger.info('Logging out user, clearing middleware session cookie...');
+    this.logger.info('========== /auth/logout reached ==========');
+    this.logger.info('Clearing middleware session cookie...');
 
-    // Clear the middleware's app_session cookie
+    // Clear the middleware's app_session cookie with explicit path
     res.clearCookie('app_session', {
+      path: '/',
       httpOnly: true,
       secure:
         this.nodeEnv === 'production' ||
@@ -245,13 +251,14 @@ export class AuthController {
       domain: this.cookieDomain,
     });
 
-    // Kong OIDC plugin will handle:
-    // 1. Revoking tokens at BCSC
-    // 2. Clearing Kong's session cookie
-    // 3. Redirecting to redirect_after_logout_uri (configured in gateway)
+    this.logger.info('Middleware session cookie cleared');
+    this.logger.info('Redirecting to Kong OIDC logout endpoint...');
 
-    // We still redirect here as a fallback in case Kong's redirect doesn't work
-    return res.redirect(`${this.frontendURL}/login`);
+    // Redirect to Kong's /logout endpoint which will:
+    // 1. Revoke OIDC tokens at BCSC
+    // 2. Clear Kong's session cookie
+    // 3. Redirect to the configured redirect_after_logout_uri (login page)
+    return res.redirect(`${this.middlewareURL}/logout`);
   }
 }
 
