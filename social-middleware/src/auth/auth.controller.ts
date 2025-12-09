@@ -146,6 +146,10 @@ export class AuthController {
 
       await this.userService.updateLastLogin(user.id);
 
+      // Emit user logged in event to trigger ICM lookup
+      this.logger.info('Emitting user logged in event for ICM lookup...');
+      await this.authService.login(user, userData);
+
       // Create a session token for the portal (Nest-managed)
       const sessionToken = jwt.sign(
         {
