@@ -381,7 +381,8 @@ export class SiebelApiService {
     Prov: string;
     PostalCode: string;
     EmailAddress: string;
-    //PrimaryPhone: string;
+    HomePhone: string;
+    AlternatePhone: string;
     Gender: string;
     Relationship: string;
   }) {
@@ -398,7 +399,8 @@ export class SiebelApiService {
       State: prospectData.Prov,
       'Postal Code': prospectData.PostalCode,
       'Email Address': prospectData.EmailAddress,
-      //'Primary Phone #': prospectData.PrimaryPhone,
+      'Home Phone #': prospectData.HomePhone,
+      'Alternate Phone #': prospectData.AlternatePhone,
       'M/F': prospectData.Gender,
       'Portal Role': prospectData.Relationship,
     };
