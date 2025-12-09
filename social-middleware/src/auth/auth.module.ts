@@ -4,6 +4,7 @@ import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
+import { BcscOAuthService } from './bcsc-oauth.service';
 import { UserService } from './user.service';
 import { HttpModule } from '@nestjs/axios';
 import { User, UserSchema } from './schemas/user.schema';
@@ -19,7 +20,7 @@ import { CommonModule } from '../common/common.module';
     CommonModule,
   ],
   controllers: [AuthController],
-  providers: [UserService, UserUtil, AuthService],
+  providers: [UserService, UserUtil, AuthService, BcscOAuthService],
   exports: [UserService, AuthService],
 })
 export class AuthModule {}
