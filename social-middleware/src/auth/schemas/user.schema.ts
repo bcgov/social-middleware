@@ -21,6 +21,12 @@ export class User {
   @Prop({ required: true })
   email!: string;
 
+  @Prop({ required: false })
+  home_phone?: string;
+
+  @Prop({ required: false })
+  alternate_phone?: string;
+
   @Prop({ required: true })
   dateOfBirth!: string;
 

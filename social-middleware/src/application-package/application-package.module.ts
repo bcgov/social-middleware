@@ -14,6 +14,7 @@ import { ApplicationFormModule } from '../application-form/application-form.modu
 import { SiebelModule } from '../siebel/siebel.module';
 import { CommonModule } from '../common/common.module';
 import { AuthListener } from './listeners/auth.listener';
+import { AttachmentsModule } from '../attachments/attachments.module';
 
 @Module({
   imports: [
@@ -25,6 +26,7 @@ import { AuthListener } from './listeners/auth.listener';
     AuthModule,
     SiebelModule,
     CommonModule,
+    AttachmentsModule,
     forwardRef(() => ApplicationPackageQueueModule),
   ],
   controllers: [ApplicationPackageController],

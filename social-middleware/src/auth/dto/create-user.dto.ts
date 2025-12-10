@@ -5,6 +5,7 @@ import {
   IsEmail,
   IsNotEmpty,
   MaxLength,
+  IsPhoneNumber,
 } from 'class-validator';
 import { Transform } from 'class-transformer';
 import { GenderTypes } from '../../household/enums/gender-types.enum';
@@ -42,6 +43,14 @@ export class CreateUserDto {
   @IsNotEmpty()
   @MaxLength(350)
   email!: string;
+
+  @IsPhoneNumber()
+  @IsOptional()
+  home_phone?: string;
+
+  @IsPhoneNumber()
+  @IsOptional()
+  alternate_phone?: string;
 
   @IsString()
   @IsNotEmpty()

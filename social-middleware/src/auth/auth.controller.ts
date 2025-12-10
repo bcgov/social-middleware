@@ -11,6 +11,7 @@ import {
   HttpCode,
   BadRequestException,
   ValidationPipe,
+  UseGuards,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Request, Response } from 'express';
@@ -33,6 +34,8 @@ import { SiebelApiService } from 'src/siebel/siebel-api.service';
 //import { SiebelContactResponse } from 'src/siebel/dto/siebel-contact-response.dto';
 import { PinoLogger } from 'nestjs-pino';
 import { UserUtil } from '../common/utils/user.util';
+import { SessionUtil } from '../common/utils/session.util';
+import { SessionAuthGuard } from './session-auth.guard';
 
 interface UserInfo {
   sub: string;
@@ -76,6 +79,7 @@ export class AuthController {
     private readonly authService: AuthService,
     private readonly logger: PinoLogger,
     private readonly userUtil: UserUtil,
+    private readonly sessionUtil: SessionUtil,
   ) {
     this.bcscClientId = this.configService.get<string>('BCSC_CLIENT_ID')!;
     this.bcscClientSecret =
@@ -570,5 +574,37 @@ export class AuthController {
     }
 
     return res.redirect(`${this.frontendURL}/login`);
+  }
+  @Get('profile')
+  @UseGuards(SessionAuthGuard)
+  @ApiOperation({
+    summary: 'Get user profile information',
+    description:
+      'Returns user profile data including name, address, email and phone numbers',
+  })
+  @ApiCookieAuth('session')
+  @ApiResponse({
+    status: 200,
+    description: 'User profile retrieved successfully',
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized - Invalid or missing session',
+  })
+  async getUserProfile(@Req() req: Request) {
+    const userId = this.sessionUtil.extractUserIdFromRequest(req);
+    const user = await this.userService.findOne(userId);
+
+    return {
+      first_name: user.first_name,
+      last_name: user.last_name,
+      street_address: user.street_address,
+      city: user.city,
+      region: user.region,
+      postal_code: user.postal_code,
+      email: user.email,
+      home_phone: user.home_phone,
+      alternate_phone: user.alternate_phone,
+    };
   }
 }
