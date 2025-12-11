@@ -398,4 +398,42 @@ export class ApplicationPackageController {
       userId,
     );
   }
+
+  @Post(':applicationPackageId/upload-medical-assessments')
+  @UseGuards(SessionAuthGuard)
+  @ApiOperation({
+    summary: 'Upload all medical assessment forms to ICM',
+    description:
+      'Uploads all attached medical assessment forms to ICM/Siebel and marks the application package as having medical assessments',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Medical assessments successfully uploaded to ICM',
+    schema: {
+      type: 'object',
+      properties: {
+        success: { type: 'boolean' },
+        attachmentsUploaded: { type: 'number' },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'No medical assessments found or service request not created',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Application package not found',
+  })
+  async uploadMedicalAssessments(
+    @Param('applicationPackageId') applicationPackageId: string,
+    @Req() request: Request,
+  ): Promise<{ success: boolean; attachmentsUploaded: number }> {
+    const userId = this.sessionUtil.extractUserIdFromRequest(request);
+
+    return await this.applicationPackageService.uploadMedicalAssessments(
+      applicationPackageId,
+      userId,
+    );
+  }
 }
