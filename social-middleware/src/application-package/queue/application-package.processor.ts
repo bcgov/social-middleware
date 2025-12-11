@@ -231,7 +231,9 @@ export class ApplicationPackageProcessor {
       // now let's check the household members requiring screening have screeningInfoProvided = true
 
       const membersRequiringScreening = householdMembers.filter(
-        (member) => member.requireScreening === true,
+        (member) =>
+          member.requireScreening === true &&
+          member.relationshipToPrimary !== RelationshipToPrimary.Self,
       );
 
       const membersWithoutScreening = membersRequiringScreening.filter(
