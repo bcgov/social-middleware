@@ -34,7 +34,10 @@ import { UserUtil } from '../common/utils/user.util';
 import { calculateAge } from '../common/utils/age.util';
 import { formatDateForSiebel } from '../common/utils/date.util';
 import { Model } from 'mongoose';
-import { RelationshipToPrimary } from '../household/enums/relationship-to-primary.enum';
+import {
+  getApplicantFlag,
+  RelationshipToPrimary,
+} from '../household/enums/relationship-to-primary.enum';
 import { SiebelApiService } from '../siebel/siebel-api.service';
 //import { ReferralState } from './enums/application-package-subtypes.enum';
 import { ValidateHouseholdCompletionDto } from './dto/validate-application-package.dto';
@@ -586,6 +589,7 @@ export class ApplicationPackageService {
         AlternatePhone: dto.alternate_phone || '',
         Gender: this.userUtil.sexToGenderType(primaryUser.sex),
         Relationship: 'Key player',
+        ApplicantFlag: 'Y',
       };
 
       const siebelProspectResponse =
@@ -763,6 +767,9 @@ export class ApplicationPackageService {
               AlternatePhone: memberUser.alternate_phone || '',
               Gender: this.userUtil.sexToGenderType(memberUser.sex),
               Relationship: householdMember.relationshipToPrimary,
+              ApplicantFlag: getApplicantFlag(
+                householdMember.relationshipToPrimary,
+              ),
             };
           } else {
             // household member without user account (typically minors)
@@ -781,6 +788,9 @@ export class ApplicationPackageService {
               AlternatePhone: '', // memberUser.alternatePhone || '',
               Gender: householdMember.genderType,
               Relationship: householdMember.relationshipToPrimary,
+              ApplicantFlag: getApplicantFlag(
+                householdMember.relationshipToPrimary,
+              ),
             };
           }
 
