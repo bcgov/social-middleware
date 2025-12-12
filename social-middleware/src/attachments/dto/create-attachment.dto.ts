@@ -32,10 +32,10 @@ export class CreateAttachmentDto {
 
   @ApiProperty({
     enum: AllowedFileType,
-    description: 'File type must be one of: .pdf, .jpg, .jpeg, .png',
+    description: 'File type must be one of: pdf, jpg, jpeg, png',
   })
   @IsEnum(AllowedFileType, {
-    message: 'File type must be one of: .pdf, .jpg, .jpeg, .png',
+    message: 'File type must be one of: pdf, jpg, jpeg, png',
   })
   @IsNotEmpty()
   fileType!: string;

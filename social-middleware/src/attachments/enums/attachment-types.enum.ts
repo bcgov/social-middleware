@@ -8,8 +8,8 @@ export enum AttachmentType {
 }
 
 export enum AllowedFileType {
-  PDF = '.pdf',
-  JPG = '.jpg',
-  JPEG = '.jpeg',
-  PNG = '.png',
+  PDF = 'pdf',
+  JPG = 'jpg',
+  JPEG = 'jpeg',
+  PNG = 'png',
 }

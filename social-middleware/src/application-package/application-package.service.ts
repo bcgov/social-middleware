@@ -34,7 +34,10 @@ import { UserUtil } from '../common/utils/user.util';
 import { calculateAge } from '../common/utils/age.util';
 import { formatDateForSiebel } from '../common/utils/date.util';
 import { Model } from 'mongoose';
-import { RelationshipToPrimary } from '../household/enums/relationship-to-primary.enum';
+import {
+  getApplicantFlag,
+  RelationshipToPrimary,
+} from '../household/enums/relationship-to-primary.enum';
 import { SiebelApiService } from '../siebel/siebel-api.service';
 //import { ReferralState } from './enums/application-package-subtypes.enum';
 import { ValidateHouseholdCompletionDto } from './dto/validate-application-package.dto';
@@ -42,6 +45,7 @@ import { ValidateHouseholdCompletionDto } from './dto/validate-application-packa
 import { HouseholdMembersDocument } from '../household/schemas/household-members.schema';
 import { ApplicationFormStatus } from '../application-form/enums/application-form-status.enum';
 import { AttachmentsService } from '../attachments/attachments.service';
+import { AttachmentType } from '../attachments/enums/attachment-types.enum';
 
 interface SiebelServiceRequestResponse {
   items?: {
@@ -585,6 +589,7 @@ export class ApplicationPackageService {
         AlternatePhone: dto.alternate_phone || '',
         Gender: this.userUtil.sexToGenderType(primaryUser.sex),
         Relationship: 'Key player',
+        ApplicantFlag: 'Y',
       };
 
       const siebelProspectResponse =
@@ -762,6 +767,9 @@ export class ApplicationPackageService {
               AlternatePhone: memberUser.alternate_phone || '',
               Gender: this.userUtil.sexToGenderType(memberUser.sex),
               Relationship: householdMember.relationshipToPrimary,
+              ApplicantFlag: getApplicantFlag(
+                householdMember.relationshipToPrimary,
+              ),
             };
           } else {
             // household member without user account (typically minors)
@@ -780,6 +788,9 @@ export class ApplicationPackageService {
               AlternatePhone: '', // memberUser.alternatePhone || '',
               Gender: householdMember.genderType,
               Relationship: householdMember.relationshipToPrimary,
+              ApplicantFlag: getApplicantFlag(
+                householdMember.relationshipToPrimary,
+              ),
             };
           }
 
@@ -1237,19 +1248,135 @@ export class ApplicationPackageService {
     this.logger.info(
       'Skipping form completion check until feature completely implemented',
     );
-    /* 
+
     if (
-      !applicationForms ||
-      applicationForms.some(
-        (form) => form.status != ApplicationFormStatus.COMPLETE,
-      )
+      !allApplicationForms ||
+      allApplicationForms
+        .filter(
+          (form) =>
+            form.type !== ApplicationFormType.REFERRAL &&
+            form.type !== ApplicationFormType.HOUSEHOLD,
+        )
+        .some((form) => form.status !== ApplicationFormStatus.COMPLETE)
     ) {
       this.logger.info('Application forms are not all complete for package');
       return false;
     }
-    */
 
     return true;
+  }
+
+  // upload medical assessment attachments to ICM and mark as complete
+
+  async uploadMedicalAssessments(
+    applicationPackageId: string,
+    userId: string,
+  ): Promise<{ success: boolean; attachmentsUploaded: number }> {
+    this.logger.info(
+      { applicationPackageId, userId },
+      'Starting medical assessment upload to ICM',
+    );
+
+    // Get the application package
+    const applicationPackage = (await this.applicationPackageModel
+      .findOne({
+        applicationPackageId,
+      })
+      .lean()
+      .exec()) as ApplicationPackage;
+
+    if (!applicationPackage) {
+      throw new NotFoundException(
+        `Application package ${applicationPackageId} not found`,
+      );
+    }
+
+    // Verify the service request exists
+    if (!applicationPackage.srId) {
+      throw new BadRequestException(
+        'Service request not created yet - cannot upload medical assessments',
+      );
+    }
+
+    // Get all medical assessment attachments for this application package
+    const attachments =
+      await this.attachmentsService.findByApplicationPackageId(
+        applicationPackageId,
+        userId,
+      );
+
+    const medicalAssessmentAttachments = attachments.filter(
+      (att) => att.attachmentType === AttachmentType.MEDICAL_ASSESSMENT,
+    );
+
+    if (medicalAssessmentAttachments.length === 0) {
+      throw new BadRequestException(
+        'No medical assessment attachments found for this application',
+      );
+    }
+
+    this.logger.info(
+      { count: medicalAssessmentAttachments.length },
+      'Found medical assessment attachments to upload',
+    );
+
+    // Upload each attachment to ICM
+    let uploadedCount = 0;
+    for (const attachment of medicalAssessmentAttachments) {
+      try {
+        // Get the full attachment with file content
+        const fullAttachment = await this.attachmentsService.findById(
+          attachment.attachmentId,
+        );
+
+        if (!fullAttachment?.fileData) {
+          this.logger.warn(
+            { attachmentId: attachment.attachmentId },
+            'Skipping attachment with no file content',
+          );
+          continue;
+        }
+
+        // Upload to Siebel
+        await this.siebelApiService.createAttachment(applicationPackage.srId, {
+          fileName: fullAttachment.fileName,
+          fileContent: fullAttachment.fileData,
+          fileType: fullAttachment.fileType,
+          description: 'Medical Assessment Form',
+        });
+
+        uploadedCount++;
+        this.logger.info(
+          { fileName: fullAttachment.fileName },
+          'Successfully uploaded medical assessment to ICM',
+        );
+      } catch (error) {
+        this.logger.error(
+          { error, attachmentId: attachment.attachmentId },
+          'Failed to upload medical assessment attachment',
+        );
+        throw new InternalServerErrorException(
+          `Failed to upload medical assessment`,
+        );
+      }
+    }
+
+    // Mark application package as having medical assessments
+    await this.applicationPackageModel.findOneAndUpdate(
+      { applicationPackageId },
+      { $set: { hasMedicalAssessment: true, updatedAt: new Date() } },
+      { new: true },
+    );
+
+    this.logger.info(
+      { applicationPackageId, uploadedCount },
+      'Medical assessments uploaded and marked complete',
+    );
+
+    return {
+      success: true,
+      attachmentsUploaded: uploadedCount,
+    };
   }
 
   async validateHouseholdCompletion(

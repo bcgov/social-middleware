@@ -65,6 +65,9 @@ export class ApplicationPackage {
   @Prop({ required: false, default: null })
   hasSupportNetwork!: string;
 
+  @Prop({ required: false, default: false })
+  hasMedicalAssessment!: boolean;
+
   @Prop({ required: false, default: () => Date() })
   createdAt!: Date;
 

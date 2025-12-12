@@ -385,6 +385,7 @@ export class SiebelApiService {
     AlternatePhone: string;
     Gender: string;
     Relationship: string;
+    ApplicantFlag: string;
   }) {
     const endpoint = '/Prospects/SRProspects/';
     const payload = {
@@ -403,6 +404,7 @@ export class SiebelApiService {
       'Alternate Phone #': prospectData.AlternatePhone,
       'M/F': prospectData.Gender,
       'Portal Role': prospectData.Relationship,
+      'Applicant Flag': prospectData.ApplicantFlag,
     };
     this.logger.debug(
       `Creating prospect for Service Request: ${prospectData.ServiceRequestId}`,
