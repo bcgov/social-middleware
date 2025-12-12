@@ -1,6 +1,5 @@
 import { Controller, Get } from '@nestjs/common';
 import { PinoLogger } from 'nestjs-pino';
-import { getConfig } from '../common/config/config-loader';
 
 @Controller('health')
 export class HealthController {
@@ -8,11 +7,10 @@ export class HealthController {
   @Get()
   getHealth() {
     this.logger.info('Health check endpoint hit');
-    const config = getConfig();
 
     return {
       status: 'ok',
-      service: config.get<string>('APP_NAME') || 'unknown',
+      service: 'social-middleware',
       uptime: process.uptime().toFixed(2) + 's',
     };
   }
