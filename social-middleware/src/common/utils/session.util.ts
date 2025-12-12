@@ -12,7 +12,8 @@ export class SessionUtil {
   }
 
   extractUserIdFromRequest(request: Request): string {
-    const sessionToken = request.cookies?.session as string;
+    const sessionToken = request.cookies?.app_session as string;
+    //const sessionToken = request.cookies?.session as string; //TODO: CONFIRM AFTER LOCAL TESTING
 
     if (!sessionToken) {
       throw new UnauthorizedException('No session token available.');
