@@ -38,6 +38,7 @@ import { NewTokenDto } from '../dto/new-token.dto';
 import { SubmitApplicationFormDto } from '../dto/submit-application-form.dto';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { RelationshipToPrimary } from '../../household/enums/relationship-to-primary.enum';
+import { Builder } from 'xml2js';
 
 @Injectable()
 export class ApplicationFormService {
@@ -638,6 +639,61 @@ export class ApplicationFormService {
         'Error verifying household member access',
       );
       return false;
+    }
+  }
+
+  /**
+   * Convert json form data to XML for ICM 
+   * @param applicationFormId
+   * @returns XML string form data
+   */
+
+  async convertFormDataToXml(applicationFormId: string): Promise<string> {
+    try {
+      this.logger.info({applicationFormId}, 'Generating form XML');
+
+      // find the application form
+      const form = await this.applicationFormModel.findOne({applicationFormId}).lean().exec();
+
+      if(!form) {
+        throw new NotFoundException(
+          `Application form ${applicationFormId} not found`,
+        );
+      }
+
+      if(!form.formData) {
+        throw new Error('Form data is empty');
+      }
+
+      // decode base64
+      const decodedJson = Buffer.from(form.formData, 'base64').toString('utf-8');
+
+      // parse JSON
+      const formDataObject = JSON.parse(decodedJson) as Record<string, string | boolean | number>;
+      
+      // generate XML structure
+      // xml2js expects { root: { fieldName: value }}
+      const xmlObject = {
+        root: formDataObject
+      };
+
+      // build XML
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+      const builder = new Builder({
+        xmldec: { version: '1.0' },
+        renderOpts: { pretty: false }, // returns single line
+        headless: false, // include <?xml version="1.0"?>
+      });
+
+       
+      const xml = builder.buildObject(xmlObject) as string;
+
+      this.logger.info({applicationFormId}, 'successfully generated XML for form data')
+
+      return xml;
+    } catch (error) {
+      this.logger.error({ error, applicationFormId }, 'Failed to convert form data to XML',);
+      throw new InternalServerErrorException('Failed to generate form data XML');
     }
   }
 
