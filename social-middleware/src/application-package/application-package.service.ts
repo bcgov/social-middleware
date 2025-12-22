@@ -545,7 +545,7 @@ export class ApplicationPackageService {
         Type: 'Caregiver Application',
         'SR Sub Type': applicationPackage.subtype,
         'SR Sub Sub Type': applicationPackage.subsubtype,
-        'ICM Stage': 'Application',
+        'ICM Stage': ServiceRequestStage.REFERRAL, // create in the Referral Stage
         'ICM BCSC DID': updatedUser.bc_services_card_id,
         'Service Office': 'MCFD',
         'Comm Method': 'Client Portal',
