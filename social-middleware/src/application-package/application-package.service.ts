@@ -547,7 +547,7 @@ export class ApplicationPackageService {
         'SR Sub Sub Type': applicationPackage.subsubtype,
         'ICM Stage': ServiceRequestStage.REFERRAL, // create in the Referral Stage
         'ICM BCSC DID': updatedUser.bc_services_card_id,
-        'Service Office': 'MCFD',
+        'Service Office': 'MCFD', // needs to default to the HUB service office
         'Comm Method': 'Client Portal',
         Memo: `Created By ${envSuffix} Portal`,
       };
@@ -897,15 +897,22 @@ export class ApplicationPackageService {
             }
 
             const fileContent = form.formData; // Buffer.from(formDataString).toString('base64');
-            const description = `Caregiver Application ${form.type} form`;
+            const formId = getFormIdForFormType(form.type);
+            const xmlHierarchy =
+              await this.applicationFormService.convertFormDataToXml(
+                form.applicationFormId,
+              );
 
             const attachmentResult =
-              (await this.siebelApiService.createAttachment(serviceRequestId, {
-                fileName: fileName,
-                fileContent: fileContent,
-                fileType: 'json',
-                description: description,
-              })) as { Id: string };
+              (await this.siebelApiService.createFormAttachment(
+                serviceRequestId,
+                {
+                  fileName: fileName,
+                  template: formId,
+                  xmlHierarchy: xmlHierarchy,
+                  fileContent: fileContent,
+                },
+              )) as { Id: string };
 
             attachmentResults.push({
               applicationFormId: form.applicationFormId,
