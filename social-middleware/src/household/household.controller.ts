@@ -284,6 +284,49 @@ export class HouseholdController {
     };
   }
 
+  @Get(':householdMemberId/access-code')
+  @UseGuards(SessionAuthGuard)
+  async getAccessCode(
+    @Param('applicationPackageId') applicationPackageId: string,
+    @Param('householdMemberId') householdMemberId: string,
+    @Req() request: Request,
+  ): Promise<{
+    accessCode: string;
+    expiresAt: Date;
+    isUsed: boolean;
+    attemptCount: number;
+  }> {
+    const userId = this.sessionUtil.extractUserIdFromRequest(request);
+
+    // Verify user owns the application package that this household member belongs to
+    const hasAccess =
+      await this.householdService.verifyUserOwnsHouseholdMemberPackage(
+        householdMemberId,
+        userId,
+      );
+
+    if (!hasAccess) {
+      throw new UnauthorizedException(
+        'User does not have access to this householdMember',
+      );
+    }
+
+    const accessCode =
+      await this.accessCodeService.getLatestAccessCode(householdMemberId);
+
+    if (!accessCode) {
+      throw new NotFoundException(
+        `No access code found for household member ${householdMemberId}`,
+      );
+    }
+
+    this.logger.log(
+      `Retrieved access code for household member ${householdMemberId}`,
+    );
+
+    return accessCode;
+  }
+
   @Delete(':householdMemberId')
   @ApiOperation({ summary: 'Delete household member by householdMemberId' })
   @ApiParam({ name: 'householdMemberId', type: String })
