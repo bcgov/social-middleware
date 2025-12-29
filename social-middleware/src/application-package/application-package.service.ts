@@ -546,6 +546,7 @@ export class ApplicationPackageService {
         'SR Sub Type': applicationPackage.subtype,
         'SR Sub Sub Type': applicationPackage.subsubtype,
         'ICM Stage': ServiceRequestStage.REFERRAL, // create in the Referral Stage
+        //'ICM Stage': ServiceRequestStage.APPLICATION, // create in the Referral Stage
         'ICM BCSC DID': updatedUser.bc_services_card_id,
         'Service Office': 'MCFD', // needs to default to the HUB service office
         'Comm Method': 'Client Portal',
