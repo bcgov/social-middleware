@@ -252,6 +252,32 @@ export class SiebelApiService {
     return await this.put(endpoint, payload);
   }
 
+  async createFormAttachment(
+    serviceRequestId: string,
+    attachmentData: {
+      fileName: string;
+      template: string;
+      xmlHierarchy: string;
+      fileContent: string;
+    },
+  ) {
+    const endpoint = '/ICM REST Forms Upsert/DT Form Instance Orbeon Revise/';
+    const payload = {
+      Id: 'NULL',
+      'SR Id': serviceRequestId,
+      Categorie: 'Service Request',
+      DocFileExt: 'json',
+      DocFileName: attachmentData.fileName,
+      'Office Name': 'MCFD',
+      Status: 'In Progress',
+      Template: attachmentData.template,
+      'Final Flag': 'N',
+      'XML Hierarchy': attachmentData.xmlHierarchy,
+      'Doc Attachment Id': attachmentData.fileContent,
+    };
+    return await this.put(endpoint, payload);
+  }
+
   /*
   async createForm(attachmentData, formData: string) {
     const endpoint = '/ICM REST Forms Upsert/DT Form Instance Orbeon Revise/';

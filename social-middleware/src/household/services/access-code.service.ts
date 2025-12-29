@@ -218,6 +218,47 @@ export class AccessCodeService {
     }
   }
 
+  async getLatestAccessCode(householdMemberId: string): Promise<{
+    accessCode: string;
+    expiresAt: Date;
+    isUsed: boolean;
+    attemptCount: number;
+  } | null> {
+    try {
+      this.logger.info(
+        { householdMemberId },
+        'Fetching latest access code for household member',
+      );
+
+      const accessCodeRecord = await this.screeningAccessCodeModel
+        .findOne({ householdMemberId })
+        .sort({ createdAt: -1 })
+        .lean()
+        .exec();
+
+      if (!accessCodeRecord) {
+        this.logger.info(
+          { householdMemberId },
+          'No access code found for household member',
+        );
+        return null;
+      }
+
+      return {
+        accessCode: accessCodeRecord.accessCode,
+        expiresAt: accessCodeRecord.expiresAt,
+        isUsed: accessCodeRecord.isUsed,
+        attemptCount: accessCodeRecord.attemptCount,
+      };
+    } catch (error) {
+      this.logger.error(
+        { error, householdMemberId },
+        'Failed to fetch access code',
+      );
+      throw new InternalServerErrorException('Failed to fetch access code');
+    }
+  }
+
   // helper method to compare BCSC DOB to ISO DOB (which ICM prefers)
   private compareDates(date1: string, date2: string): boolean {
     try {

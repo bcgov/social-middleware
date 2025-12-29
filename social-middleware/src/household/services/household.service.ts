@@ -15,6 +15,10 @@ import { RelationshipToPrimary } from '../enums/relationship-to-primary.enum';
 import { MemberTypes } from '../enums/member-types.enum';
 import { v4 as uuidv4 } from 'uuid';
 import { sexToGenderType } from '../../common/utils/gender.util';
+import {
+  ApplicationPackage,
+  ApplicationPackageDocument,
+} from '../../application-package/schema/application-package.schema';
 
 @Injectable()
 export class HouseholdService {
@@ -23,6 +27,8 @@ export class HouseholdService {
   constructor(
     @InjectModel(HouseholdMembers.name)
     private householdMemberModel: Model<HouseholdMembersDocument>,
+    @InjectModel(ApplicationPackage.name)
+    private applicationPackageModel: Model<ApplicationPackageDocument>,
   ) {}
 
   // TO DO: Move to UTIL function
@@ -508,6 +514,37 @@ export class HouseholdService {
         incompleteRecords: incompleteRecords,
       },
     };
+  }
+
+  async verifyUserOwnsHouseholdMemberPackage(
+    householdMemberId: string,
+    userId: string,
+  ): Promise<boolean> {
+    try {
+      const member = await this.findById(householdMemberId);
+
+      if (!member) {
+        this.logger.warn({ householdMemberId }, 'Household member not found');
+        return false;
+      }
+
+      // Check if user owns the application package
+      const appPackage = await this.applicationPackageModel
+        .findOne({
+          applicationPackageId: member.applicationPackageId,
+          userId: userId,
+        })
+        .lean()
+        .exec();
+
+      return !!appPackage;
+    } catch (error) {
+      this.logger.error(
+        { error, householdMemberId, userId },
+        'Error verifying household member package ownership',
+      );
+      return false;
+    }
   }
 
   // used by household invitation process, when we attempt to lookup a household member and don't have a user record yet.
