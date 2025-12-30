@@ -28,6 +28,7 @@ import { PinoLogger } from 'nestjs-pino';
 import { SessionUtil } from '../common/utils/session.util';
 import { SessionAuthGuard } from './session-auth.guard';
 import { AuthStrategy } from './strategies/auth-strategy.interface';
+import { UserProfileResponse } from './interfaces/user-profile-response.interface';
 
 @ApiTags('Authentication')
 @Controller('auth')
@@ -192,7 +193,7 @@ export class AuthController {
     status: 401,
     description: 'Unauthorized - Invalid or missing session',
   })
-  async getUserProfile(@Req() req: Request) {
+  async getUserProfile(@Req() req: Request): Promise<UserProfileResponse> {
     const userId = this.sessionUtil.extractUserIdFromRequest(req);
     const user = await this.userService.findOne(userId);
 
@@ -203,6 +204,7 @@ export class AuthController {
       city: user.city,
       region: user.region,
       postal_code: user.postal_code,
+      date_of_birth: user.dateOfBirth,
       email: user.email,
       home_phone: user.home_phone,
       alternate_phone: user.alternate_phone,
