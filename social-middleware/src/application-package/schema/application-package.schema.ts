@@ -9,6 +9,7 @@ import {
   ApplicationPackageStatus,
   ServiceRequestStage,
 } from '../enums/application-package-status.enum';
+import { SubmissionStatus } from '../enums/submission-status.enum';
 
 export type ApplicationPackageDocument = ApplicationPackage & Document;
 
@@ -46,6 +47,7 @@ export class ApplicationPackage {
   })
   status!: ApplicationPackageStatus;
 
+  //TODO: Remove ReferralState
   @Prop({
     required: true,
     enum: ReferralState,
@@ -59,14 +61,34 @@ export class ApplicationPackage {
   @Prop({ required: false, default: null })
   hasHousehold!: string;
 
+  //TODO: Remove hasSupportNetwork once we receive confirmation we will no longer collect it.
   @Prop({ required: false, default: null })
   hasSupportNetwork!: string;
+
+  @Prop({ required: false, default: false })
+  hasMedicalAssessment!: boolean;
 
   @Prop({ required: false, default: () => Date() })
   createdAt!: Date;
 
   @Prop({ required: false, default: null })
   submittedAt!: Date;
+
+  @Prop({ required: false, default: 0 })
+  submissionAttempts!: number; // track how many times we've tried to submit
+
+  @Prop({ required: false, default: null })
+  lastSubmissionAttempt!: Date; // when was the last attempt
+
+  @Prop({ required: false, default: null })
+  lastSubmissionError!: string; // error message from the last failed attempt
+
+  @Prop({
+    required: false,
+    enum: SubmissionStatus,
+    default: SubmissionStatus.PENDING,
+  })
+  submissionStatus!: string;
 
   @Prop({ required: false, default: () => Date() })
   updatedAt!: Date;

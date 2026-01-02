@@ -14,5 +14,8 @@ export function getConfig(): ConfigService {
 }
 
 export function isDev(): boolean {
-  return getConfig().get<string>('NODE_ENV') === 'development';
+  return (
+    getConfig().get<string>('NODE_ENV') === 'development' ||
+    getConfig().get<string>('NODE_ENV') === 'local'
+  );
 }

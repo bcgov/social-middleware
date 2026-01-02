@@ -27,7 +27,6 @@ import { SubmitApplicationFormDto } from './dto/submit-application-form.dto';
 //import { InviteHouseholdMemberParamsDto } from './dto/invite-household-member-params.dto';
 import { SessionAuthGuard } from 'src/auth/session-auth.guard';
 import { ApplicationFormService } from './services/application-form.service';
-import { ApplicationFormType } from './enums/application-form-types.enum';
 import { SessionUtil } from 'src/common/utils/session.util';
 import { PinoLogger } from 'nestjs-pino';
 import { ApplicationFormStatus } from './enums/application-form-status.enum';
@@ -75,21 +74,20 @@ export class ApplicationFormsController {
     const dto: NewTokenDto = {
       applicationFormId,
     };
-
+    // check the ownership of the form; they can own it directly or via household membership
     const ownsForm = await this.applicationFormsService.confirmOwnership(
       applicationFormId,
       userId,
     );
 
-    if (ownsForm) {
-      const formAccessToken =
-        await this.applicationFormsService.newFormAccessToken(dto);
-      return { formAccessToken };
-    } else {
+    if (!ownsForm) {
       throw new UnauthorizedException(
         'Invalid applicationForm or unauthorized access',
       );
     }
+
+    const formAccessToken = await this.applicationFormsService.newFormAccessToken(dto);
+    return { formAccessToken };
   }
 
   @Get(':applicationFormId')
@@ -122,47 +120,30 @@ export class ApplicationFormsController {
   ): Promise<GetApplicationFormDto> {
     const userId = this.sessionUtil.extractUserIdFromRequest(request);
 
-    const applicationForm =
-      await this.applicationFormsService.getApplicationFormById(
-        applicationFormId,
-        userId,
-      );
+    // Check ownership first
+    const ownsForm = await this.applicationFormsService.confirmOwnership(
+      applicationFormId,
+      userId,
+    );
 
-    if (!applicationForm) {
-      throw new NotFoundException(
+    if (!ownsForm) {
+      throw new UnauthorizedException(
         'Application form not found or access denied',
       );
     }
 
+    // If ownership confirmed, fetch and return the form
+    const applicationForm = await this.applicationFormsService.getApplicationFormById(
+      applicationFormId
+    );
+
+    if (!applicationForm) {
+      throw new NotFoundException('Application form not found');
+    }
+
     return applicationForm;
   }
-  /*
-  @Post(':applicationId/household/:householdMemberId/invite')
-  @ApiOperation({
-    summary: 'Generate an access code for a household member screening',
-  })
-  @ApiResponse({
-    status: 201,
-    description: 'Access code generated successfully',
-    schema: {
-      type: 'object',
-      properties: {
-        accessCode: { type: 'string' },
-        screeningApplicationid: { type: 'string' },
-        expiresAt: { type: 'string', format: 'date-time' },
-      },
-    },
-  })
-  async inviteHouseholdMember(
-    @Param(new ValidationPipe({ whitelist: true, transform: true }))
-    params: InviteHouseholdMemberParamsDto,
-  ) {
-    return await this.applicationFormService.createHouseholdScreening(
-      params.applicationId,
-      params.householdMemberId,
-    );
-  }
-*/
+
   @Post('submit')
   @ApiOperation({
     summary: 'Update application form data with Completed Status',
@@ -197,16 +178,75 @@ export class ApplicationFormsController {
     description: 'Application forms retrieved successfully',
     type: [GetApplicationFormDto],
   })
-  async getUserApplicationForms(
+  async getHouseholdApplicationForms(
+    @Req() request: Request,
+  ): Promise<GetApplicationFormDto[][]> {
+    const userId = this.sessionUtil.extractUserIdFromRequest(request);
+
+    //TODO
+    return await this.applicationFormsService.getApplicationFormsForUser(userId);
+  }
+
+  @Get('household/:householdMemberId')
+  @UseGuards(SessionAuthGuard)
+  @ApiOperation({
+    summary: 'Get all application forms for a household member',
+    description:
+      'Retrieves all application forms associated with a specific household member ID',
+  })
+  @ApiParam({
+    name: 'householdMemberId',
+    required: true,
+    description: 'The household member ID to retrieve forms for',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Application forms retrieved successfully',
+    type: [GetApplicationFormDto],
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized - invalid or missing session',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden - user not associated with this household member',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Household member or forms not found',
+  })
+  async getApplicationFormsByHouseholdMemberId(
+    @Param('householdMemberId') householdMemberId: string,
     @Req() request: Request,
   ): Promise<GetApplicationFormDto[]> {
     const userId = this.sessionUtil.extractUserIdFromRequest(request);
 
-    // Hard-coded to only return screening forms
-    return await this.applicationFormsService.getApplicationFormsByUser(
-      userId,
-      [ApplicationFormType.SCREENING],
-    );
+    // Verify user is associated with this household member
+    const hasAccess =
+      await this.applicationFormsService.verifyHouseholdMemberAccess(
+        householdMemberId,
+        userId,
+      );
+
+    if (!hasAccess) {
+      throw new UnauthorizedException(
+        'You do not have permission to access forms for this household member',
+      );
+    }
+
+    const forms =
+      await this.applicationFormsService.getApplicationFormByHouseholdId(
+        householdMemberId,
+      );
+
+    if (!forms || forms.length === 0) {
+      throw new NotFoundException(
+        `No forms found for household member ${householdMemberId}`,
+      );
+    }
+
+    return forms;
   }
 
   @Post('saveDraft')

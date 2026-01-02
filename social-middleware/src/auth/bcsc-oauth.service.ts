@@ -88,7 +88,10 @@ export class BcscOAuthService {
 
     const authUrl = `${authority}/authorize?${params.toString()}`;
 
-    this.logger.info({ state: this.pkceChallenge.state }, 'Generated BCSC authorization URL');
+    this.logger.info(
+      { state: this.pkceChallenge.state },
+      'Generated BCSC authorization URL',
+    );
 
     return {
       url: authUrl,
@@ -101,15 +104,20 @@ export class BcscOAuthService {
    *
    * @param code - Authorization code from BCSC
    * @param state - State parameter (optional, only validated if PKCE challenge exists)
+   * @param redirectUri - Optional redirect URI (for POST callback mode where frontend initiated the flow)
    */
   async exchangeCodeForTokens(
     code: string,
     state?: string,
+    redirectUri?: string,
   ): Promise<BCSCTokenResponse> {
     // Only validate state if we have a PKCE challenge (GET callback flow)
     if (this.pkceChallenge) {
       if (state !== this.pkceChallenge.state) {
-        this.logger.error({ receivedState: state, expectedState: this.pkceChallenge.state }, 'PKCE state mismatch');
+        this.logger.error(
+          { receivedState: state, expectedState: this.pkceChallenge.state },
+          'PKCE state mismatch',
+        );
         throw new Error('Invalid PKCE state parameter - possible CSRF attack');
       }
     }
@@ -117,17 +125,18 @@ export class BcscOAuthService {
     try {
       const authority = this.configService.get<string>('BCSC_AUTHORITY')!;
       const clientId = this.configService.get<string>('BCSC_CLIENT_ID')!;
-      const clientSecret = this.configService.get<string>('BCSC_CLIENT_SECRET')!;
+      const clientSecret =
+        this.configService.get<string>('BCSC_CLIENT_SECRET')!;
       const middlewareUrl = this.configService.get<string>('MIDDLEWARE_URL')!;
-      const redirectUri = `${middlewareUrl}/auth/callback`;
-      const tokenUrl = `${authority}/token`;
+      const finalRedirectUri = redirectUri || `${middlewareUrl}/auth/callback`;
+      const tokenUrl = `${authority}/protocol/openid-connect/token`;
 
       const params = new URLSearchParams({
         grant_type: 'authorization_code',
         client_id: clientId,
         client_secret: clientSecret,
         code: code,
-        redirect_uri: redirectUri,
+        redirect_uri: finalRedirectUri,
       });
 
       // Only include code_verifier if we have a PKCE challenge (GET callback flow)
@@ -135,7 +144,10 @@ export class BcscOAuthService {
         params.append('code_verifier', this.pkceChallenge.codeVerifier);
       }
 
-      this.logger.info({ tokenUrl, redirectUri }, 'Exchanging authorization code for tokens');
+      this.logger.info(
+        { tokenUrl, redirectUri: finalRedirectUri },
+        'Exchanging authorization code for tokens',
+      );
 
       const response = await axios.post<BCSCTokenResponse>(
         tokenUrl,
@@ -159,7 +171,10 @@ export class BcscOAuthService {
         errorData = error.response?.data;
       }
 
-      this.logger.error({ errorData }, 'Failed to exchange authorization code for tokens');
+      this.logger.error(
+        { errorData },
+        'Failed to exchange authorization code for tokens',
+      );
       throw new Error('Failed to authenticate with BCSC');
     }
   }
@@ -170,7 +185,7 @@ export class BcscOAuthService {
   async getUserInfo(accessToken: string): Promise<BCSCUserInfo> {
     try {
       const authority = this.configService.get<string>('BCSC_AUTHORITY')!;
-      const userInfoUrl = `${authority}/userinfo`;
+      const userInfoUrl = `${authority}/protocol/openid-connect/userinfo`;
 
       this.logger.info({ userInfoUrl }, 'Fetching user info from BCSC');
 
@@ -180,7 +195,10 @@ export class BcscOAuthService {
         },
       });
 
-      this.logger.info({ sub: response.data.sub }, 'Successfully fetched BCSC user info');
+      this.logger.info(
+        { sub: response.data.sub },
+        'Successfully fetched BCSC user info',
+      );
 
       return response.data;
     } catch (error: unknown) {

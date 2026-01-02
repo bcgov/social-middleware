@@ -19,6 +19,10 @@ import {
   ScreeningAccessCode,
   ScreeningAccessCodeSchema,
 } from './schemas/screening-access-code.schema';
+import {
+  ApplicationPackage,
+  ApplicationPackageSchema,
+} from '../application-package/schema/application-package.schema';
 
 @Module({
   imports: [
@@ -26,6 +30,7 @@ import {
       { name: HouseholdMembers.name, schema: HouseholdMembersSchema },
       { name: ApplicationForm.name, schema: ApplicationFormSchema },
       { name: ScreeningAccessCode.name, schema: ScreeningAccessCodeSchema },
+      { name: ApplicationPackage.name, schema: ApplicationPackageSchema },
     ]),
     AuthModule,
     forwardRef(() => ApplicationFormModule), // Add this back

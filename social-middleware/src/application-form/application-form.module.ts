@@ -21,6 +21,7 @@ import {
 } from '../household/schemas/screening-access-code.schema';
 import { HouseholdModule } from 'src/household/household.module';
 import { ApplicationFormsController } from './application-form.controller';
+import { EventEmitterModule } from '@nestjs/event-emitter';
 import { SessionUtil } from '../common/utils/session.util';
 
 @Module({
@@ -31,6 +32,7 @@ import { SessionUtil } from '../common/utils/session.util';
       { name: ApplicationPackage.name, schema: ApplicationPackageSchema },
       { name: ScreeningAccessCode.name, schema: ScreeningAccessCodeSchema },
     ]),
+    EventEmitterModule,
     AuthModule, // For UserService dependency
     HouseholdModule,
   ],
