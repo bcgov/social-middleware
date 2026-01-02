@@ -145,7 +145,10 @@ export class KongOidcAuthStrategy
       this.logger.info({ sub: userInfo.sub }, 'OIDC user information decoded');
 
       // Use shared session creation logic
-      await this.createUserSessionAndRedirect(userInfo, res);
+      //await this.createUserSessionAndRedirect(userInfo, res);
+      await this.createUserSession(userInfo, res);
+      this.logger.info('Redirecting to frontend callback...');
+      res.redirect(`${this.frontendURL}/auth/callback`);
     } catch (err) {
       this.logger.error({ err }, 'Error during Kong OIDC callback processing');
       this.redirectWithError(res, 'auth_processing_failed');
