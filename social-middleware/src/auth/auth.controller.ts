@@ -78,6 +78,14 @@ export class AuthController {
   @ApiOperation({ summary: 'Initiate login or handle Kong OIDC callback' })
   async login(@Req() req: Request, @Res() res: Response) {
     this.logger.info('========== /auth/login reached ==========');
+    this.logger.info(
+      {
+        headers: req.headers,
+        hasXUserinfo: !!req.headers['x-userinfo'],
+        cookies: Object.keys(req.cookies || {}),
+      },
+      'Login request details',
+    );
     return this.authStrategy.handleLogin(req, res);
   }
 
@@ -98,6 +106,14 @@ export class AuthController {
   })
   async authCallbackGet(@Req() req: Request, @Res() res: Response) {
     this.logger.info('========== GET /auth/callback reached ==========');
+    this.logger.info(
+      {
+        query: req.query,
+        headers: req.headers,
+        hasXUserinfo: !!req.headers['x-userinfo'],
+      },
+      'Callback request details',
+    );
     return this.authStrategy.handleGetCallback(req, res);
   }
 
