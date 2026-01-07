@@ -108,7 +108,7 @@ export class KongOidcAuthStrategy
     this.clearSessionCookie(res);
 
     this.logger.info('Redirecting to Kong OIDC logout endpoint');
-    res.redirect(`${this.middlewareURL}/logout`);
+    res.redirect(`${this.frontendURL}/logout`);
   }
 
   /**
