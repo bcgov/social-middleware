@@ -175,7 +175,25 @@ export abstract class BaseAuthStrategy {
    * Clear session cookie
    */
   protected clearSessionCookie(res: Response): void {
-    res.clearCookie('app_session', this.getCookieOptions());
+    const clearOptions = {
+      path: '/',
+      httpOnly: true,
+      secure:
+        this.nodeEnv === 'production' ||
+        this.frontendURL.startsWith('https://'),
+      sameSite: 'strict' as const, // Must match the set cookie options
+      ...(this.cookieDomain && { domain: this.cookieDomain }),
+    };
+    this.logger.info(
+      {
+        cookieDomain: this.cookieDomain,
+        secure: clearOptions.secure,
+        sameSite: clearOptions.sameSite,
+      },
+      'Clearing app_session cookie',
+    );
+
+    res.clearCookie('app_session', clearOptions);
   }
 
   /**
@@ -188,7 +206,7 @@ export abstract class BaseAuthStrategy {
       secure:
         this.nodeEnv === 'production' ||
         this.frontendURL.startsWith('https://'),
-      sameSite: 'lax' as const,
+      sameSite: 'strict' as const,
       ...(maxAge && { maxAge }),
       ...(this.cookieDomain && { domain: this.cookieDomain }),
     };
