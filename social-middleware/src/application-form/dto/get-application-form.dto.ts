@@ -18,11 +18,17 @@ export class GetApplicationFormDto {
   //   @ApiProperty({ type: Object })
   //   formData!: Record<string, any>; // could also make this more specific with a dedicated DTO
 
+  @ApiProperty()
+  householdMemberId!: string;
+
   @ApiProperty({ enum: ApplicationFormType })
   type!: ApplicationFormType;
 
   @ApiProperty({ enum: ApplicationFormStatus })
   status!: ApplicationFormStatus;
+
+  @ApiProperty()
+  userAttachedForm!: boolean;
 
   @ApiProperty()
   submittedAt!: Date;

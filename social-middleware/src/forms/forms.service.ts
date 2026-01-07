@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/restrict-template-expressions */
 import {
   BadRequestException,
   Injectable,
@@ -20,6 +19,8 @@ import {
   ApplicationForm,
   ApplicationFormDocument,
 } from 'src/application-form/schemas/application-form.schema';
+import { UserService } from '../auth/user.service';
+import { UserProfileResponse } from '../auth/interfaces/user-profile-response.interface';
 // TODO: cleanup old tokens
 
 @Injectable()
@@ -32,6 +33,7 @@ export class FormsService {
     private applicationFormModel: Model<ApplicationFormDocument>,
     @InjectPinoLogger(ApplicationFormService.name)
     private applicationFormService: ApplicationFormService,
+    private readonly userService: UserService,
     private readonly logger: PinoLogger,
   ) {}
   async validateTokenAndGetParameters(dto: ValidateTokenDto): Promise<any> {
@@ -196,5 +198,143 @@ export class FormsService {
     // Return the base64 string (in an object or as-is)
 
     return { formJson: formData };
+  }
+
+  async getTombstoneDataByToken(
+    formAccessToken: string,
+  ): Promise<UserProfileResponse> {
+    this.logger.info(
+      { formAccessToken },
+      'Fetching tombstone data by form access token',
+    );
+
+    try {
+      // step 1: find the form parameter record with this token
+      const formParameter = await this.formParametersModel
+        .findOne({ formAccessToken: { $eq: formAccessToken } })
+        .lean()
+        .exec();
+
+      if (!formParameter) {
+        this.logger.warn({ formAccessToken }, 'Form access token not found');
+        throw new NotFoundException('Form access token not found');
+      }
+
+      this.logger.debug(
+        { formAccessToken, applicationFormId: formParameter.applicationFormId },
+        'Found form parameter record',
+      );
+
+      // step 2: verify this is the most recent token for this application form
+      const mostRecentToken = await this.formParametersModel
+        .findOne({
+          applicationFormId: { $eq: formParameter.applicationFormId },
+        })
+        .sort({ createdAt: -1 })
+        .lean()
+        .exec();
+
+      if (!mostRecentToken) {
+        this.logger.error(
+          { applicationFormId: formParameter.applicationFormId },
+          'No tokens found for application form (unexpected)',
+        );
+        throw new NotFoundException('No valid token found for this form');
+      }
+
+      // check if the provided token matches the most recent one
+      if (mostRecentToken.formAccessToken !== formAccessToken) {
+        this.logger.warn(
+          {
+            providedToken: formAccessToken,
+            mostRecentToken: mostRecentToken.formAccessToken,
+            applicationFormId: formParameter.applicationFormId,
+          },
+          'Provided token is not the most recent for this application form',
+        );
+        throw new BadRequestException(
+          'This token is not th emost recent token for the application form',
+        );
+      }
+      this.logger.debug(
+        { formAccessToken, applicationFormId: formParameter.applicationFormId },
+        'Token verified as most recent',
+      );
+
+      // step 3: get the application form to find the userId
+      const applicationForm = await this.applicationFormModel
+        .findOne({
+          applicationFormId: { $eq: formParameter.applicationFormId },
+        })
+        .lean()
+        .exec();
+
+      if (!applicationForm) {
+        this.logger.error(
+          { applicationFormId: formParameter.applicationFormId },
+          'Application form not found',
+        );
+        throw new NotFoundException('Application form not found');
+      }
+
+      if (!applicationForm.userId) {
+        this.logger.error(
+          { applicationFormId: formParameter.applicationFormId },
+          'Application form has no associated user',
+        );
+        throw new NotFoundException('No user associated with this form');
+      }
+
+      this.logger.debug(
+        {
+          applicationFormId: formParameter.applicationFormId,
+          userId: applicationForm.userId,
+        },
+        'Found application form with user',
+      );
+
+      // step 4: get the user profile for tombstone data
+      const user = await this.userService.findOne(applicationForm.userId);
+
+      this.logger.info(
+        {
+          formAccessToken,
+          userId: user.id,
+        },
+        'Successfully retrieved tombstone data by form access token',
+      );
+
+      // step 5: return tombstone data fields
+      return {
+        first_name: user.first_name,
+        last_name: user.last_name,
+        date_of_birth: user.dateOfBirth,
+        street_address: user.street_address,
+        city: user.city,
+        region: user.region,
+        postal_code: user.postal_code,
+        email: user.email,
+        home_phone: user.home_phone,
+        alternate_phone: user.alternate_phone,
+      };
+    } catch (error) {
+      if (
+        error instanceof NotFoundException ||
+        error instanceof BadRequestException
+      ) {
+        throw error;
+      }
+
+      this.logger.error(
+        {
+          error,
+          formAccessToken,
+        },
+        'Unexpected error getting tombstone data by token',
+      );
+      throw new InternalServerErrorException(
+        'Failed to retrieve tombstone data',
+      );
+    }
   }
 }

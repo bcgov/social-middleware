@@ -19,6 +19,7 @@ import {
 } from '@nestjs/swagger';
 import { ApplicationPackageService } from './application-package.service';
 import { ApplicationPackageStatus } from './enums/application-package-status.enum';
+import { SubmitReferralRequestDto } from './dto/submit-referral-request.dto';
 import { CreateApplicationPackageDto } from './dto/create-application-package.dto';
 import { UpdateApplicationPackageDto } from './dto/update-application-package.dto';
 import { ValidateHouseholdCompletionDto } from './dto/validate-application-package.dto';
@@ -310,6 +311,53 @@ export class ApplicationPackageController {
     }
   }
 
+  @Post(':applicationPackageId/request-info-session')
+  @ApiOperation({ summary: 'Request a Caregiver Information Session' })
+  @ApiResponse({
+    status: 200,
+    description: 'Information Session successfully requested',
+    schema: {
+      type: 'object',
+      properties: {
+        serviceRequestId: { type: 'string' },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Application package not found or already submitted',
+  })
+  @ApiResponse({
+    status: 500,
+    description: 'Server error during submission',
+  })
+  async submitReferralRequest(
+    @Param('applicationPackageId') applicationPackageId: string,
+    @Body() dto: SubmitReferralRequestDto,
+    @Req() request: Request,
+  ): Promise<{ serviceRequestId: string }> {
+    try {
+      const userId = this.sessionUtil.extractUserIdFromRequest(request);
+
+      this.logger.info(
+        { applicationPackageId, userId },
+        'Submitting Infomation Session Request to Siebel',
+      );
+
+      return await this.applicationPackageService.submitReferralRequest(
+        applicationPackageId,
+        userId,
+        dto,
+      );
+    } catch (error) {
+      this.logger.error(
+        { error, applicationPackageId },
+        'Failed to request information session',
+      );
+      throw error;
+    }
+  }
+
   @Post(':applicationPackageId/lock-application')
   @ApiOperation({
     summary:
@@ -346,6 +394,44 @@ export class ApplicationPackageController {
   }> {
     const userId = this.sessionUtil.extractUserIdFromRequest(req);
     return await this.applicationPackageService.lockApplicationPackage(
+      applicationPackageId,
+      userId,
+    );
+  }
+
+  @Post(':applicationPackageId/upload-medical-assessments')
+  @UseGuards(SessionAuthGuard)
+  @ApiOperation({
+    summary: 'Upload all medical assessment forms to ICM',
+    description:
+      'Uploads all attached medical assessment forms to ICM/Siebel and marks the application package as having medical assessments',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Medical assessments successfully uploaded to ICM',
+    schema: {
+      type: 'object',
+      properties: {
+        success: { type: 'boolean' },
+        attachmentsUploaded: { type: 'number' },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'No medical assessments found or service request not created',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Application package not found',
+  })
+  async uploadMedicalAssessments(
+    @Param('applicationPackageId') applicationPackageId: string,
+    @Req() request: Request,
+  ): Promise<{ success: boolean; attachmentsUploaded: number }> {
+    const userId = this.sessionUtil.extractUserIdFromRequest(request);
+
+    return await this.applicationPackageService.uploadMedicalAssessments(
       applicationPackageId,
       userId,
     );

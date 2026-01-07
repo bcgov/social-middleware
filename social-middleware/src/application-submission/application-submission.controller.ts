@@ -43,7 +43,7 @@ export class ApplicationSubmissionController {
   ): Promise<ApplicationSubmission> {
     try {
       // extract userID
-      const sessionToken = req.cookies?.session as string | undefined;
+      const sessionToken = req.cookies?.app_session as string | undefined;
 
       if (!sessionToken) {
         throw new UnauthorizedException('No session token provided.');

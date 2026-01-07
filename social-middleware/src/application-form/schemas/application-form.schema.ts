@@ -13,8 +13,13 @@ export class ApplicationForm {
   @Prop({ required: true, unique: false })
   applicationPackageId!: string;
 
+  // who "Owns the record"
   @Prop({ required: false })
   userId!: string;
+
+  // who this form is about
+  @Prop({ required: true, unique: false })
+  householdMemberId!: string;
 
   @Prop({
     enum: ApplicationFormType,
@@ -29,8 +34,11 @@ export class ApplicationForm {
   })
   status!: ApplicationFormStatus;
 
-  @Prop({ type: Object, default: null }) // Allows storing raw JSON
-  formData!: Record<string, unknown> | null;
+  @Prop({ type: String, default: null }) // Allows storing raw JSON
+  formData!: string | null;
+
+  @Prop({ default: false })
+  userAttachedForm!: boolean;
 
   @Prop({ default: Date.now })
   submittedAt!: Date;

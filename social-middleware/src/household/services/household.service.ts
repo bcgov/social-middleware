@@ -15,6 +15,10 @@ import { RelationshipToPrimary } from '../enums/relationship-to-primary.enum';
 import { MemberTypes } from '../enums/member-types.enum';
 import { v4 as uuidv4 } from 'uuid';
 import { sexToGenderType } from '../../common/utils/gender.util';
+import {
+  ApplicationPackage,
+  ApplicationPackageDocument,
+} from '../../application-package/schema/application-package.schema';
 
 @Injectable()
 export class HouseholdService {
@@ -23,6 +27,8 @@ export class HouseholdService {
   constructor(
     @InjectModel(HouseholdMembers.name)
     private householdMemberModel: Model<HouseholdMembersDocument>,
+    @InjectModel(ApplicationPackage.name)
+    private applicationPackageModel: Model<ApplicationPackageDocument>,
   ) {}
 
   // TO DO: Move to UTIL function
@@ -255,6 +261,27 @@ export class HouseholdService {
     }
   }
 
+  async findByUserId(userId: string): Promise<HouseholdMembersDocument[]> {
+    try {
+      const members = await this.householdMemberModel.find({ userId }).exec();
+
+      this.logger.log(
+        `Found ${members.length} household members for userId:${userId}`,
+      );
+
+      return members;
+    } catch (error: unknown) {
+      const err = error as Error;
+      this.logger.error(
+        `Error finding household members for userId=${userId}: ${err.message}`,
+        err.stack,
+      );
+      throw new InternalServerErrorException(
+        'Failed to find household members by userId',
+      );
+    }
+  }
+
   // list all household members for an applicationID
   async findAllHouseholdMembers(
     applicationPackageId: string,
@@ -276,6 +303,14 @@ export class HouseholdService {
     }
   }
 
+  async findPrimaryApplicant(
+    applicationPackageId: string,
+  ): Promise<HouseholdMembersDocument | null> {
+    return await this.householdMemberModel
+      .findOne({ applicationPackageId })
+      .sort({ createdAt: 1 }) // Get the first one created
+      .exec();
+  }
   // used when a household member is removed by the front end
   // e.g. the applicant removes a household member that may have been saved
   //
@@ -346,6 +381,15 @@ export class HouseholdService {
         'Could not delete household members',
       );
     }
+  }
+
+  async markScreeningProvided(householdMemberId: string): Promise<void> {
+    await this.householdMemberModel
+      .findOneAndUpdate(
+        { householdMemberId },
+        { $set: { screeningInfoProvided: true } },
+      )
+      .exec();
   }
 
   async validateHouseholdCompletion(
@@ -470,6 +514,37 @@ export class HouseholdService {
         incompleteRecords: incompleteRecords,
       },
     };
+  }
+
+  async verifyUserOwnsHouseholdMemberPackage(
+    householdMemberId: string,
+    userId: string,
+  ): Promise<boolean> {
+    try {
+      const member = await this.findById(householdMemberId);
+
+      if (!member) {
+        this.logger.warn({ householdMemberId }, 'Household member not found');
+        return false;
+      }
+
+      // Check if user owns the application package
+      const appPackage = await this.applicationPackageModel
+        .findOne({
+          applicationPackageId: member.applicationPackageId,
+          userId: userId,
+        })
+        .lean()
+        .exec();
+
+      return !!appPackage;
+    } catch (error) {
+      this.logger.error(
+        { error, householdMemberId, userId },
+        'Error verifying household member package ownership',
+      );
+      return false;
+    }
   }
 
   // used by household invitation process, when we attempt to lookup a household member and don't have a user record yet.

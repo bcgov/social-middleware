@@ -26,13 +26,21 @@ export class CreateApplicationFormDto {
   formId!: string;
 
   @ApiProperty({
-    description: 'The id of the user initiating the application form',
+    description: 'The id of the user initiating the  form',
     example: '37fbe045-4be7-4226-b2e6-a0018f797b11',
   })
   @IsOptional()
   @IsObject()
   @IsNotEmpty()
   userId?: string;
+
+  @ApiProperty({
+    description: 'Who this form is about',
+    example: '37fbe045-4be7-4226-b2e6-a0018f797b11',
+  })
+  @IsObject()
+  @IsNotEmpty()
+  householdMemberId?: string;
 
   @ApiProperty({
     description: 'The type of application being created',
