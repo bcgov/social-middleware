@@ -1,5 +1,12 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsEnum, IsString, IsOptional } from 'class-validator';
+import {
+  IsEnum,
+  IsString,
+  IsOptional,
+  MinLength,
+  MaxLength,
+  IsEmail,
+} from 'class-validator';
 import { RelationshipToPrimary } from '../enums/relationship-to-primary.enum';
 import { GenderTypes } from '../enums/gender-types.enum';
 
@@ -18,14 +25,22 @@ export class CreateHouseholdMemberDto {
   userId?: string; // ID of the user this member represents (UUID)
 
   @IsString()
+  @MinLength(1, { message: 'First name is required' })
+  @MaxLength(50, { message: 'First name cannot exceed 50 characters' })
   firstName!: string;
+
   @IsString()
+  @MinLength(1, { message: 'First name is required' })
+  @MaxLength(50, { message: 'First name cannot exceed 50 characters' })
   lastName!: string;
 
   @IsString()
   dateOfBirth!: string; // ISO date string
+
   @IsString()
   @IsOptional()
+  @IsEmail({}, { message: 'Please enter a valid email address' })
+  @MaxLength(255, { message: 'Email cannot exceed 255 characters' })
   email?: string;
 
   @ApiProperty({ enum: RelationshipToPrimary })
