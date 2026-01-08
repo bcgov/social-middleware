@@ -516,6 +516,79 @@ export class HouseholdService {
     };
   }
 
+  /**
+   * Check if a household member with similar identifying information already exists
+   * Matches on: lastname, dateOfBirth, and first initial of firstName
+   */
+
+  async checkForDuplicate(
+    applicationPackageId: string,
+    firstName: string,
+    lastName: string,
+    dateOfBirth: string,
+    excludeHouseholdMemberId?: string,
+  ): Promise<{
+    isDuplicate: boolean;
+    existingMember?: HouseholdMembersDocument;
+  }> {
+    try {
+      const firstInitial = firstName.charAt(0).toUpperCase();
+
+      // find all members for this application package
+      const members = await this.householdMemberModel
+        .find({ applicationPackageId })
+        .lean()
+        .exec();
+
+      // check for duplicates
+      for (const member of members) {
+        // skip of this is the same record being updated
+        if (
+          excludeHouseholdMemberId &&
+          member.householdMemberId === excludeHouseholdMemberId
+        ) {
+          continue;
+        }
+
+        // match criteria: same last name, DOB, and first initial
+        const memberFirstInitial = member.firstName.charAt(0).toUpperCase();
+        const lastNameMatch =
+          member.lastName.toLowerCase().trim() ===
+          lastName.toLowerCase().trim();
+        const dobMatch = member.dateOfBirth === dateOfBirth;
+        const firstInitialMatch = memberFirstInitial === firstInitial;
+
+        if (lastNameMatch && dobMatch && firstInitialMatch) {
+          this.logger.warn(
+            {
+              applicationPackageId,
+              firstName,
+              lastName,
+              dateOfBirth,
+              existingMember: member.householdMemberId,
+            },
+            'Duplicate household member detected',
+          );
+
+          return {
+            isDuplicate: true,
+            existingMember: member as HouseholdMembersDocument,
+          };
+        }
+      }
+      return { isDuplicate: false };
+    } catch (error: unknown) {
+      const err = error as Error;
+      this.logger.error(
+        `Error checking for duplicate household member: ${err.message}`,
+        err.stack,
+      );
+      throw new InternalServerErrorException(
+        'Could not check for duplicate household members',
+      );
+    }
+  }
+
   async verifyUserOwnsHouseholdMemberPackage(
     householdMemberId: string,
     userId: string,
