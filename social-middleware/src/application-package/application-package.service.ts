@@ -548,7 +548,7 @@ export class ApplicationPackageService {
         'ICM Stage': ServiceRequestStage.REFERRAL, // create in the Referral Stage
         //'ICM Stage': ServiceRequestStage.APPLICATION, // create in the Referral Stage
         'ICM BCSC DID': updatedUser.bc_services_card_id,
-        'Service Office': 'MCFD', // needs to default to the HUB service office
+        'Service Office': 'HUC', // needs to default to the HUC service office
         'Comm Method': 'Client Portal',
         Memo: `Created By ${envSuffix} Portal`,
       };
