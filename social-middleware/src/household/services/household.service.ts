@@ -74,6 +74,22 @@ export class HouseholdService {
         );
       }
 
+      // check for duplicates before creating/updating
+      const duplicateCheck = await this.checkForDuplicate(
+        dto.applicationPackageId,
+        dto.firstName,
+        dto.lastName,
+        dto.dateOfBirth,
+        householdMemberId,
+      );
+
+      if (duplicateCheck.isDuplicate) {
+        //const existing = duplicateCheck.existingMember!;
+        throw new InternalServerErrorException(
+          'A household member with the same name and date of birth already exists in this application.',
+        );
+      }
+
       const age = this.calculateAge(dto.dateOfBirth);
       this.logger.log(`Age is ${age}`);
       // everyone over 19 requires a screening
