@@ -224,6 +224,28 @@ export class SiebelApiService {
     }
   }
 
+  async updateServiceRequestFields(
+    serviceRequestId: string,
+    fields: Record<string, any>,
+  ): Promise<SiebelSRResponse> {
+    const endpoint = `/ServiceRequest/ServiceRequest/${serviceRequestId}`;
+
+    this.logger.debug(
+      { serviceRequestId, fields },
+      'Updating Service Request fields',
+    );
+
+    try {
+      return await this.put(endpoint, fields);
+    } catch (error) {
+      this.logger.error(
+        { error, serviceRequestId, fields },
+        'Failed to update Service Request fields',
+      );
+      throw error;
+    }
+  }
+
   async createAttachment(
     serviceRequestId: string,
     attachmentData: {
