@@ -6,6 +6,7 @@ import {
   MinLength,
   MaxLength,
   IsEmail,
+  ValidateIf,
 } from 'class-validator';
 import { RelationshipToPrimary } from '../enums/relationship-to-primary.enum';
 import { GenderTypes } from '../enums/gender-types.enum';
@@ -37,8 +38,10 @@ export class CreateHouseholdMemberDto {
   @IsString()
   dateOfBirth!: string; // ISO date string
 
-  @IsString()
-  @IsOptional()
+  @ValidateIf(
+    // email values will come in many formats so we have to be a bit wily in validating them
+    (o) => o.email !== '' && o.email !== null && o.email !== undefined,
+  )
   @IsEmail({}, { message: 'Please enter a valid email address' })
   @MaxLength(255, { message: 'Email cannot exceed 255 characters' })
   email?: string;
