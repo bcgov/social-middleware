@@ -399,6 +399,39 @@ export class HouseholdService {
     }
   }
 
+  // used by the dev util for resetting application package - deletes all except primary applicant
+  async deleteNonPrimaryMembersByApplicationPackageId(
+    applicationPackageId: string,
+  ): Promise<{ deletedCount: number }> {
+    try {
+      this.logger.log(
+        `Deleting non-primary household members for applicationPackageId: ${applicationPackageId}`,
+      );
+
+      const result = await this.householdMemberModel
+        .deleteMany({
+          applicationPackageId,
+          relationshipToPrimary: { $ne: 'Self' },
+        })
+        .exec();
+
+      this.logger.log(
+        `Deleted ${result.deletedCount} non-primary household members for applicationPackageId: ${applicationPackageId}`,
+      );
+
+      return { deletedCount: result.deletedCount };
+    } catch (error: unknown) {
+      const err = error as Error;
+      this.logger.error(
+        `Failed to delete non-primary household members for applicationPackageId=${applicationPackageId}: ${err.message}`,
+        err.stack,
+      );
+      throw new InternalServerErrorException(
+        'Could not delete non-primary household members',
+      );
+    }
+  }
+
   async markScreeningProvided(householdMemberId: string): Promise<void> {
     await this.householdMemberModel
       .findOneAndUpdate(
