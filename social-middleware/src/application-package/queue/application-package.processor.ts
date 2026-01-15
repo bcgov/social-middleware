@@ -346,7 +346,6 @@ export class ApplicationPackageProcessor {
       );
 
       // Call the existing submission logic
-      // You'll need to inject ApplicationPackageService here
       // For now, I'll show the structure:
 
       const result =
