@@ -107,8 +107,14 @@ export class KongOidcAuthStrategy
 
     this.clearSessionCookie(res);
 
+    // Redirect to BCSC logout through Kong to clear SSO session
+    const postLogoutRedirectUri = encodeURIComponent(
+      `${this.frontendURL}/login`,
+    );
+    const kongLogoutUrl = `${this.middlewareURL}/logout?post_logout_redirect_uri=${postLogoutRedirectUri}`;
+
     this.logger.info('Redirecting to Kong OIDC logout endpoint');
-    res.redirect(`${this.frontendURL}/logout`);
+    res.redirect(kongLogoutUrl);
   }
 
   /**
