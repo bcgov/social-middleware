@@ -172,6 +172,13 @@ export abstract class BaseAuthStrategy {
   }
 
   /**
+   * Set id_token cookie for logout
+   */
+  protected setIdTokenCookie(res: Response, idToken: string): void {
+    res.cookie('id_token', idToken, this.getCookieOptions(24 * 60 * 60 * 1000));
+  }
+
+  /**
    * Clear session cookie
    */
   protected clearSessionCookie(res: Response): void {
@@ -194,6 +201,7 @@ export abstract class BaseAuthStrategy {
     );
 
     res.clearCookie('app_session', clearOptions);
+    res.clearCookie('id_token', clearOptions);
   }
 
   /**
