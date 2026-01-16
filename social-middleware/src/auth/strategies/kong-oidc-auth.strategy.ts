@@ -111,7 +111,7 @@ export class KongOidcAuthStrategy
     const postLogoutRedirectUri = encodeURIComponent(
       `${this.frontendURL}/login`,
     );
-    const kongLogoutUrl = `${this.middlewareURL}/logout?post_logout_redirect_uri=${postLogoutRedirectUri}`;
+    const kongLogoutUrl = `${this.middlewareURL}/auth/logout?post_logout_redirect_uri=${postLogoutRedirectUri}`;
 
     this.logger.info('Redirecting to Kong OIDC logout endpoint');
     res.redirect(kongLogoutUrl);

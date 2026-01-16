@@ -545,7 +545,7 @@ export class ApplicationPackageService {
         Type: 'Caregiver Application',
         'SR Sub Type': applicationPackage.subtype,
         'SR Sub Sub Type': applicationPackage.subsubtype,
-        'ICM Stage': ServiceRequestStage.REFERRAL, // create in the Referral Stage
+        //'ICM Stage': ServiceRequestStage.REFERRAL, // create in the Referral Stage
         //'ICM Stage': ServiceRequestStage.APPLICATION, // create in the Referral Stage
         'ICM BCSC DID': updatedUser.bc_services_card_id,
         'Service Office': 'HUC', // needs to default to the HUC service office
@@ -607,6 +607,19 @@ export class ApplicationPackageService {
         this.logger.error('Failed to create prospect');
         throw new InternalServerErrorException('Failed to create prospect');
       }
+
+      // do a separate put to trigger an ICM workflow
+
+      await this.siebelApiService.updateServiceRequestStage(
+        serviceRequestId,
+        'Referral',
+      );
+
+      this.logger.info(
+        { serviceRequestId },
+        'Service request stage updated to Referral',
+      );
+
       // Update application package status
       await this.applicationPackageModel.findOneAndUpdate(
         { applicationPackageId },
