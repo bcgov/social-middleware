@@ -207,6 +207,9 @@ export class SiebelApiService {
     newStage: string,
   ): Promise<SiebelSRResponse> {
     const endpoint = `/ServiceRequest/ServiceRequest/${serviceRequestId}`;
+    const params = {
+      ViewMode: 'Catalog',
+    };
     const payload = {
       'ICM Stage': newStage,
     };
@@ -214,7 +217,7 @@ export class SiebelApiService {
       `Updating Service Request ${serviceRequestId} to stage: ${newStage}`,
     );
     try {
-      return await this.put(endpoint, payload);
+      return await this.put(endpoint, payload, params);
     } catch (error) {
       this.logger.error(
         { error, serviceRequestId, newStage },
