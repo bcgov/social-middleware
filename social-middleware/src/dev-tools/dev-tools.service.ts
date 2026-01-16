@@ -20,7 +20,7 @@ import {
 import {
   ScreeningAccessCode,
   ScreeningAccessCodeDocument,
-} from '../application/schemas/screening-access-code.schema';
+} from '../household/schemas/screening-access-code.schema';
 import {
   FormParameters,
   FormParametersDocument,
