@@ -5,7 +5,7 @@ metadata:
   labels:
     app.openshift.io/runtime: redis
 spec:
-  replicas: 0
+  replicas: 1
   selector:
     matchLabels:
       app: redis
@@ -22,7 +22,7 @@ spec:
           args: ["--appendonly", "yes"]
           env:
             - name: REDIS_HOST
-              value: "localhost"
+              value: "redis"
             - name: REDIS_PORT
               value: "6379"
             - name: QUEUE_JOB_ATTEMPTS

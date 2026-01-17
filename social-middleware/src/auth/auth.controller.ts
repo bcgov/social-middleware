@@ -9,6 +9,7 @@ import {
   HttpStatus,
   UseGuards,
   Inject,
+  ValidationPipe,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Request, Response } from 'express';
@@ -28,6 +29,7 @@ import { PinoLogger } from 'nestjs-pino';
 import { SessionUtil } from '../common/utils/session.util';
 import { SessionAuthGuard } from './session-auth.guard';
 import { AuthStrategy } from './strategies/auth-strategy.interface';
+import { UserProfileResponse } from './interfaces/user-profile-response.interface';
 
 @ApiTags('Authentication')
 @Controller('auth')
@@ -76,6 +78,14 @@ export class AuthController {
   @ApiOperation({ summary: 'Initiate login or handle Kong OIDC callback' })
   async login(@Req() req: Request, @Res() res: Response) {
     this.logger.info('========== /auth/login reached ==========');
+    this.logger.info(
+      {
+        headers: req.headers,
+        hasXUserinfo: !!req.headers['x-userinfo'],
+        cookies: Object.keys(req.cookies || {}),
+      },
+      'Login request details',
+    );
     return this.authStrategy.handleLogin(req, res);
   }
 
@@ -96,6 +106,14 @@ export class AuthController {
   })
   async authCallbackGet(@Req() req: Request, @Res() res: Response) {
     this.logger.info('========== GET /auth/callback reached ==========');
+    this.logger.info(
+      {
+        query: req.query,
+        headers: req.headers,
+        hasXUserinfo: !!req.headers['x-userinfo'],
+      },
+      'Callback request details',
+    );
     return this.authStrategy.handleGetCallback(req, res);
   }
 
@@ -192,7 +210,7 @@ export class AuthController {
     status: 401,
     description: 'Unauthorized - Invalid or missing session',
   })
-  async getUserProfile(@Req() req: Request) {
+  async getUserProfile(@Req() req: Request): Promise<UserProfileResponse> {
     const userId = this.sessionUtil.extractUserIdFromRequest(req);
     const user = await this.userService.findOne(userId);
 
@@ -203,9 +221,11 @@ export class AuthController {
       city: user.city,
       region: user.region,
       postal_code: user.postal_code,
+      date_of_birth: user.dateOfBirth,
       email: user.email,
       home_phone: user.home_phone,
       alternate_phone: user.alternate_phone,
     };
   }
 }
+

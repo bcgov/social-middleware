@@ -195,6 +195,20 @@ export class AccessCodeService {
         },
       );
 
+      // associate all application forms for this household member with the user
+      await this.applicationFormModel.updateMany(
+        { householdMemberId: accessCodeRecord.householdMemberId },
+        { userId: userId },
+      );
+
+      this.logger.info(
+        {
+          householdMemberId: accessCodeRecord.householdMemberId,
+          userId,
+        },
+        'Associated application forms with authenticated user',
+      );
+
       // all good to go
       this.logger.info(
         {

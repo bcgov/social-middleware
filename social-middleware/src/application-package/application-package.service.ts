@@ -545,10 +545,10 @@ export class ApplicationPackageService {
         Type: 'Caregiver Application',
         'SR Sub Type': applicationPackage.subtype,
         'SR Sub Sub Type': applicationPackage.subsubtype,
-        'ICM Stage': ServiceRequestStage.REFERRAL, // create in the Referral Stage
+        //'ICM Stage': ServiceRequestStage.REFERRAL, // create in the Referral Stage
         //'ICM Stage': ServiceRequestStage.APPLICATION, // create in the Referral Stage
         'ICM BCSC DID': updatedUser.bc_services_card_id,
-        'Service Office': 'MCFD', // needs to default to the HUB service office
+        'Service Office': 'HUC', // needs to default to the HUC service office
         'Comm Method': 'Client Portal',
         Memo: `Created By ${envSuffix} Portal`,
       };
@@ -607,6 +607,19 @@ export class ApplicationPackageService {
         this.logger.error('Failed to create prospect');
         throw new InternalServerErrorException('Failed to create prospect');
       }
+
+      // do a separate put to trigger an ICM workflow
+
+      await this.siebelApiService.updateServiceRequestStage(
+        serviceRequestId,
+        'Referral',
+      );
+
+      this.logger.info(
+        { serviceRequestId },
+        'Service request stage updated to Referral',
+      );
+
       // Update application package status
       await this.applicationPackageModel.findOneAndUpdate(
         { applicationPackageId },
@@ -1050,6 +1063,29 @@ export class ApplicationPackageService {
             failedAttachments: failedCount,
           },
           'Some forms failed to attach to Siebel - submission continuing with partial attachments',
+        );
+      }
+
+      // now we need to update the service request to indicate the application has been submitted
+      try {
+        this.logger.info(
+          { applicationPackageId, serviceRequestId },
+          'Setting ICM CGA Application Received Flag to Y',
+        );
+
+        await this.siebelApiService.updateServiceRequestFields(
+          serviceRequestId,
+          { 'ICM CGA Application Received Flag': 'Y' },
+        );
+
+        this.logger.info(
+          { applicationPackageId, serviceRequestId },
+          'Successfully set ICM CGA Application Received Flag',
+        );
+      } catch (error) {
+        this.logger.error(
+          { error, applicationPackageId, serviceRequestId },
+          'Failed to set ICM CGA Application Received Flag',
         );
       }
 

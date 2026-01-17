@@ -74,6 +74,22 @@ export class HouseholdService {
         );
       }
 
+      // check for duplicates before creating/updating
+      const duplicateCheck = await this.checkForDuplicate(
+        dto.applicationPackageId,
+        dto.firstName,
+        dto.lastName,
+        dto.dateOfBirth,
+        householdMemberId,
+      );
+
+      if (duplicateCheck.isDuplicate) {
+        //const existing = duplicateCheck.existingMember!;
+        throw new InternalServerErrorException(
+          'A household member with the same name and date of birth already exists in this application.',
+        );
+      }
+
       const age = this.calculateAge(dto.dateOfBirth);
       this.logger.log(`Age is ${age}`);
       // everyone over 19 requires a screening
@@ -383,6 +399,39 @@ export class HouseholdService {
     }
   }
 
+  // used by the dev util for resetting application package - deletes all except primary applicant
+  async deleteNonPrimaryMembersByApplicationPackageId(
+    applicationPackageId: string,
+  ): Promise<{ deletedCount: number }> {
+    try {
+      this.logger.log(
+        `Deleting non-primary household members for applicationPackageId: ${applicationPackageId}`,
+      );
+
+      const result = await this.householdMemberModel
+        .deleteMany({
+          applicationPackageId,
+          relationshipToPrimary: { $ne: 'Self' },
+        })
+        .exec();
+
+      this.logger.log(
+        `Deleted ${result.deletedCount} non-primary household members for applicationPackageId: ${applicationPackageId}`,
+      );
+
+      return { deletedCount: result.deletedCount };
+    } catch (error: unknown) {
+      const err = error as Error;
+      this.logger.error(
+        `Failed to delete non-primary household members for applicationPackageId=${applicationPackageId}: ${err.message}`,
+        err.stack,
+      );
+      throw new InternalServerErrorException(
+        'Could not delete non-primary household members',
+      );
+    }
+  }
+
   async markScreeningProvided(householdMemberId: string): Promise<void> {
     await this.householdMemberModel
       .findOneAndUpdate(
@@ -514,6 +563,79 @@ export class HouseholdService {
         incompleteRecords: incompleteRecords,
       },
     };
+  }
+
+  /**
+   * Check if a household member with similar identifying information already exists
+   * Matches on: lastname, dateOfBirth, and first initial of firstName
+   */
+
+  async checkForDuplicate(
+    applicationPackageId: string,
+    firstName: string,
+    lastName: string,
+    dateOfBirth: string,
+    excludeHouseholdMemberId?: string,
+  ): Promise<{
+    isDuplicate: boolean;
+    existingMember?: HouseholdMembersDocument;
+  }> {
+    try {
+      const firstInitial = firstName.charAt(0).toUpperCase();
+
+      // find all members for this application package
+      const members = await this.householdMemberModel
+        .find({ applicationPackageId })
+        .lean()
+        .exec();
+
+      // check for duplicates
+      for (const member of members) {
+        // skip of this is the same record being updated
+        if (
+          excludeHouseholdMemberId &&
+          member.householdMemberId === excludeHouseholdMemberId
+        ) {
+          continue;
+        }
+
+        // match criteria: same last name, DOB, and first initial
+        const memberFirstInitial = member.firstName.charAt(0).toUpperCase();
+        const lastNameMatch =
+          member.lastName.toLowerCase().trim() ===
+          lastName.toLowerCase().trim();
+        const dobMatch = member.dateOfBirth === dateOfBirth;
+        const firstInitialMatch = memberFirstInitial === firstInitial;
+
+        if (lastNameMatch && dobMatch && firstInitialMatch) {
+          this.logger.warn(
+            {
+              applicationPackageId,
+              firstName,
+              lastName,
+              dateOfBirth,
+              existingMember: member.householdMemberId,
+            },
+            'Duplicate household member detected',
+          );
+
+          return {
+            isDuplicate: true,
+            existingMember: member as HouseholdMembersDocument,
+          };
+        }
+      }
+      return { isDuplicate: false };
+    } catch (error: unknown) {
+      const err = error as Error;
+      this.logger.error(
+        `Error checking for duplicate household member: ${err.message}`,
+        err.stack,
+      );
+      throw new InternalServerErrorException(
+        'Could not check for duplicate household members',
+      );
+    }
   }
 
   async verifyUserOwnsHouseholdMemberPackage(
