@@ -287,6 +287,10 @@ export class ApplicationPackageService {
     }
   }
 
+  // handle updates to the applicationPackage stage when we notice a change in the service request srStage
+  // this is called by auth.listener.ts when the user logs into the portal and we notice that the srStage
+  // is not the same as the applicationPackage srStage.
+
   async updateApplicationPackageStage(
     applicationPackage: ApplicationPackage,
     newStage: ServiceRequestStage,
@@ -300,13 +304,13 @@ export class ApplicationPackageService {
       // TODO: handle withdrawl, cancellations, etc.
       // let newStatus: ApplicationPackageStatus;
 
-      // Get the primary applicant's householdMemberId
-      // At this point, the primary applicant should be the only household member
+      // Get the primary applicant's householdMemberId from the applicationPackage in question
       const primaryApplicantMember =
         await this.householdService.findPrimaryApplicant(
           applicationPackage.applicationPackageId,
         );
 
+      // if there is no primary applicant household member, this is a strange situation and we should stop..
       if (!primaryApplicantMember) {
         this.logger.error(
           { applicationPackageId: applicationPackage.applicationPackageId },
@@ -317,9 +321,15 @@ export class ApplicationPackageService {
         );
       }
 
+      // the applicationPackage.srStage is updated on login
+      // after the initial submission the srStage is set to blank
+      // logging back into the portal without any change on the service request will update the srStage to REFERRAL
+      // if they don't log back in until they are notified, their srStage will stay as blank in the portal
+      // therefore, the first stage change to handle is moving from "" or .REFERRAL to .APPLICATION
       if (
         newStage === ServiceRequestStage.APPLICATION &&
-        applicationPackage.srStage !== ServiceRequestStage.APPLICATION // if we are already in Application, don't do anything
+        (applicationPackage.srStage === ServiceRequestStage.REFERRAL ||
+          applicationPackage.srStage == null)
       ) {
         // create aboutme as the first application Form
         const aboutMeDto = {
