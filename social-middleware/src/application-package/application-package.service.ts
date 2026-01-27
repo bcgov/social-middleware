@@ -366,6 +366,7 @@ export class ApplicationPackageService {
           type: ApplicationFormType.PLACEMENT,
           formParameters: {},
         };
+
         await this.applicationFormService.createApplicationForm(placementDto);
 
         // references is the fourth form
