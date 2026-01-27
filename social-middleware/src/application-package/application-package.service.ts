@@ -378,6 +378,7 @@ export class ApplicationPackageService {
           type: ApplicationFormType.REFERENCES,
           formParameters: {},
         };
+
         await this.applicationFormService.createApplicationForm(referencesDto);
 
         // consent is the final form
