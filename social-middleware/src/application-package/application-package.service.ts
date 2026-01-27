@@ -346,6 +346,7 @@ export class ApplicationPackageService {
         // we use the applicationForm table to track the status of the household data,
         // but there is no actual form to fill out; the data is collected
         // via the household API endpoints
+
         const householdDto = {
           applicationPackageId: applicationPackage.applicationPackageId,
           formId: getFormIdForFormType(ApplicationFormType.HOUSEHOLD),
