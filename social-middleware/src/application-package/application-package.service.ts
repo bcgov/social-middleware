@@ -45,6 +45,8 @@ import { ValidateHouseholdCompletionDto } from './dto/validate-application-packa
 import { HouseholdMembersDocument } from '../household/schemas/household-members.schema';
 import { ApplicationFormStatus } from '../application-form/enums/application-form-status.enum';
 import { AttachmentsService } from '../attachments/attachments.service';
+import { NotificationService } from '../notifications/services/notification.service';
+
 import { AttachmentType } from '../attachments/enums/attachment-types.enum';
 
 interface SiebelServiceRequestResponse {
@@ -67,6 +69,7 @@ export class ApplicationPackageService {
     private readonly siebelApiService: SiebelApiService,
     private readonly userUtil: UserUtil,
     private readonly applicationPackageQueueService: ApplicationPackageQueueService,
+    private readonly notificationService: NotificationService,
     private readonly attachmentsService: AttachmentsService,
     @InjectPinoLogger(ApplicationFormService.name)
     private readonly logger: PinoLogger,
@@ -647,6 +650,13 @@ export class ApplicationPackageService {
       this.logger.info(
         { applicationPackageId, serviceRequestId },
         'Referral request submitted successfully to Siebel',
+      );
+
+      //send notification
+      await this.notificationService.sendReferralRequested(
+        'Tim.Gunderson@gov.bc.ca',
+        `${primaryUser.first_name} ${primaryUser.last_name}`,
+        applicationPackageId,
       );
 
       return { serviceRequestId };
@@ -1243,6 +1253,9 @@ export class ApplicationPackageService {
       throw error;
     }
   }
+
+  //TODO: RETURN APPLICATIONPACKAGES WITH A SERVICE REQUEST THAT WE CARE ABOUT
+  //private async getICMApplicationPackages();
 
   private async generateHousholdScreeningWorkflow(
     applicationPackageId: string,
