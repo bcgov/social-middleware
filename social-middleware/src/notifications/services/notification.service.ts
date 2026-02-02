@@ -1,12 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
-import { ChesService } from './ches.service';
+import { SendEmailDto } from '../dto/send-email.dto';
+import { NotificationQueueService } from '../queue/notification-queue.service';
 
 @Injectable()
 export class NotificationService {
   constructor(
-    private readonly chesService: ChesService,
+    private readonly notificationQueueService: NotificationQueueService,
     private readonly configService: ConfigService,
     @InjectPinoLogger(NotificationService.name)
     private readonly logger: PinoLogger,
@@ -18,20 +19,12 @@ export class NotificationService {
   async sendReferralRequested(
     email: string,
     applicantName: string,
-    applicationId: string,
   ): Promise<void> {
-    const fromEmail = this.configService.get<string>('CHES_FROM_EMAIL');
-    //const portalUrl = this.configService.get<string>('FRONTEND_URL');
-
-    if (!fromEmail) {
-      throw new Error(
-        'Missing CHES configuration: CHES_FROM_EMAIL is required',
-      );
-    }
-
-    await this.chesService.sendEmail({
+    const emailData: SendEmailDto = {
       to: [email],
-      from: fromEmail,
+      from:
+        this.configService.get<string>('CHES_FROM_EMAIL') ||
+        'noreply@gov.bc.ca',
       subject: 'Information Session Request Submitted Successfully',
       body: `
         <h2>Thank you for your interest</h2>
@@ -42,12 +35,9 @@ export class NotificationService {
       `,
       bodyType: 'html',
       priority: 'normal',
-    });
+    };
 
-    this.logger.info(
-      { email, applicationId },
-      'Application submitted notification sent',
-    );
+    await this.notificationQueueService.sendEmail(emailData);
   }
 
   /**
@@ -72,7 +62,7 @@ export class NotificationService {
       );
     }
 
-    await this.chesService.sendEmail({
+    await this.notificationQueueService.sendEmail({
       to: Array.isArray(to) ? to : [to],
       from: fromEmail,
       subject,
