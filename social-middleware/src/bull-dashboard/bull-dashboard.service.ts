@@ -13,6 +13,10 @@ export class BullDashboardService {
   constructor(
     @InjectQueue('applicationPackageQueue')
     private readonly applicationPackageQueue: Queue,
+    @InjectQueue('icmStageQueue')
+    private readonly icmStageQueue: Queue,
+    @InjectQueue('notificationQueue')
+    private readonly notificationQueue: Queue,
   ) {
     // Set up the Express server adapter
     this.serverAdapter = new ExpressAdapter();
@@ -20,7 +24,11 @@ export class BullDashboardService {
 
     // Create BullBoard dashboard with adapter
     createBullBoard({
-      queues: [new BullAdapter(this.applicationPackageQueue)],
+      queues: [
+        new BullAdapter(this.applicationPackageQueue),
+        new BullAdapter(this.icmStageQueue),
+        new BullAdapter(this.notificationQueue),
+      ],
       serverAdapter: this.serverAdapter,
     });
   }
