@@ -656,7 +656,6 @@ export class ApplicationPackageService {
       await this.notificationService.sendReferralRequested(
         'Tim.Gunderson@gov.bc.ca',
         `${primaryUser.first_name} ${primaryUser.last_name}`,
-        applicationPackageId,
       );
 
       return { serviceRequestId };
@@ -1253,9 +1252,6 @@ export class ApplicationPackageService {
       throw error;
     }
   }
-
-  //TODO: RETURN APPLICATIONPACKAGES WITH A SERVICE REQUEST THAT WE CARE ABOUT
-  //private async getICMApplicationPackages();
 
   private async generateHousholdScreeningWorkflow(
     applicationPackageId: string,
