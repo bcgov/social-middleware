@@ -16,6 +16,7 @@ import { CommonModule } from '../common/common.module';
 import { AuthListener } from './listeners/auth.listener';
 import { AttachmentsModule } from '../attachments/attachments.module';
 import { NotificationModule } from '../notifications/notification.module';
+import { IcmStageProcessor } from './queue/icm-stage.processor';
 import { IcmStageQueueModule } from './queue/icm-stage-queue.module';
 import { IcmStageSchedulerService } from './icm-stage-scheduler.service';
 
@@ -40,6 +41,7 @@ import { IcmStageSchedulerService } from './icm-stage-scheduler.service';
     AuthListener,
     ApplicationPackageSchedulerService,
     IcmStageSchedulerService,
+    IcmStageProcessor,
   ],
   exports: [ApplicationPackageService, ApplicationFormModule, HouseholdModule],
 })
