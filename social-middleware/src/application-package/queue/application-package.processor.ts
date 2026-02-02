@@ -346,7 +346,6 @@ export class ApplicationPackageProcessor {
       );
 
       // Call the existing submission logic
-      // For now, I'll show the structure:
 
       const result =
         await this.applicationPackageService.submitApplicationPackage(
