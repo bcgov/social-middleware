@@ -209,7 +209,7 @@ export class HouseholdService {
     updateData: Partial<HouseholdMembers>,
   ): Promise<HouseholdMembersDocument> {
     const updated = await this.householdMemberModel
-      .findByIdAndUpdate({ householdMemberId }, updateData, { new: true })
+      .findOneAndUpdate({ householdMemberId }, updateData, { new: true })
       .exec();
     if (!updated) {
       throw new NotFoundException('Household member not found');
