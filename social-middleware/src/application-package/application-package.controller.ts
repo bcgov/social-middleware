@@ -335,7 +335,7 @@ export class ApplicationPackageController {
     @Param('applicationPackageId') applicationPackageId: string,
     @Body() dto: SubmitReferralRequestDto,
     @Req() request: Request,
-  ): Promise<{ serviceRequestId: string }> {
+  ): Promise<{ message: string }> {
     try {
       const userId = this.sessionUtil.extractUserIdFromRequest(request);
 

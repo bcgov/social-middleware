@@ -15,6 +15,10 @@ import { SiebelModule } from '../siebel/siebel.module';
 import { CommonModule } from '../common/common.module';
 import { AuthListener } from './listeners/auth.listener';
 import { AttachmentsModule } from '../attachments/attachments.module';
+import { NotificationModule } from '../notifications/notification.module';
+import { IcmStageProcessor } from './queue/icm-stage.processor';
+import { IcmStageQueueModule } from './queue/icm-stage-queue.module';
+import { IcmStageSchedulerService } from './icm-stage-scheduler.service';
 
 @Module({
   imports: [
@@ -27,6 +31,8 @@ import { AttachmentsModule } from '../attachments/attachments.module';
     SiebelModule,
     CommonModule,
     AttachmentsModule,
+    NotificationModule,
+    IcmStageQueueModule,
     forwardRef(() => ApplicationPackageQueueModule),
   ],
   controllers: [ApplicationPackageController],
@@ -34,6 +40,8 @@ import { AttachmentsModule } from '../attachments/attachments.module';
     ApplicationPackageService,
     AuthListener,
     ApplicationPackageSchedulerService,
+    IcmStageSchedulerService,
+    IcmStageProcessor,
   ],
   exports: [ApplicationPackageService, ApplicationFormModule, HouseholdModule],
 })

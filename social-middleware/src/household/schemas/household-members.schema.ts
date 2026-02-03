@@ -64,6 +64,9 @@ export class HouseholdMembers {
   @Prop({ type: Number, default: 0 })
   numberOfInvitationsSent!: number;
 
+  @Prop({ required: false, type: String })
+  prospectId?: string;
+
   createdAt!: Date;
 }
 
