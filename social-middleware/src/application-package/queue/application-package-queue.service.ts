@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bull';
 import { Queue } from 'bull';
 import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
+import { SubmitReferralRequestDto } from '../dto/submit-referral-request.dto';
 
 @Injectable()
 export class ApplicationPackageQueueService {
@@ -83,5 +84,40 @@ export class ApplicationPackageQueueService {
     await this.applicationPackageQueue.add('periodic-scan', {});
 
     return { completenessChecks: 0, submissions: 0 }; // Actual counts from processor
+  }
+
+  /**
+   * Enqueue referral submission to Siebel/ICM
+   * Creates SR, Prospect for Primary Applicant, and sets Referral Stage on SR to trigger Activity Plan
+   */
+  async enqueueReferralSubmission(
+    applicationPackageId: string,
+    userId: string,
+    dto: SubmitReferralRequestDto,
+  ): Promise<void> {
+    await this.applicationPackageQueue.add(
+      'submit-referral',
+      {
+        applicationPackageId,
+        userId,
+        dto,
+      },
+      {
+        attempts: 12,
+        backoff: {
+          type: 'exponential',
+          delay: 30000,
+        },
+        removeOnComplete: 100,
+        removeOnFail: false,
+      },
+    );
+    this.logger.info(
+      {
+        applicationPackageId,
+        userId,
+      },
+      'Enqueued referral submission',
+    );
   }
 }
