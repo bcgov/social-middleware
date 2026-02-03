@@ -197,6 +197,26 @@ export class HouseholdService {
     }
   }
 
+  /**
+   * updateHouseholdMember
+   * updates a household member record with update data
+   * @param householdMemberId
+   * @param updateData
+   * @returns HouseholdMember
+   */
+  async updateHouseholdMember(
+    householdMemberId: string,
+    updateData: Partial<HouseholdMembers>,
+  ): Promise<HouseholdMembersDocument> {
+    const updated = await this.householdMemberModel
+      .findByIdAndUpdate({ householdMemberId }, updateData, { new: true })
+      .exec();
+    if (!updated) {
+      throw new NotFoundException('Household member not found');
+    }
+    return updated;
+  }
+
   // update household member details with authenticated user information
   async updateMemberWithUserData(
     householdMemberId: string,
@@ -220,25 +240,7 @@ export class HouseholdService {
         updateData.genderType = sexToGenderType(userData.sex);
       }
 
-      const result = await this.householdMemberModel
-        .findOneAndUpdate(
-          { householdMemberId },
-          { $set: updateData },
-          { new: true, runValidators: true },
-        )
-        .exec();
-
-      if (!result) {
-        this.logger.warn(
-          `Household member with ID ${householdMemberId} not found for data update.`,
-        );
-        throw NotFoundException;
-      }
-
-      this.logger.log(
-        `Successfully updated household member ${householdMemberId} firstName and gender`,
-      );
-      return result;
+      return this.updateHouseholdMember(householdMemberId, updateData);
     } catch (error: unknown) {
       const err = error as Error;
       this.logger.error(
