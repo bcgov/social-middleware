@@ -67,12 +67,7 @@ export class SiebelApiService {
   }
 
   async getServiceRequests(query: any) {
-    const endpoint = this.configService.get<string>(
-      'SERVICE_REQUESTS_ENDPOINT',
-    );
-    if (!endpoint) {
-      throw new Error('SERVICE_REQUESTS_ENDPOINT configuration is missing');
-    }
+    const endpoint = '/ServiceRequest/ServiceRequest';
     return await this.get(endpoint, query);
   }
 

@@ -1,6 +1,6 @@
 import { IsString, IsObject, IsOptional } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
-import { FormType } from '../../application/enums/form-type.enum';
+import { FormType } from '../enums/form-type.enum';
 
 export class NewTokenDto {
   @ApiProperty({

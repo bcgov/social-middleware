@@ -45,15 +45,18 @@ import { ValidateHouseholdCompletionDto } from './dto/validate-application-packa
 import { HouseholdMembersDocument } from '../household/schemas/household-members.schema';
 import { ApplicationFormStatus } from '../application-form/enums/application-form-status.enum';
 import { AttachmentsService } from '../attachments/attachments.service';
+import { NotificationService } from '../notifications/services/notification.service';
+
 import { AttachmentType } from '../attachments/enums/attachment-types.enum';
 
+/*
 interface SiebelServiceRequestResponse {
   items?: {
     Id?: string;
     [key: string]: unknown;
   };
 }
-
+*/
 @Injectable()
 export class ApplicationPackageService {
   constructor(
@@ -67,6 +70,7 @@ export class ApplicationPackageService {
     private readonly siebelApiService: SiebelApiService,
     private readonly userUtil: UserUtil,
     private readonly applicationPackageQueueService: ApplicationPackageQueueService,
+    private readonly notificationService: NotificationService,
     private readonly attachmentsService: AttachmentsService,
     @InjectPinoLogger(ApplicationFormService.name)
     private readonly logger: PinoLogger,
@@ -287,6 +291,10 @@ export class ApplicationPackageService {
     }
   }
 
+  // handle updates to the applicationPackage stage when we notice a change in the service request srStage
+  // this is called by auth.listener.ts when the user logs into the portal and we notice that the srStage
+  // is not the same as the applicationPackage srStage.
+
   async updateApplicationPackageStage(
     applicationPackage: ApplicationPackage,
     newStage: ServiceRequestStage,
@@ -300,13 +308,13 @@ export class ApplicationPackageService {
       // TODO: handle withdrawl, cancellations, etc.
       // let newStatus: ApplicationPackageStatus;
 
-      // Get the primary applicant's householdMemberId
-      // At this point, the primary applicant should be the only household member
+      // Get the primary applicant's householdMemberId from the applicationPackage in question
       const primaryApplicantMember =
         await this.householdService.findPrimaryApplicant(
           applicationPackage.applicationPackageId,
         );
 
+      // if there is no primary applicant household member, this is a strange situation and we should stop..
       if (!primaryApplicantMember) {
         this.logger.error(
           { applicationPackageId: applicationPackage.applicationPackageId },
@@ -317,9 +325,15 @@ export class ApplicationPackageService {
         );
       }
 
+      // the applicationPackage.srStage is updated on login
+      // after the initial submission the srStage is set to blank
+      // logging back into the portal without any change on the service request will update the srStage to REFERRAL
+      // if they don't log back in until they are notified, their srStage will stay as blank in the portal
+      // therefore, the first stage change to handle is moving from "" or .REFERRAL to .APPLICATION
       if (
         newStage === ServiceRequestStage.APPLICATION &&
-        applicationPackage.srStage !== ServiceRequestStage.APPLICATION // if we are already in Application, don't do anything
+        (applicationPackage.srStage === ServiceRequestStage.REFERRAL ||
+          applicationPackage.srStage == null)
       ) {
         // create aboutme as the first application Form
         const aboutMeDto = {
@@ -336,6 +350,7 @@ export class ApplicationPackageService {
         // we use the applicationForm table to track the status of the household data,
         // but there is no actual form to fill out; the data is collected
         // via the household API endpoints
+
         const householdDto = {
           applicationPackageId: applicationPackage.applicationPackageId,
           formId: getFormIdForFormType(ApplicationFormType.HOUSEHOLD),
@@ -355,6 +370,7 @@ export class ApplicationPackageService {
           type: ApplicationFormType.PLACEMENT,
           formParameters: {},
         };
+
         await this.applicationFormService.createApplicationForm(placementDto);
 
         // references is the fourth form
@@ -366,6 +382,7 @@ export class ApplicationPackageService {
           type: ApplicationFormType.REFERENCES,
           formParameters: {},
         };
+
         await this.applicationFormService.createApplicationForm(referencesDto);
 
         // consent is the final form
@@ -502,158 +519,45 @@ export class ApplicationPackageService {
     applicationPackageId: string,
     userId: string,
     dto: SubmitReferralRequestDto,
-  ): Promise<{ serviceRequestId: string }> {
-    try {
-      this.logger.info(
-        { applicationPackageId, userId },
-        'Starting referral request submission to Siebel',
-      );
-      // Get application package
-      const applicationPackage = await this.applicationPackageModel
-        .findOne({ applicationPackageId, userId })
-        .lean()
-        .exec();
+  ): Promise<{ message: string }> {
+    this.logger.info(
+      { applicationPackageId, userId },
+      'Enqueueing referral request submission',
+    );
 
-      if (!applicationPackage) {
-        throw new NotFoundException('Application package not found');
-      }
+    // Verify application package exists and has no existing srId
+    const applicationPackage = await this.applicationPackageModel
+      .findOne({ applicationPackageId, userId })
+      .lean()
+      .exec();
 
-      // Verify this is an initial submission (no existing srId)
-      if (applicationPackage.srId?.trim()) {
-        throw new BadRequestException(
-          'Referral already submitted - should not be called',
-        );
-      }
-
-      // Get primary user
-      const primaryUser = await this.userService.findOne(userId);
-
-      const updatedUser = await this.userService.update(userId, {
-        email: dto.email,
-        home_phone: dto.home_phone,
-        alternate_phone: dto.alternate_phone,
-      });
-
-      // Create service request in Siebel
-      const nodeEnv = this.configService.get<string>('NODE_ENV', 'development');
-      const envSuffix = nodeEnv.toLowerCase().includes('prod') ? '' : nodeEnv; // say nothing in prod
-
-      const srPayload = {
-        Id: 'NULL',
-        Status: 'Open',
-        Priority: '3-Standard',
-        Type: 'Caregiver Application',
-        'SR Sub Type': applicationPackage.subtype,
-        'SR Sub Sub Type': applicationPackage.subsubtype,
-        //'ICM Stage': ServiceRequestStage.REFERRAL, // create in the Referral Stage
-        //'ICM Stage': ServiceRequestStage.APPLICATION, // create in the Referral Stage
-        'ICM BCSC DID': updatedUser.bc_services_card_id,
-        'Service Office': 'HUC', // needs to default to the HUC service office
-        'Comm Method': 'Client Portal',
-        Memo: `Created By ${envSuffix} Portal`,
-      };
-
-      const siebelResponse =
-        await this.siebelApiService.createServiceRequest(srPayload);
-
-      if (!siebelResponse) {
-        throw new InternalServerErrorException(
-          'Failed to create service request',
-        );
-      }
-
-      const serviceRequestId = (siebelResponse as SiebelServiceRequestResponse)
-        .items?.Id;
-
-      if (!serviceRequestId) {
-        this.logger.error(
-          { siebelResponse },
-          'No service request ID in response',
-        );
-        throw new InternalServerErrorException(
-          'Failed to get service request ID from Siebel',
-        );
-      }
-      // Create primary user prospect
-      const primaryUserProspectPayload = {
-        ServiceRequestId: serviceRequestId,
-        IcmBcscDid: primaryUser.bc_services_card_id,
-        FirstName: primaryUser.first_name,
-        LastName: primaryUser.last_name,
-        DateofBirth: formatDateForSiebel(primaryUser.dateOfBirth),
-        StreetAddress: primaryUser.street_address,
-        City: primaryUser.city,
-        Prov: primaryUser.region,
-        PostalCode: primaryUser.postal_code,
-        EmailAddress: dto.email,
-        HomePhone: dto.home_phone,
-        AlternatePhone: dto.alternate_phone || '',
-        Gender: this.userUtil.sexToGenderType(primaryUser.sex),
-        Relationship: 'Key player',
-        ApplicantFlag: 'Y',
-      };
-
-      const siebelProspectResponse =
-        (await this.siebelApiService.createProspect(
-          primaryUserProspectPayload,
-        )) as { items?: { Id?: string } };
-
-      this.logger.info(
-        { siebelProspectResponse, responseType: typeof siebelProspectResponse },
-        'Siebel prospect creation response received',
-      );
-
-      if (!siebelProspectResponse?.items?.Id) {
-        this.logger.error('Failed to create prospect');
-        throw new InternalServerErrorException('Failed to create prospect');
-      }
-
-      // do a separate put to trigger an ICM workflow
-
-      await this.siebelApiService.updateServiceRequestStage(
-        serviceRequestId,
-        'Referral',
-      );
-
-      this.logger.info(
-        { serviceRequestId },
-        'Service request stage updated to Referral',
-      );
-
-      // Update application package status
-      await this.applicationPackageModel.findOneAndUpdate(
-        { applicationPackageId },
-        {
-          status: ApplicationPackageStatus.REFERRAL,
-          submittedAt: new Date(),
-          updatedAt: new Date(),
-          srId: serviceRequestId,
-        },
-      );
-
-      this.logger.info(
-        { applicationPackageId, serviceRequestId },
-        'Referral request submitted successfully to Siebel',
-      );
-
-      return { serviceRequestId };
-    } catch (error) {
-      this.logger.error(
-        { error, applicationPackageId, userId },
-        'Failed to submit referral request to Siebel',
-      );
-
-      if (
-        error instanceof NotFoundException ||
-        error instanceof BadRequestException
-      ) {
-        throw error;
-      }
-
-      throw new InternalServerErrorException(
-        'Failed to submit referral request',
-      );
+    if (!applicationPackage) {
+      throw new NotFoundException('Application package not found');
     }
+
+    if (applicationPackage.srId?.trim()) {
+      throw new BadRequestException('Referral already submitted');
+    }
+
+    // Update status immediately so frontend knows it's been requested
+    await this.applicationPackageModel.updateOne(
+      { applicationPackageId },
+      {
+        status: ApplicationPackageStatus.REFERRAL,
+        updatedAt: new Date(),
+      },
+    );
+
+    // Enqueue the submission
+    await this.applicationPackageQueueService.enqueueReferralSubmission(
+      applicationPackageId,
+      userId,
+      dto,
+    );
+
+    return {
+      message: 'Referral submission queued successfully',
+    };
   }
 
   /** submitApplicationPackage

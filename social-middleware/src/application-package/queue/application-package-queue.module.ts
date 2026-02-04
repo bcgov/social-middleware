@@ -10,11 +10,15 @@ import {
   ApplicationPackageSchema,
 } from '../schema/application-package.schema';
 import { FormCompletedListener } from './form-completed.listener';
+import { AuthModule } from '../../auth/auth.module';
+import { SiebelModule } from '../../siebel/siebel.module';
+import { NotificationModule } from '../../notifications/notification.module';
+import { CommonModule } from '../../common/common.module';
 
 @Module({
   imports: [
     BullModule.registerQueueAsync({
-      imports: [ConfigModule],
+      imports: [ConfigModule, AuthModule],
       inject: [ConfigService],
       name: 'applicationPackageQueue',
       useFactory: (configService: ConfigService) => ({
@@ -36,7 +40,11 @@ import { FormCompletedListener } from './form-completed.listener';
     MongooseModule.forFeature([
       { name: ApplicationPackage.name, schema: ApplicationPackageSchema },
     ]),
-    forwardRef(() => ApplicationPackageModule), // Only this one!
+    AuthModule,
+    SiebelModule,
+    NotificationModule,
+    CommonModule,
+    forwardRef(() => ApplicationPackageModule),
   ],
   providers: [
     ApplicationPackageQueueService,
