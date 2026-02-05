@@ -25,6 +25,12 @@ import { CommonModule } from '../../common/common.module';
         redis: {
           host: configService.get<string>('REDIS_HOST'),
           port: Number(configService.get<string>('REDIS_PORT')),
+          maxRetriesPerRequest: null, // Don't timeout individual commands
+          enableReadyCheck: false, // Don't wait for Redis READY state
+          retryStrategy: (times) => {
+            const delay = Math.min(times * 50, 2000);
+            return delay; // Retry connection with backoff
+          },
         },
         defaultJobOptions: {
           attempts: 16,
