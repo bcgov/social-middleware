@@ -325,6 +325,11 @@ export class ApplicationPackageService {
         );
       }
 
+      const applicantName =
+        primaryApplicantMember.firstName +
+        ' ' +
+        primaryApplicantMember.lastName;
+
       // the applicationPackage.srStage is updated on login
       // after the initial submission the srStage is set to blank
       // logging back into the portal without any change on the service request will update the srStage to REFERRAL
@@ -428,6 +433,15 @@ export class ApplicationPackageService {
         },
         'Application package stage updated successfully',
       );
+
+      // send notification that the application can be accessed
+      if (primaryApplicantMember.email) {
+        // they will 100% have an email, it's just that not all household-members have an email.
+        await this.notificationService.sendApplicationReady(
+          primaryApplicantMember.email,
+          applicantName,
+        );
+      }
 
       return updatedPackage;
     } catch (error) {
