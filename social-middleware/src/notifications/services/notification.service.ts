@@ -21,7 +21,7 @@ export class NotificationService {
     applicantName: string,
   ): Promise<void> {
     const emailData: SendEmailDto = {
-      to: [email],
+      to: [this.getToEmail(email)],
       from:
         this.configService.get<string>('CHES_FROM_EMAIL') ||
         'noreply@gov.bc.ca',
@@ -39,6 +39,89 @@ export class NotificationService {
 
     await this.notificationQueueService.sendEmail(emailData);
   }
+
+  /**
+   * Send application ready notification
+   */
+  async sendApplicationReady(
+    email: string,
+    applicantName: string,
+  ): Promise<void> {
+    const emailData: SendEmailDto = {
+      to: [this.getToEmail(email)],
+      from:
+        this.configService.get<string>('CHES_FROM_EMAIL') ||
+        'noreply@gov.bc.ca',
+      subject: 'Your Foster Caregiver Application is Ready',
+      body: `
+        <h2>Continue your caregiver journey</h2>
+        <p>Hello ${applicantName},</p>
+        <p>You may now complete your foster caregiver application through the portal.</p>
+        <p>Sign in and continue the application from My Tasks.</p>
+        <p>Thank you,<br>BC Caregiver Registry Team</p>
+      `,
+      bodyType: 'html',
+      priority: 'normal',
+    };
+
+    await this.notificationQueueService.sendEmail(emailData);
+  }
+
+  /**
+   * Send access code notification to HOUSEHOLD MEMBER
+   */
+  async sendFCHAccessCode(
+    email: string,
+    applicantName: string,
+    householdMemberName: string,
+    accessCode: string,
+  ): Promise<void> {
+    const emailData: SendEmailDto = {
+      to: [this.getToEmail(email)],
+      from:
+        this.configService.get<string>('CHES_FROM_EMAIL') ||
+        'noreply@gov.bc.ca',
+      subject: 'Foster Caregiver Screening Request',
+      body: `
+          <h2>You have been named as a household member on a foster caregiver application</h2>
+          <p>Hello ${householdMemberName},</p>
+          <p>${applicantName} has identified you as a household member on their application to become a foster caregiver. As part of the assessment process, the Ministry of Children and Family Development requires each adult household member to provide background information and consent to screening activities.</p>
+          <p>Sign into the caregiver portal using your BC Services Card and use <b>${accessCode}</b> as the access code to begin the process.</p>
+          <p>Thank you,<br>BC Caregiver Registry Team</p>
+        `,
+      bodyType: 'html',
+      priority: 'normal',
+    };
+    await this.notificationQueueService.sendEmail(emailData);
+  }
+
+    /**
+   * Send access code notification to HOUSEHOLD MEMBER
+   */
+    async sendApplicationNotSubmitted(
+    email: string,
+      applicantName: string,
+      householdMemberName: string,
+      accessCode: string,
+    ): Promise<void> {
+      const emailData: SendEmailDto = {
+        to: [this.getToEmail(email)],
+        from:
+          this.configService.get<string>('CHES_FROM_EMAIL') ||
+          'noreply@gov.bc.ca',
+        subject: 'Foster Caregiver Screening Request',
+        body: `
+            <h2>You have been named as a household member on a foster caregiver application</h2>
+            <p>Hello ${householdMemberName},</p>
+            <p>${applicantName} has identified you as a household member on their application to become a foster caregiver. As part of the assessment process, the Ministry of Children and Family Development requires each adult household member to provide background information and consent to screening activities.</p>
+            <p>Sign into the caregiver portal using your BC Services Card and use <b>${accessCode}</b> as the access code to begin the process.</p>
+            <p>Thank you,<br>BC Caregiver Registry Team</p>
+          `,
+        bodyType: 'html',
+        priority: 'normal',
+      };
+      await this.notificationQueueService.sendEmail(emailData);
+    }
 
   /**
    * Send custom notification
@@ -74,5 +157,14 @@ export class NotificationService {
     });
 
     this.logger.info({ to, subject }, 'Custom email sent');
+  }
+
+  private getToEmail(email: string) {
+    const isLive = this.configService.get<string>('CHES_LIVE') === 'true';
+    if (isLive) {
+      return email;
+    } else {
+      return 'Tim.Gunderson@gov.bc.ca'; // send to me if we aren't live with the email service
+    }
   }
 }
