@@ -340,7 +340,11 @@ export class ApplicationPackageProcessor {
       .exec();
 
     if (!pkg) {
-      throw new NotFoundException('Application package not found');
+      this.logger.warn(
+        { jobId: job.id, applicationPackageId, userId },
+        'Application package not found - removing stale job',
+      );
+      return { srId: '' };
     }
 
     // get primary applicant household member
@@ -540,13 +544,11 @@ export class ApplicationPackageProcessor {
         .exec();
 
       if (!applicationPackage) {
-        this.logger.error(
+        this.logger.warn(
           { applicationPackageId },
-          'Application package not found',
+          'Application package not found - removing stale job',
         );
-        throw new Error(
-          `Application package ${applicationPackageId} not found`,
-        );
+        return { success: false };
       }
 
       // Only submit READY packages
