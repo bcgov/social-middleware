@@ -569,12 +569,30 @@ export class ApplicationPackageService {
       },
     );
 
-    // Enqueue the submission
-    await this.applicationPackageQueueService.enqueueReferralSubmission(
-      applicationPackageId,
-      userId,
-      dto,
-    );
+    // we need to save the email and phone numbers first in case the enqueue fails for some reason; the dto will be lost
+
+    const primaryApplicant =
+      await this.householdService.findPrimaryApplicant(applicationPackageId);
+    if (primaryApplicant) {
+      await this.householdService.updateHouseholdMember(
+        primaryApplicant.householdMemberId,
+        {
+          email: dto.email,
+          homePhone: dto.home_phone,
+          alternatePhone: dto.alternate_phone,
+        },
+      );
+    }
+
+    // Enqueue the submission - fire and forget so we don't block the response
+    await this.applicationPackageQueueService
+      .enqueueReferralSubmission(applicationPackageId, userId, dto)
+      .catch((error) =>
+        this.logger.error(
+          { error, applicationPackageId },
+          'Failed to enqueue referral submission - will be picked up by scheduler',
+        ),
+      );
 
     return {
       message: 'Referral submission queued successfully',
