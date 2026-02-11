@@ -13,6 +13,16 @@ export class IcmStageQueueService {
 
   async checkICMStages(): Promise<void> {
     try {
+      const waiting = await this.icmStageQueue.getWaitingCount();
+      const active = await this.icmStageQueue.getActiveCount();
+      if (waiting > 0 || active > 0) {
+        this.logger.info(
+          { waiting, active },
+          'ICM stage check already queued or active, skipping',
+        );
+        return;
+      }
+
       this.logger.info('Adding ICM stage check job to queue');
       const job = await this.icmStageQueue.add('check-icm-stage', {});
       this.logger.info(

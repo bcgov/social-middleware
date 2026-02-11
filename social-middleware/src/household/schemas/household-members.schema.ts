@@ -49,6 +49,12 @@ export class HouseholdMembers {
   })
   relationshipToPrimary!: RelationshipToPrimary;
 
+  @Prop({ required: false, type: String })
+  homePhone?: string;
+
+  @Prop({ required: false, type: String })
+  alternatePhone?: string;
+
   @Prop({ type: Boolean, default: false })
   requireScreening!: boolean;
 

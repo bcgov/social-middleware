@@ -30,6 +30,7 @@ import { SessionUtil } from '../common/utils/session.util';
 import { SessionAuthGuard } from './session-auth.guard';
 import { AuthStrategy } from './strategies/auth-strategy.interface';
 import { UserProfileResponse } from './interfaces/user-profile-response.interface';
+import { UserPayload } from '../common/interfaces';
 
 @ApiTags('Authentication')
 @Controller('auth')
@@ -155,7 +156,7 @@ export class AuthController {
   })
   getStatus(@Req() req: Request) {
     try {
-      const sessionToken = req.cookies.app_session as string;
+      const sessionToken = req.cookies.app_session as string | undefined;
 
       if (!sessionToken) {
         throw new HttpException(
@@ -164,7 +165,8 @@ export class AuthController {
         );
       }
 
-      const decoded = jwt.verify(sessionToken, this.jwtSecret) as any;
+      // Verify JWT token and cast to UserPayload
+      const decoded = jwt.verify(sessionToken, this.jwtSecret) as UserPayload;
 
       return {
         user: {

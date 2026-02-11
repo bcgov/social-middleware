@@ -28,6 +28,7 @@ import {
 import { ApplicationFormStatus } from '../enums/application-form-status.enum';
 import { AccessCodeService } from '../../household/services/access-code.service';
 import { HouseholdService } from '../../household/services/household.service';
+import { NotificationService } from '../../notifications/services/notification.service';
 import { GetApplicationFormDto } from '../dto/get-application-form.dto';
 import { DeleteApplicationFormDto } from '../dto/delete-application-form.dto';
 import {
@@ -54,6 +55,7 @@ export class ApplicationFormService {
     private readonly eventEmitter: EventEmitter2,
     private readonly accessCodeService: AccessCodeService,
     private readonly householdService: HouseholdService,
+    private readonly notificationService: NotificationService,
   ) {}
 
   async createApplicationForm(
@@ -144,11 +146,22 @@ export class ApplicationFormService {
 
       }
 
+      // generate an access code
       const { accessCode, expiresAt } =
         await this.accessCodeService.createAccessCode(
           applicationPackageId,
           householdMemberId,
         );
+
+      // send email notification to household member about access code.
+      if(householdMember.email) {
+        const householdMemberName = householdMember.firstName + " " + householdMember.lastName;
+        const primaryApplicant = await this.householdService.findPrimaryApplicant(applicationPackageId);
+        if( primaryApplicant) { // there WILL be a primary applicant
+          const primaryApplicantName = primaryApplicant.firstName + " " + primaryApplicant.lastName;
+          await this.notificationService.sendFCHAccessCode(householdMember.email, primaryApplicantName, householdMemberName, accessCode);
+        }       
+      }
 
       return {
         accessCode,

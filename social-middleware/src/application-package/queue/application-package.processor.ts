@@ -136,6 +136,28 @@ export class ApplicationPackageProcessor {
         }
       }
 
+      // find REFERRAL packages that may have failed to enqueue
+      const orphanedReferrals = await this.applicationPackageModel
+        .find({
+          status: ApplicationPackageStatus.REFERRAL,
+          srId: { $in: [null, undefined, ''] },
+          updatedAt: { $lt: new Date(Date.now() - 2 * 60 * 1000) }, // older than 2 minutes
+        })
+        .lean()
+        .exec();
+
+      for (const pkg of orphanedReferrals) {
+        this.logger.info(
+          { applicationPackageId: pkg.applicationPackageId },
+          'Found orphaned referral package - re-enqueuing',
+        );
+        await job.queue.add('submit-referral', {
+          applicationPackageId: pkg.applicationPackageId,
+          userId: pkg.userId,
+          dto: {}, //original dto is lost, but processor can pull contact info from user record
+        });
+      }
+
       this.logger.info(
         { completenessChecks, submissions },
         'Completed periodic scan',
@@ -340,7 +362,11 @@ export class ApplicationPackageProcessor {
       .exec();
 
     if (!pkg) {
-      throw new NotFoundException('Application package not found');
+      this.logger.warn(
+        { jobId: job.id, applicationPackageId, userId },
+        'Application package not found - removing stale job',
+      );
+      return { srId: '' };
     }
 
     // get primary applicant household member
@@ -365,9 +391,9 @@ export class ApplicationPackageProcessor {
 
       // update user contact info from referral form
       await this.userService.update(userId, {
-        email: dto.email,
-        home_phone: dto.home_phone,
-        alternate_phone: dto.alternate_phone,
+        email: dto.email || primaryApplicant.email,
+        home_phone: dto.home_phone || primaryApplicant.homePhone,
+        alternate_phone: dto.alternate_phone || primaryApplicant.alternatePhone,
       });
 
       const nodeEnv = this.configService.get<string>('NODE_ENV', 'development');
@@ -447,9 +473,10 @@ export class ApplicationPackageProcessor {
         City: primaryUser.city,
         Prov: primaryUser.region,
         PostalCode: primaryUser.postal_code,
-        EmailAddress: dto.email,
-        HomePhone: dto.home_phone,
-        AlternatePhone: dto.alternate_phone || '',
+        EmailAddress: dto.email || primaryApplicant.email || '',
+        HomePhone: dto.home_phone ?? primaryApplicant.homePhone ?? '',
+        AlternatePhone:
+          dto.alternate_phone || primaryApplicant.alternatePhone || '',
         Gender: this.userUtil.sexToGenderType(primaryUser.sex),
         Relationship: 'Key player',
         ApplicantFlag: 'Y',
@@ -510,7 +537,7 @@ export class ApplicationPackageProcessor {
 
     // STEP 4: Enqueue email notification (separate queue)
     await this.notificationService.sendReferralRequested(
-      'Tim.Gunderson@gov.bc.ca',
+      dto.email || primaryApplicant.email || '', // email
       `${primaryUser.first_name} ${primaryUser.last_name}`,
     );
 
@@ -540,13 +567,11 @@ export class ApplicationPackageProcessor {
         .exec();
 
       if (!applicationPackage) {
-        this.logger.error(
+        this.logger.warn(
           { applicationPackageId },
-          'Application package not found',
+          'Application package not found - removing stale job',
         );
-        throw new Error(
-          `Application package ${applicationPackageId} not found`,
-        );
+        return { success: false };
       }
 
       // Only submit READY packages

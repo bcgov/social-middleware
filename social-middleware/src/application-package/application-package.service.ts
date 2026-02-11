@@ -305,9 +305,6 @@ export class ApplicationPackageService {
         'Updating application package stage',
       );
 
-      // TODO: handle withdrawl, cancellations, etc.
-      // let newStatus: ApplicationPackageStatus;
-
       // Get the primary applicant's householdMemberId from the applicationPackage in question
       const primaryApplicantMember =
         await this.householdService.findPrimaryApplicant(
@@ -325,7 +322,12 @@ export class ApplicationPackageService {
         );
       }
 
-      // the applicationPackage.srStage is updated on login
+      const applicantName =
+        primaryApplicantMember.firstName +
+        ' ' +
+        primaryApplicantMember.lastName;
+
+      // the applicationPackage.srStage is updated on login or by a service that periodically checks ICM;
       // after the initial submission the srStage is set to blank
       // logging back into the portal without any change on the service request will update the srStage to REFERRAL
       // if they don't log back in until they are notified, their srStage will stay as blank in the portal
@@ -395,17 +397,36 @@ export class ApplicationPackageService {
           formParameters: {},
         };
         await this.applicationFormService.createApplicationForm(consentDto);
+
+        // send notification that the application can be accessed
+        if (primaryApplicantMember.email) {
+          // they will 100% have an email, it's just that not all household-members have an email.
+          await this.notificationService.sendApplicationReady(
+            primaryApplicantMember.email,
+            applicantName,
+          );
+        }
       }
 
+      // update the applicationPackage sr Stage to match the service request
       const updateObject: Partial<ApplicationPackage> = {
         srStage: newStage,
         updatedAt: new Date(),
       };
 
+      // also update the status as appropriate
       if (newStage === ServiceRequestStage.APPLICATION) {
         updateObject.status = ApplicationPackageStatus.APPLICATION;
       } else if (newStage === ServiceRequestStage.SCREENING) {
         updateObject.status = ApplicationPackageStatus.SUBMITTED;
+
+        // application has been submitted, so let's notify the applicant
+        if (primaryApplicantMember.email) {
+          await this.notificationService.sendApplicationSubmitted(
+            primaryApplicantMember.email,
+            applicantName,
+          );
+        }
       }
 
       const updatedPackage = await this.applicationPackageModel
@@ -548,12 +569,30 @@ export class ApplicationPackageService {
       },
     );
 
-    // Enqueue the submission
-    await this.applicationPackageQueueService.enqueueReferralSubmission(
-      applicationPackageId,
-      userId,
-      dto,
-    );
+    // we need to save the email and phone numbers first in case the enqueue fails for some reason; the dto will be lost
+
+    const primaryApplicant =
+      await this.householdService.findPrimaryApplicant(applicationPackageId);
+    if (primaryApplicant) {
+      await this.householdService.updateHouseholdMember(
+        primaryApplicant.householdMemberId,
+        {
+          email: dto.email,
+          homePhone: dto.home_phone,
+          alternatePhone: dto.alternate_phone,
+        },
+      );
+    }
+
+    // Enqueue the submission - fire and forget so we don't block the response
+    await this.applicationPackageQueueService
+      .enqueueReferralSubmission(applicationPackageId, userId, dto)
+      .catch((error) =>
+        this.logger.error(
+          { error, applicationPackageId },
+          'Failed to enqueue referral submission - will be picked up by scheduler',
+        ),
+      );
 
     return {
       message: 'Referral submission queued successfully',
