@@ -640,6 +640,18 @@ export class HouseholdService {
     }
   }
 
+  // used for controlling access to a package
+  async verifyUserOwnsPackage(
+    applicationPackageId: string,
+    userId: string,
+  ): Promise<boolean> {
+    const appPackage = await this.applicationPackageModel
+      .findOne({ applicationPackageId, userId })
+      .lean()
+      .exec();
+    return !!appPackage;
+  }
+
   async verifyUserOwnsHouseholdMemberPackage(
     householdMemberId: string,
     userId: string,
