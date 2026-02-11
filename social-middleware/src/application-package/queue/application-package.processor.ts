@@ -537,7 +537,7 @@ export class ApplicationPackageProcessor {
 
     // STEP 4: Enqueue email notification (separate queue)
     await this.notificationService.sendReferralRequested(
-      'Tim.Gunderson@gov.bc.ca',
+      dto.email || primaryApplicant.email || '', // email
       `${primaryUser.first_name} ${primaryUser.last_name}`,
     );
 
