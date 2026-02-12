@@ -6,6 +6,7 @@ import * as cookieParser from 'cookie-parser';
 import { Logger } from 'nestjs-pino';
 import { ValidationPipe } from '@nestjs/common';
 import { BullDashboardService } from './bull-dashboard/bull-dashboard.service';
+import helmet from 'helmet';
 import { json, urlencoded } from 'express';
 
 async function bootstrap() {
@@ -69,6 +70,22 @@ async function bootstrap() {
       preflightContinue: false,
       optionsSuccessStatus: 204,
     });
+
+    app.use(
+      helmet({
+        contentSecurityPolicy: {
+          directives: {
+            defaultSrc: ["'self'"],
+            scriptSrc: ["'self'"],
+            styleSrc: ["'self'"],
+            imgSrc: ["'self'", 'data:'],
+            connectSrc: ["'self'", frontendUrl, formsUrl],
+            frameSrc: ["'self'", formsUrl],
+            frameAncestors: ["'none'"],
+          },
+        },
+      }),
+    );
 
     const swaggerConfig = new DocumentBuilder()
       .setTitle('Caregiver Middleware API')

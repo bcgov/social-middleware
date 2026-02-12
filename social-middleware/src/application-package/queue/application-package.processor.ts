@@ -666,18 +666,37 @@ export class ApplicationPackageProcessor {
    */
   @OnQueueFailed()
   async onFailed(job: Job, error: Error) {
-    this.logger.error(
-      {
-        jobId: job.id,
-        jobName: job.name,
-        error: error.message,
-        attempts: job.attemptsMade,
-      },
-      'Job failed after all retry attempts',
-    );
+    const isLastAttempt = job.attemptsMade >= (job.opts.attempts ?? 1);
 
-    // If it's a submission job, mark as FAILED
-    if (job.name === 'submission' && job.data.applicationPackageId) {
+    if (isLastAttempt) {
+      this.logger.error(
+        {
+          jobId: job.id,
+          jobName: job.name,
+          error: error.message,
+          attempts: job.attemptsMade,
+        },
+        'Job failed after all retry attempts',
+      );
+    } else {
+      this.logger.warn(
+        {
+          jobId: job.id,
+          jobName: job.name,
+          error: error.message,
+          attempt: job.attemptsMade,
+          maxAttempts: job.opts.attempts,
+        },
+        'Job attempt failed, will retry',
+      );
+    }
+
+    // If it's a submission job, mark as FAILED on the last attempt
+    if (
+      isLastAttempt &&
+      job.name === 'submission' &&
+      job.data.applicationPackageId
+    ) {
       await this.applicationPackageModel.findOneAndUpdate(
         { applicationPackageId: job.data.applicationPackageId },
         {
