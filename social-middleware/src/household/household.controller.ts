@@ -205,7 +205,6 @@ export class HouseholdController {
   }
 
   @Post(':householdMemberId/confirm-screening-package')
-  @UseGuards(SessionAuthGuard)
   @ApiOperation({
     summary: 'Confirm screening package completion by household member',
     description:
@@ -253,7 +252,6 @@ export class HouseholdController {
   }
 
   @Post(':householdMemberId/mark-screening-documents-attached')
-  @UseGuards(SessionAuthGuard)
   @ApiOperation({
     summary: 'Mark all screening documents as attached for a household member',
     description:
@@ -320,7 +318,6 @@ export class HouseholdController {
   }
 
   @Get(':householdMemberId/access-code')
-  @UseGuards(SessionAuthGuard)
   async getAccessCode(
     @Param('applicationPackageId') applicationPackageId: string,
     @Param('householdMemberId') householdMemberId: string,
