@@ -3,6 +3,7 @@ export interface UserPayload {
   email: string;
   name: string;
   userId?: string;
+  jti?: string;
   iat?: number;
   exp?: number;
 }

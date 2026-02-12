@@ -14,6 +14,7 @@ import {
 } from '../application-form/schemas/application-form.schema';
 import { UserService } from '../auth/user.service';
 import { User, UserSchema } from '../auth/schemas/user.schema';
+import { TokenBlacklistModule } from '../auth/services/token-blacklist.module';
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { User, UserSchema } from '../auth/schemas/user.schema';
       { name: User.name, schema: UserSchema },
     ]),
     ApplicationFormModule,
+    TokenBlacklistModule,
   ],
   controllers: [FormsController],
   providers: [FormsService, UserService],
