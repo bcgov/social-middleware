@@ -1,13 +1,16 @@
 import { ConfigService } from '@nestjs/config';
-import { Response } from 'express';
+import { Response, Request } from 'express';
 import { PinoLogger } from 'nestjs-pino';
 import * as jwt from 'jsonwebtoken';
+import { v4 as uuidv4 } from 'uuid';
 import { UserService } from '../user.service';
 import { AuthService } from '../auth.service';
 import { UserUtil } from '../../common/utils/user.util';
 import { CreateUserDto } from '../dto';
 import { UserInfo } from '../interfaces/user-info.interface';
 import { User } from '../schemas/user.schema';
+import { TokenBlacklistService } from '../services/token-blacklist.service';
+import { UserPayload } from '../../common/interfaces';
 
 export abstract class BaseAuthStrategy {
   protected readonly jwtSecret: string;
@@ -22,6 +25,7 @@ export abstract class BaseAuthStrategy {
     protected readonly authService: AuthService,
     protected readonly userUtil: UserUtil,
     protected readonly logger: PinoLogger,
+    protected readonly tokenBlacklistService: TokenBlacklistService,
   ) {
     this.jwtSecret = this.configService.get<string>('JWT_SECRET')!;
     this.nodeEnv = this.configService.get<string>('NODE_ENV', 'development');
@@ -153,10 +157,11 @@ export abstract class BaseAuthStrategy {
         email: userInfo.email,
         name: userInfo.name || `${userInfo.given_name} ${userInfo.family_name}`,
         userId: user.id.toString(),
+        jti: uuidv4(),
         iat: Math.floor(Date.now() / 1000),
       },
       this.jwtSecret,
-      { expiresIn: '24h' },
+      { expiresIn: '4h' },
     );
   }
 
@@ -218,6 +223,29 @@ export abstract class BaseAuthStrategy {
       ...(maxAge && { maxAge }),
       ...(this.cookieDomain && { domain: this.cookieDomain }),
     };
+  }
+
+  /**
+   * Blacklist the current token so it cannot be reused
+   */
+  protected blacklistCurrentToken(req: Request): void {
+    const token = req.cookies?.app_session as string;
+    if (token) {
+      try {
+        const decoded = jwt.verify(token, this.jwtSecret) as UserPayload;
+        if (decoded.jti && decoded.exp) {
+          const remainingSeconds = decoded.exp - Math.floor(Date.now() / 1000);
+          if (remainingSeconds > 0) {
+            void this.tokenBlacklistService.blacklist(
+              decoded.jti,
+              remainingSeconds,
+            );
+          }
+        }
+      } catch {
+        // token already expired of invalid - no need to blacklist
+      }
+    }
   }
 
   /**

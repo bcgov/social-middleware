@@ -8,6 +8,7 @@ import { UserService } from '../user.service';
 import { AuthService } from '../auth.service';
 import { UserUtil } from '../../common/utils/user.util';
 import { UserInfo } from '../interfaces/user-info.interface';
+import { TokenBlacklistService } from '../services/token-blacklist.service';
 
 @Injectable()
 export class KongOidcAuthStrategy
@@ -22,8 +23,16 @@ export class KongOidcAuthStrategy
     authService: AuthService,
     userUtil: UserUtil,
     logger: PinoLogger,
+    tokenBlacklistService: TokenBlacklistService,
   ) {
-    super(configService, userService, authService, userUtil, logger);
+    super(
+      configService,
+      userService,
+      authService,
+      userUtil,
+      logger,
+      tokenBlacklistService,
+    );
     this.middlewareURL = this.configService
       .get<string>('MIDDLEWARE_URL', 'http://localhost:3001')
       .trim();
@@ -104,7 +113,7 @@ export class KongOidcAuthStrategy
 
   handleLogout(req: Request, res: Response): void {
     this.logger.info('Kong OIDC logout - clearing session');
-
+    this.blacklistCurrentToken(req);
     this.clearSessionCookie(res);
 
     // Redirect to BCSC logout through Kong to clear SSO session

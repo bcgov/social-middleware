@@ -8,6 +8,7 @@ import { UserService } from '../user.service';
 import { AuthService } from '../auth.service';
 import { BcscOAuthService } from '../bcsc-oauth.service';
 import { UserUtil } from '../../common/utils/user.util';
+import { TokenBlacklistService } from '../services/token-blacklist.service';
 
 @Injectable()
 export class BcscOAuthAuthStrategy
@@ -20,10 +21,18 @@ export class BcscOAuthAuthStrategy
     userService: UserService,
     authService: AuthService,
     bcscOAuthService: BcscOAuthService,
+    tokenBlacklistService: TokenBlacklistService,
     userUtil: UserUtil,
     logger: PinoLogger,
   ) {
-    super(configService, userService, authService, userUtil, logger);
+    super(
+      configService,
+      userService,
+      authService,
+      userUtil,
+      logger,
+      tokenBlacklistService,
+    );
     this.bcscOAuthService = bcscOAuthService;
     this.logger.setContext(BcscOAuthAuthStrategy.name);
   }
@@ -193,8 +202,8 @@ export class BcscOAuthAuthStrategy
   handleLogout(req: Request, res: Response): void {
     this.logger.info('Direct OAuth logout - clearing session');
 
-    const idToken = req.cookies.id_token;
-
+    const idToken = req.cookies.id_token as string;
+    this.blacklistCurrentToken(req);
     this.clearSessionCookie(res);
 
     // Redirect to BCSC logout to clear SSO session
@@ -240,7 +249,7 @@ export class BcscOAuthAuthStrategy
    * Safely extract cookie from request
    */
   private extractCookie(req: Request, cookieName: string): string | null {
-    return req.cookies[cookieName] || null;
+    return (req.cookies[cookieName] as string) || null;
   }
   /**
    * Validate PKCE challenge structure
