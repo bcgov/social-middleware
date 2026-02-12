@@ -9,6 +9,7 @@ import {
   HttpStatus,
   UseGuards,
   Inject,
+  ValidationPipe,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Request, Response } from 'express';
@@ -229,3 +230,4 @@ export class AuthController {
     };
   }
 }
+
