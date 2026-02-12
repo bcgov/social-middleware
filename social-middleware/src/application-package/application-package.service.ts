@@ -774,16 +774,19 @@ export class ApplicationPackageService {
           // continue processing other members even if one fails..??
         }
       }
+
+      /*
       try {
         // update the service request stage to Screening
         this.logger.info(
           { applicationPackageId, serviceRequestId },
           'Updating service request stage to Screening',
         );
-        await this.siebelApiService.updateServiceRequestStage(
-          serviceRequestId,
-          'Screening',
-        );
+
+        //await this.siebelApiService.updateServiceRequestStage(
+        //  serviceRequestId,
+        //  'Screening',
+        //);
       } catch (error) {
         this.logger.error(
           {
@@ -794,6 +797,7 @@ export class ApplicationPackageService {
           'Failed to update service request stage to Screening',
         );
       }
+      */
 
       // Subsequent submission: get ALL forms for the package (all users)
       const allApplicationForms =
