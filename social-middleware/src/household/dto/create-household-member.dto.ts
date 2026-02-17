@@ -7,6 +7,7 @@ import {
   MaxLength,
   IsEmail,
   ValidateIf,
+  IsDateString,
 } from 'class-validator';
 import { RelationshipToPrimary } from '../enums/relationship-to-primary.enum';
 import { GenderTypes } from '../enums/gender-types.enum';
@@ -35,7 +36,7 @@ export class CreateHouseholdMemberDto {
   @MaxLength(50, { message: 'First name cannot exceed 50 characters' })
   lastName!: string;
 
-  @IsString()
+  @IsDateString()
   dateOfBirth!: string; // ISO date string
 
   @ValidateIf(

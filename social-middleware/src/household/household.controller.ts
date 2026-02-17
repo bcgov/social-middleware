@@ -16,6 +16,7 @@ import {
   BadRequestException,
   UnauthorizedException,
   NotFoundException,
+  ParseUUIDPipe,
 } from '@nestjs/common';
 import { Request } from 'express';
 import { SessionUtil } from '../common/utils/session.util';
@@ -59,7 +60,7 @@ export class HouseholdController {
   })
   @ApiResponse({ status: 500, description: 'Internal server error.' })
   async create(
-    @Param('applicationPackageId', new ValidationPipe({ transform: true }))
+    @Param('applicationPackageId', new ParseUUIDPipe())
     applicationPackageId: string,
     @Body(new ValidationPipe({ whitelist: true, transform: true }))
     dto: CreateHouseholdMemberDto,
@@ -103,7 +104,7 @@ export class HouseholdController {
   })
   @ApiResponse({ status: 500, description: 'Internal server error.' })
   async getAllHouseholdMembers(
-    @Param('applicationPackageId', new ValidationPipe({ transform: true }))
+    @Param('applicationPackageId', new ParseUUIDPipe())
     applicationPackageId: string,
     @Req() request: Request,
   ): Promise<HouseholdMembersDocument[]> {
@@ -145,7 +146,7 @@ export class HouseholdController {
   })
   @ApiResponse({ status: 500, description: 'Internal server error.' })
   async getHouseholdMember(
-    @Param('householdMemberId', new ValidationPipe({ transform: true }))
+    @Param('householdMemberId', new ParseUUIDPipe())
     householdMemberId: string,
     @Req() request: Request,
   ): Promise<HouseholdMemberWithFormsDto | null> {
@@ -211,7 +212,7 @@ export class HouseholdController {
       'Called when household member reviews and confirms their screening package submission',
   })
   async confirmScreeningPackage(
-    @Param('householdMemberId') householdMemberId: string,
+    @Param('householdMemberId', new ParseUUIDPipe()) householdMemberId: string,
     @Req() request: Request,
   ): Promise<{ success: boolean; message: string }> {
     const userId = this.sessionUtil.extractUserIdFromRequest(request);
@@ -267,8 +268,9 @@ export class HouseholdController {
     description: 'No screening forms found for household member',
   })
   async markScreeningDocumentsAttached(
-    @Param('applicationPackageId') applicationPackageId: string,
-    @Param('householdMemberId') householdMemberId: string,
+    @Param('applicationPackageId', new ParseUUIDPipe())
+    applicationPackageId: string,
+    @Param('householdMemberId', new ParseUUIDPipe()) householdMemberId: string,
     @Req() request: Request,
   ): Promise<{ success: boolean; formsUpdated: number }> {
     const userId = this.sessionUtil.extractUserIdFromRequest(request);
@@ -319,8 +321,9 @@ export class HouseholdController {
 
   @Get(':householdMemberId/access-code')
   async getAccessCode(
-    @Param('applicationPackageId') applicationPackageId: string,
-    @Param('householdMemberId') householdMemberId: string,
+    @Param('applicationPackageId', new ParseUUIDPipe())
+    applicationPackageId: string,
+    @Param('householdMemberId', new ParseUUIDPipe()) householdMemberId: string,
     @Req() request: Request,
   ): Promise<{
     accessCode: string;
@@ -378,7 +381,7 @@ export class HouseholdController {
   @ApiResponse({ status: 404, description: 'Household member not found.' })
   @ApiResponse({ status: 500, description: 'Internal server error.' })
   async deleteHouseholdMember(
-    @Param('householdMemberId', new ValidationPipe({ transform: true }))
+    @Param('householdMemberId', new ParseUUIDPipe())
     householdMemberId: string,
     @Req() request: Request,
   ): Promise<{ success: boolean; message: string }> {

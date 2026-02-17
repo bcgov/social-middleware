@@ -9,6 +9,7 @@ import {
   HttpException,
   HttpStatus,
   ValidationPipe,
+  ParseUUIDPipe,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -63,7 +64,8 @@ export class AttachmentsController {
     type: [GetAttachmentDto],
   })
   async getByApplicationPackage(
-    @Param('applicationPackageId') applicationPackageId: string,
+    @Param('applicationPackageId', new ParseUUIDPipe())
+    applicationPackageId: string,
     @Req() request: Request,
   ): Promise<GetAttachmentDto[]> {
     const userId = this.sessionUtil.extractUserIdFromRequest(request);
@@ -85,7 +87,7 @@ export class AttachmentsController {
 
   //TODO: ADD SESSION PROTECTION
   async getByApplicationPackageAndHouseholdMemberId(
-    @Param('householdMemberId') householdMemberId: string,
+    @Param('householdMemberId', new ParseUUIDPipe()) householdMemberId: string,
     // @Req() request: Request,
   ): Promise<GetAttachmentDto[]> {
     //const userId = this.sessionUtil.extractUserIdFromRequest(request);

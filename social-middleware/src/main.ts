@@ -7,6 +7,7 @@ import { Logger } from 'nestjs-pino';
 import { ValidationPipe } from '@nestjs/common';
 import { BullDashboardService } from './bull-dashboard/bull-dashboard.service';
 import helmet from 'helmet';
+import * as mongoSanitize from 'express-mongo-sanitize';
 import { json, urlencoded } from 'express';
 
 async function bootstrap() {
@@ -22,6 +23,7 @@ async function bootstrap() {
     // config enables attachments greater than 100KB
     app.use(json({ limit: '10mb' }));
     app.use(urlencoded({ extended: true, limit: '10mb' }));
+    app.use(mongoSanitize());
 
     const bullDashboard = app.get(BullDashboardService);
     app.use('/admin/queues', bullDashboard.getRouter());

@@ -11,6 +11,7 @@ import {
   NotFoundException,
   UnauthorizedException,
   Post,
+  ParseUUIDPipe,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -115,7 +116,7 @@ export class ApplicationFormsController {
     description: 'Internal server error',
   })
   async getApplicationFormById(
-    @Param('applicationFormId') applicationFormId: string,
+    @Param('applicationFormId', new ParseUUIDPipe()) applicationFormId: string,
     @Req() request: Request,
   ): Promise<GetApplicationFormDto> {
     const userId = this.sessionUtil.extractUserIdFromRequest(request);
@@ -217,7 +218,7 @@ export class ApplicationFormsController {
     description: 'Household member or forms not found',
   })
   async getApplicationFormsByHouseholdMemberId(
-    @Param('householdMemberId') householdMemberId: string,
+    @Param('householdMemberId', new ParseUUIDPipe()) householdMemberId: string,
     @Req() request: Request,
   ): Promise<GetApplicationFormDto[]> {
     const userId = this.sessionUtil.extractUserIdFromRequest(request);
