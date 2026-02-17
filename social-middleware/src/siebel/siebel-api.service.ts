@@ -289,7 +289,7 @@ export class SiebelApiService {
       DocFileExt: 'json',
       DocFileName: attachmentData.fileName,
       'Office Name': 'MCFD',
-      Status: 'In Progress',
+      Status: 'Complete', // document will be readonly in ICM
       Template: attachmentData.template,
       'Final Flag': 'N',
       'XML Hierarchy': attachmentData.xmlHierarchy,
