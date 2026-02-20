@@ -53,9 +53,15 @@ spec:
                   name: redis
                   key: password
             - name: REDIS_HOST
-              value: "redis"
+              valueFrom:
+                secretKeyRef:
+                  name: redis
+                  key: host
             - name: REDIS_PORT
-              value: "6379"
+              valueFrom:
+                secretKeyRef:
+                  name: redis
+                  key: port
             - name: QUEUE_JOB_ATTEMPTS
               value: "3"
             - name: QUEUE_BACKOFF_DELAY

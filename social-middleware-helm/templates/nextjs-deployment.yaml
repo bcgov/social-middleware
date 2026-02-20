@@ -54,7 +54,10 @@ spec:
             - name: MONGO_TLS_CA_FILE
               value: "/etc/mongodb-ca/service-ca.crt"
             - name: REDIS_HOST
-              value: "redis.{{ .Release.Namespace }}.svc"
+              valueFrom:
+                secretKeyRef:
+                  name: redis
+                  key: host
             - name: REDIS_PORT
               value: "6379"
             - name: REDIS_PASSWORD
