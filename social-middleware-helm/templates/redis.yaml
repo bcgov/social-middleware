@@ -47,6 +47,11 @@ spec:
                 secretKeyRef:
                   name: redis
                   key: password
+            - name: REDISCLI_AUTH
+              valueFrom:
+                secretKeyRef:
+                  name: redis
+                  key: password
             - name: REDIS_HOST
               value: "redis"
             - name: REDIS_PORT
@@ -66,8 +71,6 @@ spec:
             exec:
               command:
                 - redis-cli
-                - "-a"
-                - "$(REDIS_PASSWORD)"
                 - "ping"
             initialDelaySeconds: 30
             periodSeconds: 10
@@ -77,8 +80,6 @@ spec:
             exec:
               command:
                 - redis-cli
-                - "-a"
-                - "$(REDIS_PASSWORD)"
                 - "ping"
             initialDelaySeconds: 5
             periodSeconds: 5
@@ -88,8 +89,6 @@ spec:
             exec:
               command:
                 - redis-cli
-                - "-a"
-                - "$(REDIS_PASSWORD)"
                 - "ping"
             initialDelaySeconds: 0
             periodSeconds: 5
