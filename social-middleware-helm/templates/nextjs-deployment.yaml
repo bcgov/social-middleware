@@ -64,13 +64,43 @@ spec:
             - name: mongodb-ca
               mountPath: /etc/mongodb-ca
               readOnly: true
-          resources: 
+          resources:
             limits:
               cpu: "500m"
               memory: 512Mi
             requests:
               cpu: "20m"
               memory: 128Mi
+          startupProbe:
+            httpGet:
+              path: /health
+              port: {{ .Values.nextjs.port }}
+              scheme: HTTP
+            initialDelaySeconds: 0
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 30
+            successThreshold: 1
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: {{ .Values.nextjs.port }}
+              scheme: HTTP
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+            successThreshold: 1
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: {{ .Values.nextjs.port }}
+              scheme: HTTP
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+            successThreshold: 1
           terminationMessagePath: /dev/termination-log
           terminationMessagePolicy: File
       volumes:
