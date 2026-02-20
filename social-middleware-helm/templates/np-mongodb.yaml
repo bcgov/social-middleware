@@ -1,9 +1,8 @@
 kind: NetworkPolicy
 apiVersion: networking.k8s.io/v1
 metadata:
-  annotations:
-    name: mongodb
-    namespace: {{ .Release.Namespace }}
+  name: mongodb
+  namespace: {{ .Release.Namespace }}
   labels:
     app: mongodb
     app.kubernetes.io/managed-by: Helm
