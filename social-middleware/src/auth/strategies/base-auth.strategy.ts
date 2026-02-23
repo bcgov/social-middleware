@@ -109,7 +109,7 @@ export abstract class BaseAuthStrategy {
       first_name: userInfo.given_name || '(Mononym)',
       last_name: userInfo.family_name,
       dateOfBirth: this.userUtil.icmDateFormat(userInfo.birthdate),
-      sex: userInfo.gender || '',
+      //sex: userInfo.gender || '',
       email: userInfo.email,
       street_address: userInfo.address.street_address,
       city: userInfo.address.locality,
