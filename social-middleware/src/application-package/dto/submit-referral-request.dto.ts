@@ -5,6 +5,9 @@ export class SubmitReferralRequestDto {
   email!: string;
 
   @IsString()
+  sex!: string;
+
+  @IsString()
   @Matches(/^\(\d{3}\) \d{3}-\d{4}$/, {
     message: 'Primary phone must be in format (xxx) xxx-xxxx',
   })
