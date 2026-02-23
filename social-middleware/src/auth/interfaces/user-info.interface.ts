@@ -4,7 +4,7 @@ export interface UserInfo {
   name?: string;
   given_name: string;
   family_name: string;
-  gender?: string;
+  //gender?: string;
   birthdate: string;
   address: {
     street_address: string;
