@@ -34,6 +34,7 @@ import { SiebelApiService } from '../../siebel/siebel-api.service';
 import { ConfigService } from '@nestjs/config';
 import { UserService } from '../../auth/user.service';
 import { UserUtil } from '../../common/utils/user.util';
+import { GenderTypes } from '../../household/enums/gender-types.enum';
 import { NotificationService } from '../../notifications/services/notification.service';
 
 @Injectable()
@@ -477,7 +478,7 @@ export class ApplicationPackageProcessor {
         HomePhone: dto.home_phone ?? primaryApplicant.homePhone ?? '',
         AlternatePhone:
           dto.alternate_phone || primaryApplicant.alternatePhone || '',
-        Gender: this.userUtil.sexToGenderType(primaryUser.sex),
+        Gender: primaryUser.sex || GenderTypes.Unspecified,
         Relationship: 'Key player',
         ApplicantFlag: 'Y',
       };
