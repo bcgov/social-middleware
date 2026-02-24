@@ -7,8 +7,4 @@ spec:
     - ReadWriteOnce
   resources:
     requests:
-      {{- if hasSuffix "-prod" .Release.Namespace }}
-      storage: {{ .Values.mongodb.prod.storage.size }}
-      {{- else }}
-      storage: {{ .Values.mongodb.dev.storage.size }}
-      {{- end }}
+      storage: 700Mi
