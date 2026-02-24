@@ -6,7 +6,13 @@ metadata:
   labels:
     app: {{ .Values.nextjs.podlabel }}
 spec:
-  replicas: 1
+  {{- if hasSuffix "-prod" .Release.Namespace }}
+  replicas: {{ .Values.nextjs.prod.replicas | default 3 }}
+  {{- else if hasSuffix "-test" .Release.Namespace }}
+  replicas: {{ .Values.nextjs.test.replicas | default 2 }}
+  {{- else }}
+  replicas: {{ .Values.nextjs.dev.replicas | default 1 }}
+  {{- end }}
   selector:
     matchLabels:
       app: {{ .Values.nextjs.podlabel }}
@@ -78,13 +84,46 @@ spec:
             - name: mongodb-ca
               mountPath: /etc/mongodb-ca
               readOnly: true
-          resources: 
+          resources:
+            {{- if hasSuffix "-prod" .Release.Namespace }}
             limits:
-              cpu: "500m"
-              memory: 512Mi
+              cpu: {{ .Values.nextjs.prod.resources.limits.cpu | quote }}
+              memory: {{ .Values.nextjs.prod.resources.limits.memory }}
             requests:
-              cpu: "20m"
-              memory: 128Mi
+              cpu: {{ .Values.nextjs.prod.resources.requests.cpu | quote }}
+              memory: {{ .Values.nextjs.prod.resources.requests.memory }}
+            {{- else }}
+            limits:
+              cpu: {{ .Values.nextjs.dev.resources.limits.cpu | quote }}
+              memory: {{ .Values.nextjs.dev.resources.limits.memory }}
+            requests:
+              cpu: {{ .Values.nextjs.dev.resources.requests.cpu | quote }}
+              memory: {{ .Values.nextjs.dev.resources.requests.memory }}
+            {{- end }}
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: {{ .Values.nextjs.port }}
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: {{ .Values.nextjs.port }}
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+          startupProbe:
+            httpGet:
+              path: /health
+              port: {{ .Values.nextjs.port }}
+            initialDelaySeconds: 0
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 30
           terminationMessagePath: /dev/termination-log
           terminationMessagePolicy: File
       volumes:
