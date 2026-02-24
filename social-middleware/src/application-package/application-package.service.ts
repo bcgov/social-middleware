@@ -575,6 +575,52 @@ export class ApplicationPackageService {
     }
   }
 
+  /** saveReferralContactData
+   * Saves the Referral data to the contact record and household record
+   */
+
+  async saveReferralContactData(
+    applicationPackageId: string,
+    userId: string,
+    dto: SubmitReferralRequestDto,
+  ): Promise<{ message: string }> {
+    this.logger.info(
+      { applicationPackageId, userId },
+      'Saving referral contact data',
+    );
+
+    const applicationPackage = await this.applicationPackageModel
+      .findOne({ applicationPackageId, userId })
+      .lean()
+      .exec();
+
+    if (!applicationPackage) {
+      throw new NotFoundException('Application package not found');
+    }
+
+    const primaryApplicant =
+      await this.householdService.findPrimaryApplicant(applicationPackageId);
+    if (primaryApplicant) {
+      await this.householdService.updateHouseholdMember(
+        primaryApplicant.householdMemberId,
+        {
+          email: dto.email,
+          genderType: (dto.sex as GenderTypes) || GenderTypes.Unspecified,
+          homePhone: dto.home_phone,
+          alternatePhone: dto.alternate_phone,
+        },
+      );
+    }
+
+    await this.userService.updateUser(userId, {
+      sex: dto.sex,
+      email: dto.email,
+      home_phone: dto.home_phone,
+      alternate_phone: dto.alternate_phone,
+    });
+
+    return { message: 'Referral contact data saved successfully' };
+  }
   /** submitReferralRequest
    * Enables the primary applicant to request an information session
    * Creates a service request and prospect record for the primary applicant in ICM
@@ -602,6 +648,22 @@ export class ApplicationPackageService {
 
     if (applicationPackage.srId?.trim()) {
       throw new BadRequestException('Referral already submitted');
+    }
+
+    // verify all non-referral forms are complete before submitting
+    const forms = await this.applicationFormService.findByPackageAndUser(
+      applicationPackageId,
+      userId,
+    );
+    const incompleteForms = forms.filter(
+      (f) =>
+        f.type !== ApplicationFormType.REFERRAL &&
+        f.status !== ApplicationFormStatus.COMPLETE,
+    );
+    if (incompleteForms.length > 0) {
+      throw new BadRequestException(
+        `Cannot submit referral - ${incompleteForms.length} form(s) are incomplete`,
+      );
     }
 
     // Update status immediately so frontend knows it's been requested
