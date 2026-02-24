@@ -366,6 +366,39 @@ export class ApplicationPackageController {
     }
   }
 
+  @Post(':applicationPackageId/save-referral-contact')
+  @ApiOperation({
+    summary: 'Save referral form contact data without triggering Siebel',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Contact data saved successfully',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Application package not found',
+  })
+  async saveReferralContactData(
+    @Param('applicationPackageId', new ParseUUIDPipe())
+    applicationPackageId: string,
+    @Body(new ValidationPipe({ whitelist: true, transform: true }))
+    dto: SubmitReferralRequestDto,
+    @Req() request: Request,
+  ): Promise<{ message: string }> {
+    const userId = this.sessionUtil.extractUserIdFromRequest(request);
+
+    this.logger.info(
+      { applicationPackageId, userId },
+      'Saving referral contact data',
+    );
+
+    return await this.applicationPackageService.saveReferralContactData(
+      applicationPackageId,
+      userId,
+      dto,
+    );
+  }
+
   @Post(':applicationPackageId/lock-application')
   @ApiOperation({
     summary:
