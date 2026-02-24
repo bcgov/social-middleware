@@ -96,12 +96,21 @@ spec:
               mountPath: /scripts
               readOnly: true
           resources:
+            {{- if hasSuffix "-prod" .Release.Namespace }}
             limits:
-              cpu: "300m"
-              memory: 512Mi
+              cpu: {{ .Values.mongodb.prod.resources.limits.cpu | quote }}
+              memory: {{ .Values.mongodb.prod.resources.limits.memory }}
             requests:
-              cpu: "20m"
-              memory: 128Mi
+              cpu: {{ .Values.mongodb.prod.resources.requests.cpu | quote }}
+              memory: {{ .Values.mongodb.prod.resources.requests.memory }}
+            {{- else }}
+            limits:
+              cpu: {{ .Values.mongodb.dev.resources.limits.cpu | quote }}
+              memory: {{ .Values.mongodb.dev.resources.limits.memory }}
+            requests:
+              cpu: {{ .Values.mongodb.dev.resources.requests.cpu | quote }}
+              memory: {{ .Values.mongodb.dev.resources.requests.memory }}
+            {{- end }}
       restartPolicy: Always
       volumes:
         - name: mongodb-data
