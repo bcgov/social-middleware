@@ -48,6 +48,7 @@ import { AttachmentsService } from '../attachments/attachments.service';
 import { NotificationService } from '../notifications/services/notification.service';
 
 import { AttachmentType } from '../attachments/enums/attachment-types.enum';
+import { GenderTypes } from '../household/enums/gender-types.enum';
 
 /*
 interface SiebelServiceRequestResponse {
@@ -117,7 +118,7 @@ export class ApplicationPackageService {
       dateOfBirth: user.dateOfBirth,
       email: user.email,
       relationshipToPrimary: RelationshipToPrimary.Self,
-      genderType: this.userUtil.sexToGenderType(user.sex),
+      genderType: (user.sex as GenderTypes) || GenderTypes.Unspecified,
     };
 
     const primaryHouseholdMember = await this.householdService.createMember(
@@ -143,6 +144,27 @@ export class ApplicationPackageService {
         referralApplicationFormId: referral.applicationFormId,
       },
       'Created referral form for application package',
+    );
+
+    // create indigenous as the 2nd application Form; part of the referral package
+    const indigenousDto = {
+      applicationPackageId: appPackage.applicationPackageId,
+      formId: getFormIdForFormType(ApplicationFormType.INDIGENOUS),
+      userId: userId,
+      householdMemberId: primaryHouseholdMember.householdMemberId,
+      type: ApplicationFormType.INDIGENOUS,
+      formParameters: {},
+    };
+
+    const indigenous =
+      await this.applicationFormService.createApplicationForm(indigenousDto);
+
+    this.logger.info(
+      {
+        applicationPackageId: appPackage.applicationPackageId,
+        referralApplicationFormId: indigenous.applicationFormId,
+      },
+      'Created indigenous form for application package',
     );
     return appPackage;
   }
@@ -363,7 +385,16 @@ export class ApplicationPackageService {
         };
         await this.applicationFormService.createApplicationForm(householdDto);
 
-        // placements is the third form
+        const childrenDto = {
+          applicationPackageId: applicationPackage.applicationPackageId,
+          formId: getFormIdForFormType(ApplicationFormType.CHILDREN),
+          userId: applicationPackage.userId,
+          householdMemberId: primaryApplicantMember.householdMemberId,
+          type: ApplicationFormType.CHILDREN,
+          formParameters: {},
+        };
+        await this.applicationFormService.createApplicationForm(childrenDto);
+
         const placementDto = {
           applicationPackageId: applicationPackage.applicationPackageId,
           formId: getFormIdForFormType(ApplicationFormType.PLACEMENT),
@@ -388,15 +419,28 @@ export class ApplicationPackageService {
         await this.applicationFormService.createApplicationForm(referencesDto);
 
         // consent is the final form
-        const consentDto = {
+        const disclosureConsentDto = {
           applicationPackageId: applicationPackage.applicationPackageId,
-          formId: getFormIdForFormType(ApplicationFormType.CONSENT),
+          formId: getFormIdForFormType(ApplicationFormType.DISCLOSURECONSENT),
           userId: applicationPackage.userId,
           householdMemberId: primaryApplicantMember.householdMemberId,
-          type: ApplicationFormType.CONSENT,
+          type: ApplicationFormType.DISCLOSURECONSENT,
           formParameters: {},
         };
-        await this.applicationFormService.createApplicationForm(consentDto);
+        await this.applicationFormService.createApplicationForm(
+          disclosureConsentDto,
+        );
+
+        // consent is the final form
+        const pccConsentDto = {
+          applicationPackageId: applicationPackage.applicationPackageId,
+          formId: getFormIdForFormType(ApplicationFormType.PCCCONSENT),
+          userId: applicationPackage.userId,
+          householdMemberId: primaryApplicantMember.householdMemberId,
+          type: ApplicationFormType.PCCCONSENT,
+          formParameters: {},
+        };
+        await this.applicationFormService.createApplicationForm(pccConsentDto);
 
         // send notification that the application can be accessed
         if (primaryApplicantMember.email) {
@@ -531,6 +575,52 @@ export class ApplicationPackageService {
     }
   }
 
+  /** saveReferralContactData
+   * Saves the Referral data to the contact record and household record
+   */
+
+  async saveReferralContactData(
+    applicationPackageId: string,
+    userId: string,
+    dto: SubmitReferralRequestDto,
+  ): Promise<{ message: string }> {
+    this.logger.info(
+      { applicationPackageId, userId },
+      'Saving referral contact data',
+    );
+
+    const applicationPackage = await this.applicationPackageModel
+      .findOne({ applicationPackageId, userId })
+      .lean()
+      .exec();
+
+    if (!applicationPackage) {
+      throw new NotFoundException('Application package not found');
+    }
+
+    const primaryApplicant =
+      await this.householdService.findPrimaryApplicant(applicationPackageId);
+    if (primaryApplicant) {
+      await this.householdService.updateHouseholdMember(
+        primaryApplicant.householdMemberId,
+        {
+          email: dto.email,
+          genderType: (dto.sex as GenderTypes) || GenderTypes.Unspecified,
+          homePhone: dto.home_phone,
+          alternatePhone: dto.alternate_phone,
+        },
+      );
+    }
+
+    await this.userService.updateUser(userId, {
+      sex: dto.sex,
+      email: dto.email,
+      home_phone: dto.home_phone,
+      alternate_phone: dto.alternate_phone,
+    });
+
+    return { message: 'Referral contact data saved successfully' };
+  }
   /** submitReferralRequest
    * Enables the primary applicant to request an information session
    * Creates a service request and prospect record for the primary applicant in ICM
@@ -560,6 +650,22 @@ export class ApplicationPackageService {
       throw new BadRequestException('Referral already submitted');
     }
 
+    // verify all non-referral forms are complete before submitting
+    const forms = await this.applicationFormService.findByPackageAndUser(
+      applicationPackageId,
+      userId,
+    );
+    const incompleteForms = forms.filter(
+      (f) =>
+        f.type !== ApplicationFormType.REFERRAL &&
+        f.status !== ApplicationFormStatus.COMPLETE,
+    );
+    if (incompleteForms.length > 0) {
+      throw new BadRequestException(
+        `Cannot submit referral - ${incompleteForms.length} form(s) are incomplete`,
+      );
+    }
+
     // Update status immediately so frontend knows it's been requested
     await this.applicationPackageModel.updateOne(
       { applicationPackageId },
@@ -578,11 +684,15 @@ export class ApplicationPackageService {
         primaryApplicant.householdMemberId,
         {
           email: dto.email,
+          genderType: (dto.sex as GenderTypes) || GenderTypes.Unspecified,
           homePhone: dto.home_phone,
           alternatePhone: dto.alternate_phone,
         },
       );
     }
+
+    // Save sex to user record so the processor can include it in the Siebel prospect
+    await this.userService.updateUser(userId, { sex: dto.sex });
 
     // Enqueue the submission - fire and forget so we don't block the response
     await this.applicationPackageQueueService
@@ -722,7 +832,7 @@ export class ApplicationPackageService {
               EmailAddress: memberUser.email,
               HomePhone: memberUser.home_phone || '',
               AlternatePhone: memberUser.alternate_phone || '',
-              Gender: this.userUtil.sexToGenderType(memberUser.sex),
+              Gender: memberUser.sex || GenderTypes.Unspecified,
               Relationship: householdMember.relationshipToPrimary,
               ApplicantFlag: getApplicantFlag(
                 householdMember.relationshipToPrimary,
@@ -805,7 +915,10 @@ export class ApplicationPackageService {
           applicationPackageId,
         );
       const formsToAttach = allApplicationForms.filter(
-        (form) => form.type !== ApplicationFormType.REFERRAL,
+        // already submitted these forms
+        (form) =>
+          form.type !== ApplicationFormType.REFERRAL &&
+          form.type !== ApplicationFormType.INDIGENOUS,
       );
       this.logger.info(
         {

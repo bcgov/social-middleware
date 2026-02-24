@@ -1,14 +1,20 @@
 import { IsEmail, IsOptional, IsString, Matches } from 'class-validator';
 
 export class SubmitReferralRequestDto {
+  @IsOptional()
   @IsEmail()
-  email!: string;
+  email?: string;
 
+  @IsOptional()
+  @IsString()
+  sex?: string;
+
+  @IsOptional()
   @IsString()
   @Matches(/^\(\d{3}\) \d{3}-\d{4}$/, {
     message: 'Primary phone must be in format (xxx) xxx-xxxx',
   })
-  home_phone!: string;
+  home_phone?: string;
 
   @IsOptional()
   @IsString()

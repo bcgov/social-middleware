@@ -29,11 +29,15 @@ import {
 //import { ApplicationFormType } from '../../application-form/enums/application-form-types.enum';
 import { ApplicationFormStatus } from '../../application-form/enums/application-form-status.enum';
 import { RelationshipToPrimary } from '../../household/enums/relationship-to-primary.enum';
-import { ApplicationFormType } from '../../application-form/enums/application-form-types.enum';
+import {
+  ApplicationFormType,
+  getFormIdForFormType,
+} from '../../application-form/enums/application-form-types.enum';
 import { SiebelApiService } from '../../siebel/siebel-api.service';
 import { ConfigService } from '@nestjs/config';
 import { UserService } from '../../auth/user.service';
 import { UserUtil } from '../../common/utils/user.util';
+import { GenderTypes } from '../../household/enums/gender-types.enum';
 import { NotificationService } from '../../notifications/services/notification.service';
 
 @Injectable()
@@ -477,7 +481,7 @@ export class ApplicationPackageProcessor {
         HomePhone: dto.home_phone ?? primaryApplicant.homePhone ?? '',
         AlternatePhone:
           dto.alternate_phone || primaryApplicant.alternatePhone || '',
-        Gender: this.userUtil.sexToGenderType(primaryUser.sex),
+        Gender: primaryUser.sex || GenderTypes.Unspecified,
         Relationship: 'Key player',
         ApplicantFlag: 'Y',
       };
@@ -522,7 +526,55 @@ export class ApplicationPackageProcessor {
       );
     }
 
-    // Step 3: Update SR Stage
+    // step 3: attach indigenous form to Siebel
+
+    const forms = await this.applicationFormService.findByPackageAndUser(
+      applicationPackageId,
+      userId,
+    );
+    const indigenousForm = forms.find(
+      (f) => f.type === ApplicationFormType.INDIGENOUS,
+    );
+
+    if (indigenousForm?.formData) {
+      this.logger.info(
+        {
+          applicationPackageId,
+          applicationFormId: indigenousForm.applicationFormId,
+        },
+        'Step 3: attaching Indigenous Form to Siebel',
+      );
+
+      const formId = getFormIdForFormType(ApplicationFormType.INDIGENOUS);
+      const xmlHierarchy =
+        await this.applicationFormService.convertFormDataToXml(
+          indigenousForm.applicationFormId,
+        );
+
+      const attachmentResult =
+        (await this.siebelApiService.createFormAttachment(srId, {
+          fileName: indigenousForm.type as string,
+          template: formId,
+          xmlHierarchy: xmlHierarchy,
+          fileContent: indigenousForm.formData,
+        })) as { Id: string };
+
+      this.logger.info(
+        {
+          applicationPackageId,
+          srId,
+          attachmentId: attachmentResult.Id,
+        },
+        'Indigenous form attached to Siebel SR',
+      );
+    } else {
+      this.logger.warn(
+        { applicationPackageId },
+        'Indigenous form not found or has no form data - skipping attachment',
+      );
+    }
+
+    // Step 4: Update SR Stage
     this.logger.info(
       { applicationPackageId, srId },
       'Step 3: Updating service request stage to Referral',
