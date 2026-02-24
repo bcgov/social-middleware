@@ -72,6 +72,8 @@ spec:
                 name: bcsc
             - secretRef:
                 name: siebel
+            - secretRef:
+                name: ches
           volumeMounts:
             - name: mongodb-ca
               mountPath: /etc/mongodb-ca
