@@ -915,7 +915,10 @@ export class ApplicationPackageService {
           applicationPackageId,
         );
       const formsToAttach = allApplicationForms.filter(
-        (form) => form.type !== ApplicationFormType.REFERRAL,
+        // already submitted these forms
+        (form) =>
+          form.type !== ApplicationFormType.REFERRAL &&
+          form.type !== ApplicationFormType.INDIGENOUS,
       );
       this.logger.info(
         {
