@@ -6,7 +6,9 @@ metadata:
   labels:
     app: {{ .Values.nextjs.podlabel }}
 spec:
-  replicas: 1
+  {{- if not (hasSuffix "-prod" .Release.Namespace) }}
+  replicas: {{ .Values.nextjs.replicas | default 1 }}
+  {{- end }}
   selector:
     matchLabels:
       app: {{ .Values.nextjs.podlabel }}
@@ -53,6 +55,18 @@ spec:
               value: "true"
             - name: MONGO_TLS_CA_FILE
               value: "/etc/mongodb-ca/service-ca.crt"
+            - name: REDIS_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: redis
+                  key: host
+            - name: REDIS_PORT
+              value: "6379"
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: redis
+                  key: password
           envFrom:
             - secretRef:
                 name: frontend
@@ -60,6 +74,8 @@ spec:
                 name: bcsc
             - secretRef:
                 name: siebel
+            - secretRef:
+                name: ches
           volumeMounts:
             - name: mongodb-ca
               mountPath: /etc/mongodb-ca
