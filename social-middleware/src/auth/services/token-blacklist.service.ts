@@ -9,6 +9,7 @@ export class TokenBlacklistService implements OnModuleDestroy {
     this.redis = new Redis({
       host: this.configService.get<string>('REDIS_HOST'),
       port: Number(this.configService.get<string>('REDIS_PORT')),
+      password: this.configService.get<string>('REDIS_PASSWORD'),
       maxRetriesPerRequest: 3,
       enableReadyCheck: false,
     });
