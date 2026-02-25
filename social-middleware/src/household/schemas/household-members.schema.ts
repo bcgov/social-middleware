@@ -49,6 +49,12 @@ export class HouseholdMembers {
   })
   relationshipToPrimary!: RelationshipToPrimary;
 
+  @Prop({ required: false, type: String })
+  homePhone?: string;
+
+  @Prop({ required: false, type: String })
+  alternatePhone?: string;
+
   @Prop({ type: Boolean, default: false })
   requireScreening!: boolean;
 
@@ -63,6 +69,9 @@ export class HouseholdMembers {
 
   @Prop({ type: Number, default: 0 })
   numberOfInvitationsSent!: number;
+
+  @Prop({ required: false, type: String })
+  prospectId?: string;
 
   createdAt!: Date;
 }

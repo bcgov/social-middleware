@@ -6,6 +6,8 @@ import * as cookieParser from 'cookie-parser';
 import { Logger } from 'nestjs-pino';
 import { ValidationPipe } from '@nestjs/common';
 import { BullDashboardService } from './bull-dashboard/bull-dashboard.service';
+import helmet from 'helmet';
+import * as mongoSanitize from 'express-mongo-sanitize';
 import { json, urlencoded } from 'express';
 
 async function bootstrap() {
@@ -21,6 +23,7 @@ async function bootstrap() {
     // config enables attachments greater than 100KB
     app.use(json({ limit: '10mb' }));
     app.use(urlencoded({ extended: true, limit: '10mb' }));
+    app.use(mongoSanitize());
 
     const bullDashboard = app.get(BullDashboardService);
     app.use('/admin/queues', bullDashboard.getRouter());
@@ -69,6 +72,22 @@ async function bootstrap() {
       preflightContinue: false,
       optionsSuccessStatus: 204,
     });
+
+    app.use(
+      helmet({
+        contentSecurityPolicy: {
+          directives: {
+            defaultSrc: ["'self'"],
+            scriptSrc: ["'self'"],
+            styleSrc: ["'self'"],
+            imgSrc: ["'self'", 'data:'],
+            connectSrc: ["'self'", frontendUrl, formsUrl],
+            frameSrc: ["'self'", formsUrl],
+            frameAncestors: ["'none'"],
+          },
+        },
+      }),
+    );
 
     const swaggerConfig = new DocumentBuilder()
       .setTitle('Caregiver Middleware API')

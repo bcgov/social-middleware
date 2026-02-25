@@ -15,6 +15,7 @@ import { KongOidcAuthStrategy } from './strategies/kong-oidc-auth.strategy';
 import { BcscOAuthAuthStrategy } from './strategies/bcsc-oauth-auth.strategy';
 import { AuthStrategy } from './strategies/auth-strategy.interface';
 import { ConfigService } from '@nestjs/config';
+import { TokenBlacklistModule } from './services/token-blacklist.module';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { ConfigService } from '@nestjs/config';
     MongooseModule.forFeature([{ name: User.name, schema: UserSchema }]),
     SiebelModule,
     CommonModule,
+    TokenBlacklistModule,
   ],
   controllers: [AuthController],
   providers: [
@@ -45,6 +47,6 @@ import { ConfigService } from '@nestjs/config';
       inject: [ConfigService, KongOidcAuthStrategy, BcscOAuthAuthStrategy],
     },
   ],
-  exports: [UserService, AuthService],
+  exports: [UserService, AuthService, TokenBlacklistModule],
 })
 export class AuthModule {}

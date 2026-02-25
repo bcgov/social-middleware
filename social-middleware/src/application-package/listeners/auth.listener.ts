@@ -127,9 +127,9 @@ export class AuthListener implements OnModuleInit {
             continue;
           }
         } else {
-          this.logger.info(
-            `No application package found for service request ID: ${srId}`,
-          );
+          //this.logger.info(
+          //  `No application package found for service request ID: ${srId}`,
+          //);
           continue;
         }
       }

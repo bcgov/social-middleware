@@ -20,12 +20,13 @@ import {
 import {
   ScreeningAccessCode,
   ScreeningAccessCodeDocument,
-} from '../application/schemas/screening-access-code.schema';
+} from '../household/schemas/screening-access-code.schema';
 import {
   FormParameters,
   FormParametersDocument,
 } from '../application-form/schemas/form-parameters.schema';
 import { HouseholdService } from '../household/services/household.service';
+import { ApplicationPackageStatus } from '../application-package/enums/application-package-status.enum';
 
 @Injectable()
 export class DevToolsService {
@@ -150,6 +151,123 @@ export class DevToolsService {
     } catch (error) {
       this.logger.error({ error, userId }, 'Error in [DevTools] clearUserData');
       throw new InternalServerErrorException('Failed to clear user data');
+    }
+  }
+
+  async resetApplicationPackage(
+    applicationPackageId: string,
+  ): Promise<{ message: string }> {
+    if (
+      typeof applicationPackageId !== 'string' ||
+      applicationPackageId.trim() === ''
+    ) {
+      throw new BadRequestException('Invalid applicationPackageId');
+    }
+
+    try {
+      this.logger.warn(
+        { applicationPackageId },
+        '[DevTools] Resetting application package',
+      );
+
+      // Step 1: Find all application forms for this package
+      const applicationForms = await this.applicationFormModel.find(
+        { applicationPackageId },
+        { applicationFormId: 1 },
+      );
+
+      const applicationFormIds = applicationForms.map(
+        (form) => form.applicationFormId,
+      );
+
+      this.logger.info(
+        { applicationPackageId, formCount: applicationFormIds.length },
+        '[DevTools] Found application forms',
+      );
+
+      // Step 2: Delete form parameters associated with application forms
+      const deletedFormParameters = await this.formParametersModel.deleteMany({
+        applicationFormId: { $in: applicationFormIds },
+      });
+
+      // Step 3: Delete application forms
+      const deletedApplicationForms =
+        await this.applicationFormModel.deleteMany({
+          applicationPackageId,
+        });
+
+      // Step 4: Delete screening access codes associated with application forms
+      const deletedAccessCodes = await this.screeningAccessCodeModel.deleteMany(
+        {
+          parentApplicationId: { $in: applicationFormIds },
+        },
+      );
+
+      // Step 5: Delete household members associated with package
+      let deletedHouseholdMembers = 0;
+      try {
+        const result =
+          await this.householdService.deleteNonPrimaryMembersByApplicationPackageId(
+            applicationPackageId,
+          );
+        deletedHouseholdMembers = result.deletedCount || 0;
+      } catch (error) {
+        this.logger.warn(
+          { applicationPackageId, error },
+          `[DevTools] Failed to delete non-primary household members`,
+        );
+      }
+
+      // Step 6: Reset the application package srStage to Referral
+      const updatedPackage =
+        await this.applicationPackageModel.findOneAndUpdate(
+          { applicationPackageId },
+          {
+            $set: {
+              srStage: 'Referral',
+              status: ApplicationPackageStatus.REFERRAL,
+              hasPartner: null,
+              hasHousehold: null,
+              hasSupportNetwork: null,
+              hasMedicalAssessment: false,
+            },
+          },
+          { new: true },
+        );
+
+      if (!updatedPackage) {
+        throw new BadRequestException(
+          `Application package ${applicationPackageId} not found`,
+        );
+      }
+
+      this.logger.warn(
+        {
+          applicationPackageId,
+          deletedApplicationForms: deletedApplicationForms.deletedCount,
+          deletedFormParameters: deletedFormParameters.deletedCount,
+          deletedAccessCodes: deletedAccessCodes.deletedCount,
+          deletedHouseholdMembers,
+        },
+        '[DevTools] Reset complete',
+      );
+
+      return {
+        message: `Reset application package ${applicationPackageId}: 
+        deleted ${deletedApplicationForms.deletedCount} application forms, 
+        ${deletedFormParameters.deletedCount} form parameters, 
+        ${deletedAccessCodes.deletedCount} access codes, 
+        ${deletedHouseholdMembers} household members, 
+        and reset srStage to Referral`,
+      };
+    } catch (error) {
+      this.logger.error(
+        { error, applicationPackageId },
+        'Error in [DevTools] resetApplicationPackage',
+      );
+      throw new InternalServerErrorException(
+        'Failed to reset application package',
+      );
     }
   }
 }

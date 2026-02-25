@@ -2,11 +2,13 @@ import { Injectable } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bull';
 import { Queue } from 'bull';
 import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
+import { SubmitReferralRequestDto } from '../dto/submit-referral-request.dto';
 
 @Injectable()
 export class ApplicationPackageQueueService {
   constructor(
-    @InjectQueue('applicationPackageQueue') private queue: Queue,
+    @InjectQueue('applicationPackageQueue')
+    private readonly applicationPackageQueue: Queue,
     @InjectPinoLogger(ApplicationPackageQueueService.name)
     private readonly logger: PinoLogger,
   ) {}
@@ -16,7 +18,7 @@ export class ApplicationPackageQueueService {
    * This checks if a package in CONSENT status is ready to move to READY
    */
   async enqueueCompletenessCheck(applicationPackageId: string): Promise<void> {
-    await this.queue.add(
+    await this.applicationPackageQueue.add(
       'completeness-check',
       { applicationPackageId },
       {
@@ -40,7 +42,7 @@ export class ApplicationPackageQueueService {
    */
   async enqueueSubmission(applicationPackageId: string): Promise<void> {
     // Check if already queued to prevent duplicates
-    const existingJobs = await this.queue.getJobs([
+    const existingJobs = await this.applicationPackageQueue.getJobs([
       'waiting',
       'active',
       'delayed',
@@ -59,7 +61,9 @@ export class ApplicationPackageQueueService {
       return;
     }
 
-    await this.queue.add('submission', { applicationPackageId });
+    await this.applicationPackageQueue.add('submission', {
+      applicationPackageId,
+    });
 
     this.logger.info(
       { applicationPackageId },
@@ -77,8 +81,43 @@ export class ApplicationPackageQueueService {
   }> {
     this.logger.info('Starting periodic scan for application packages');
 
-    await this.queue.add('periodic-scan', {});
+    await this.applicationPackageQueue.add('periodic-scan', {});
 
     return { completenessChecks: 0, submissions: 0 }; // Actual counts from processor
+  }
+
+  /**
+   * Enqueue referral submission to Siebel/ICM
+   * Creates SR, Prospect for Primary Applicant, and sets Referral Stage on SR to trigger Activity Plan
+   */
+  async enqueueReferralSubmission(
+    applicationPackageId: string,
+    userId: string,
+    dto: SubmitReferralRequestDto,
+  ): Promise<void> {
+    await this.applicationPackageQueue.add(
+      'submit-referral',
+      {
+        applicationPackageId,
+        userId,
+        dto,
+      },
+      {
+        attempts: 12,
+        backoff: {
+          type: 'exponential',
+          delay: 30000,
+        },
+        removeOnComplete: 100,
+        removeOnFail: false,
+      },
+    );
+    this.logger.info(
+      {
+        applicationPackageId,
+        userId,
+      },
+      'Enqueued referral submission',
+    );
   }
 }

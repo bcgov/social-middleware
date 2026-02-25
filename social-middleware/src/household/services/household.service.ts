@@ -14,11 +14,11 @@ import { CreateHouseholdMemberDto } from '../dto/create-household-member.dto';
 import { RelationshipToPrimary } from '../enums/relationship-to-primary.enum';
 import { MemberTypes } from '../enums/member-types.enum';
 import { v4 as uuidv4 } from 'uuid';
-import { sexToGenderType } from '../../common/utils/gender.util';
 import {
   ApplicationPackage,
   ApplicationPackageDocument,
 } from '../../application-package/schema/application-package.schema';
+import { GenderTypes } from '../enums/gender-types.enum';
 
 @Injectable()
 export class HouseholdService {
@@ -71,6 +71,22 @@ export class HouseholdService {
       } else {
         this.logger.log(
           `Using provided householdMemberId: ${householdMemberId}`,
+        );
+      }
+
+      // check for duplicates before creating/updating
+      const duplicateCheck = await this.checkForDuplicate(
+        dto.applicationPackageId,
+        dto.firstName,
+        dto.lastName,
+        dto.dateOfBirth,
+        householdMemberId,
+      );
+
+      if (duplicateCheck.isDuplicate) {
+        //const existing = duplicateCheck.existingMember!;
+        throw new InternalServerErrorException(
+          'A household member with the same name and date of birth already exists in this application.',
         );
       }
 
@@ -181,6 +197,26 @@ export class HouseholdService {
     }
   }
 
+  /**
+   * updateHouseholdMember
+   * updates a household member record with update data
+   * @param householdMemberId
+   * @param updateData
+   * @returns HouseholdMember
+   */
+  async updateHouseholdMember(
+    householdMemberId: string,
+    updateData: Partial<HouseholdMembers>,
+  ): Promise<HouseholdMembersDocument> {
+    const updated = await this.householdMemberModel
+      .findOneAndUpdate({ householdMemberId }, updateData, { new: true })
+      .exec();
+    if (!updated) {
+      throw new NotFoundException('Household member not found');
+    }
+    return updated;
+  }
+
   // update household member details with authenticated user information
   async updateMemberWithUserData(
     householdMemberId: string,
@@ -201,28 +237,10 @@ export class HouseholdService {
         updateData.firstName = userData.firstName;
       }
       if (userData.sex) {
-        updateData.genderType = sexToGenderType(userData.sex);
+        updateData.genderType = userData.sex as GenderTypes;
       }
 
-      const result = await this.householdMemberModel
-        .findOneAndUpdate(
-          { householdMemberId },
-          { $set: updateData },
-          { new: true, runValidators: true },
-        )
-        .exec();
-
-      if (!result) {
-        this.logger.warn(
-          `Household member with ID ${householdMemberId} not found for data update.`,
-        );
-        throw NotFoundException;
-      }
-
-      this.logger.log(
-        `Successfully updated household member ${householdMemberId} firstName and gender`,
-      );
-      return result;
+      return this.updateHouseholdMember(householdMemberId, updateData);
     } catch (error: unknown) {
       const err = error as Error;
       this.logger.error(
@@ -383,6 +401,39 @@ export class HouseholdService {
     }
   }
 
+  // used by the dev util for resetting application package - deletes all except primary applicant
+  async deleteNonPrimaryMembersByApplicationPackageId(
+    applicationPackageId: string,
+  ): Promise<{ deletedCount: number }> {
+    try {
+      this.logger.log(
+        `Deleting non-primary household members for applicationPackageId: ${applicationPackageId}`,
+      );
+
+      const result = await this.householdMemberModel
+        .deleteMany({
+          applicationPackageId,
+          relationshipToPrimary: { $ne: 'Self' },
+        })
+        .exec();
+
+      this.logger.log(
+        `Deleted ${result.deletedCount} non-primary household members for applicationPackageId: ${applicationPackageId}`,
+      );
+
+      return { deletedCount: result.deletedCount };
+    } catch (error: unknown) {
+      const err = error as Error;
+      this.logger.error(
+        `Failed to delete non-primary household members for applicationPackageId=${applicationPackageId}: ${err.message}`,
+        err.stack,
+      );
+      throw new InternalServerErrorException(
+        'Could not delete non-primary household members',
+      );
+    }
+  }
+
   async markScreeningProvided(householdMemberId: string): Promise<void> {
     await this.householdMemberModel
       .findOneAndUpdate(
@@ -514,6 +565,91 @@ export class HouseholdService {
         incompleteRecords: incompleteRecords,
       },
     };
+  }
+
+  /**
+   * Check if a household member with similar identifying information already exists
+   * Matches on: lastname, dateOfBirth, and first initial of firstName
+   */
+
+  async checkForDuplicate(
+    applicationPackageId: string,
+    firstName: string,
+    lastName: string,
+    dateOfBirth: string,
+    excludeHouseholdMemberId?: string,
+  ): Promise<{
+    isDuplicate: boolean;
+    existingMember?: HouseholdMembersDocument;
+  }> {
+    try {
+      const firstInitial = firstName.charAt(0).toUpperCase();
+
+      // find all members for this application package
+      const members = await this.householdMemberModel
+        .find({ applicationPackageId })
+        .lean()
+        .exec();
+
+      // check for duplicates
+      for (const member of members) {
+        // skip of this is the same record being updated
+        if (
+          excludeHouseholdMemberId &&
+          member.householdMemberId === excludeHouseholdMemberId
+        ) {
+          continue;
+        }
+
+        // match criteria: same last name, DOB, and first initial
+        const memberFirstInitial = member.firstName.charAt(0).toUpperCase();
+        const lastNameMatch =
+          member.lastName.toLowerCase().trim() ===
+          lastName.toLowerCase().trim();
+        const dobMatch = member.dateOfBirth === dateOfBirth;
+        const firstInitialMatch = memberFirstInitial === firstInitial;
+
+        if (lastNameMatch && dobMatch && firstInitialMatch) {
+          this.logger.warn(
+            {
+              applicationPackageId,
+              firstName,
+              lastName,
+              dateOfBirth,
+              existingMember: member.householdMemberId,
+            },
+            'Duplicate household member detected',
+          );
+
+          return {
+            isDuplicate: true,
+            existingMember: member as HouseholdMembersDocument,
+          };
+        }
+      }
+      return { isDuplicate: false };
+    } catch (error: unknown) {
+      const err = error as Error;
+      this.logger.error(
+        `Error checking for duplicate household member: ${err.message}`,
+        err.stack,
+      );
+      throw new InternalServerErrorException(
+        'Could not check for duplicate household members',
+      );
+    }
+  }
+
+  // used for controlling access to a package
+  async verifyUserOwnsPackage(
+    applicationPackageId: string,
+    userId: string,
+  ): Promise<boolean> {
+    const appPackage = await this.applicationPackageModel
+      .findOne({ applicationPackageId, userId })
+      .lean()
+      .exec();
+    return !!appPackage;
   }
 
   async verifyUserOwnsHouseholdMemberPackage(

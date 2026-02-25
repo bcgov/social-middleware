@@ -8,6 +8,7 @@ import { UserService } from '../user.service';
 import { AuthService } from '../auth.service';
 import { BcscOAuthService } from '../bcsc-oauth.service';
 import { UserUtil } from '../../common/utils/user.util';
+import { TokenBlacklistService } from '../services/token-blacklist.service';
 
 @Injectable()
 export class BcscOAuthAuthStrategy
@@ -20,10 +21,18 @@ export class BcscOAuthAuthStrategy
     userService: UserService,
     authService: AuthService,
     bcscOAuthService: BcscOAuthService,
+    tokenBlacklistService: TokenBlacklistService,
     userUtil: UserUtil,
     logger: PinoLogger,
   ) {
-    super(configService, userService, authService, userUtil, logger);
+    super(
+      configService,
+      userService,
+      authService,
+      userUtil,
+      logger,
+      tokenBlacklistService,
+    );
     this.bcscOAuthService = bcscOAuthService;
     this.logger.setContext(BcscOAuthAuthStrategy.name);
   }
@@ -118,7 +127,11 @@ export class BcscOAuthAuthStrategy
         tokens.access_token,
       );
 
-      await this.createUserSessionAndRedirect(userInfo, res);
+      await this.createUserSession(userInfo, res);
+      // Store id_token for logout
+      this.setIdTokenCookie(res, tokens.id_token);
+      this.logger.info('Redirecting to frontend callback...');
+      res.redirect(`${this.frontendURL}/dashboard`);
     } catch (err) {
       this.logger.error({ err }, 'Error during OAuth callback');
       this.redirectWithError(res, 'auth_processing_failed');
@@ -167,6 +180,8 @@ export class BcscOAuthAuthStrategy
 
       // Use shared session creation logic
       await this.createUserSession(userInfo, res);
+      // Store id_token for logout
+      this.setIdTokenCookie(res, tokens.id_token);
       // return JSON for POST callback (fronend will handle redirect)
       res.status(HttpStatus.OK).json({
         success: true,
@@ -187,10 +202,24 @@ export class BcscOAuthAuthStrategy
   handleLogout(req: Request, res: Response): void {
     this.logger.info('Direct OAuth logout - clearing session');
 
+    const idToken = req.cookies.id_token as string;
+    this.blacklistCurrentToken(req);
     this.clearSessionCookie(res);
 
-    this.logger.info('Redirecting to login page');
-    res.redirect(`${this.frontendURL}/login`);
+    // Redirect to BCSC logout to clear SSO session
+    const bcscAuthority = this.configService.get<string>('BCSC_AUTHORITY');
+    const postLogoutRedirectUri = encodeURIComponent(
+      `${this.frontendURL}/login`,
+    );
+    let bcscLogoutUrl = `${bcscAuthority}/protocol/openid-connect/logout?post_logout_redirect_uri=${postLogoutRedirectUri}`;
+
+    // Include id_token_hint if available
+    if (idToken) {
+      bcscLogoutUrl += `&id_token_hint=${idToken}`;
+    }
+
+    this.logger.info('Redirecting to BCSC logout endpoint');
+    res.redirect(bcscLogoutUrl);
   }
 
   /**
@@ -220,7 +249,7 @@ export class BcscOAuthAuthStrategy
    * Safely extract cookie from request
    */
   private extractCookie(req: Request, cookieName: string): string | null {
-    return req.cookies[cookieName] || null;
+    return (req.cookies[cookieName] as string) || null;
   }
   /**
    * Validate PKCE challenge structure

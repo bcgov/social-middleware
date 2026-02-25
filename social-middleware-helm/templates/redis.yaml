@@ -2,10 +2,12 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: redis
+  namespace: {{ .Release.Namespace }}
   labels:
+    app: redis
     app.openshift.io/runtime: redis
 spec:
-  replicas: 0
+  replicas: 1
   selector:
     matchLabels:
       app: redis
@@ -17,18 +19,87 @@ spec:
       containers:
         - name: redis
           image: redis:7.2
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
           ports:
             - containerPort: 6379
-          args: ["--appendonly", "yes"]
+              protocol: TCP
+              name: redis
+          command: ["redis-server"]
+          args:
+            - "--requirepass"
+            - "$(REDIS_PASSWORD)"
+            - "--appendonly"
+            - "yes"
+            - "--appendfsync"
+            - "everysec"
+            - "--maxmemory"
+            - "256mb"
+            - "--maxmemory-policy"
+            - "allkeys-lru"
           env:
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: redis
+                  key: password
+            - name: REDISCLI_AUTH
+              valueFrom:
+                secretKeyRef:
+                  name: redis
+                  key: password
             - name: REDIS_HOST
-              value: "localhost"
+              valueFrom:
+                secretKeyRef:
+                  name: redis
+                  key: host
             - name: REDIS_PORT
-              value: "6379"
+              valueFrom:
+                secretKeyRef:
+                  name: redis
+                  key: port
             - name: QUEUE_JOB_ATTEMPTS
               value: "3"
             - name: QUEUE_BACKOFF_DELAY
               value: "5000"
+          resources:
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+            requests:
+              cpu: "50m"
+              memory: "128Mi"
+          livenessProbe:
+            exec:
+              command:
+                - redis-cli
+                - "ping"
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            exec:
+              command:
+                - redis-cli
+                - "ping"
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+          startupProbe:
+            exec:
+              command:
+                - redis-cli
+                - "ping"
+            initialDelaySeconds: 0
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 30
           volumeMounts:
             - name: redis-storage
               mountPath: /data

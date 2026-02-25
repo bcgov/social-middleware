@@ -1,13 +1,16 @@
 import { ConfigService } from '@nestjs/config';
-import { Response } from 'express';
+import { Response, Request } from 'express';
 import { PinoLogger } from 'nestjs-pino';
 import * as jwt from 'jsonwebtoken';
+import { v4 as uuidv4 } from 'uuid';
 import { UserService } from '../user.service';
 import { AuthService } from '../auth.service';
 import { UserUtil } from '../../common/utils/user.util';
 import { CreateUserDto } from '../dto';
 import { UserInfo } from '../interfaces/user-info.interface';
 import { User } from '../schemas/user.schema';
+import { TokenBlacklistService } from '../services/token-blacklist.service';
+import { UserPayload } from '../../common/interfaces';
 
 export abstract class BaseAuthStrategy {
   protected readonly jwtSecret: string;
@@ -22,6 +25,7 @@ export abstract class BaseAuthStrategy {
     protected readonly authService: AuthService,
     protected readonly userUtil: UserUtil,
     protected readonly logger: PinoLogger,
+    protected readonly tokenBlacklistService: TokenBlacklistService,
   ) {
     this.jwtSecret = this.configService.get<string>('JWT_SECRET')!;
     this.nodeEnv = this.configService.get<string>('NODE_ENV', 'development');
@@ -60,7 +64,6 @@ export abstract class BaseAuthStrategy {
       'email',
       'given_name',
       'family_name',
-      'gender',
       'birthdate',
     ];
 
@@ -106,8 +109,7 @@ export abstract class BaseAuthStrategy {
       first_name: userInfo.given_name || '(Mononym)',
       last_name: userInfo.family_name,
       dateOfBirth: this.userUtil.icmDateFormat(userInfo.birthdate),
-      sex: userInfo.gender,
-      gender: this.userUtil.sexToGenderType(userInfo.gender),
+      //sex: userInfo.gender || '',
       email: userInfo.email,
       street_address: userInfo.address.street_address,
       city: userInfo.address.locality,
@@ -153,10 +155,11 @@ export abstract class BaseAuthStrategy {
         email: userInfo.email,
         name: userInfo.name || `${userInfo.given_name} ${userInfo.family_name}`,
         userId: user.id.toString(),
+        jti: uuidv4(),
         iat: Math.floor(Date.now() / 1000),
       },
       this.jwtSecret,
-      { expiresIn: '24h' },
+      { expiresIn: '4h' },
     );
   }
 
@@ -172,10 +175,36 @@ export abstract class BaseAuthStrategy {
   }
 
   /**
+   * Set id_token cookie for logout
+   */
+  protected setIdTokenCookie(res: Response, idToken: string): void {
+    res.cookie('id_token', idToken, this.getCookieOptions(24 * 60 * 60 * 1000));
+  }
+
+  /**
    * Clear session cookie
    */
   protected clearSessionCookie(res: Response): void {
-    res.clearCookie('app_session', this.getCookieOptions());
+    const clearOptions = {
+      path: '/',
+      httpOnly: true,
+      secure:
+        this.nodeEnv === 'production' ||
+        this.frontendURL.startsWith('https://'),
+      sameSite: 'strict' as const, // Must match the set cookie options
+      ...(this.cookieDomain && { domain: this.cookieDomain }),
+    };
+    this.logger.info(
+      {
+        cookieDomain: this.cookieDomain,
+        secure: clearOptions.secure,
+        sameSite: clearOptions.sameSite,
+      },
+      'Clearing app_session cookie',
+    );
+
+    res.clearCookie('app_session', clearOptions);
+    res.clearCookie('id_token', clearOptions);
   }
 
   /**
@@ -188,10 +217,33 @@ export abstract class BaseAuthStrategy {
       secure:
         this.nodeEnv === 'production' ||
         this.frontendURL.startsWith('https://'),
-      sameSite: 'lax' as const,
+      sameSite: 'strict' as const,
       ...(maxAge && { maxAge }),
       ...(this.cookieDomain && { domain: this.cookieDomain }),
     };
+  }
+
+  /**
+   * Blacklist the current token so it cannot be reused
+   */
+  protected blacklistCurrentToken(req: Request): void {
+    const token = req.cookies?.app_session as string;
+    if (token) {
+      try {
+        const decoded = jwt.verify(token, this.jwtSecret) as UserPayload;
+        if (decoded.jti && decoded.exp) {
+          const remainingSeconds = decoded.exp - Math.floor(Date.now() / 1000);
+          if (remainingSeconds > 0) {
+            void this.tokenBlacklistService.blacklist(
+              decoded.jti,
+              remainingSeconds,
+            );
+          }
+        }
+      } catch {
+        // token already expired of invalid - no need to blacklist
+      }
+    }
   }
 
   /**

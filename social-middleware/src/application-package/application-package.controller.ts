@@ -10,6 +10,7 @@ import {
   ValidationPipe,
   HttpCode,
   Param,
+  ParseUUIDPipe,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -103,7 +104,8 @@ export class ApplicationPackageController {
     description: 'Server error during application package update',
   })
   async updateApplicationPackage(
-    @Param('applicationPackageId') applicationPackageId: string,
+    @Param('applicationPackageId', new ParseUUIDPipe())
+    applicationPackageId: string,
     @Body(new ValidationPipe({ whitelist: true, transform: true }))
     dto: UpdateApplicationPackageDto,
     @Req() request: Request,
@@ -174,7 +176,8 @@ export class ApplicationPackageController {
     description: 'Unauthorized - invalid or missing session',
   })
   async getApplicationPackage(
-    @Param('applicationPackageId') applicationPackageId: string,
+    @Param('applicationPackageId', new ParseUUIDPipe())
+    applicationPackageId: string,
     @Req() request: Request,
   ): Promise<ApplicationPackage> {
     try {
@@ -205,7 +208,8 @@ export class ApplicationPackageController {
     type: [ApplicationForm],
   })
   async getApplicationForms(
-    @Param('applicationPackageId') applicationPackageId: string,
+    @Param('applicationPackageId', new ParseUUIDPipe())
+    applicationPackageId: string,
     @Req() request: Request,
   ): Promise<ApplicationForm[]> {
     const userId = this.sessionUtil.extractUserIdFromRequest(request);
@@ -232,7 +236,8 @@ export class ApplicationPackageController {
     description: 'Server error during cancellation',
   })
   async cancelApplicationPackage(
-    @Param('applicationPackageId') applicationPackageId: string,
+    @Param('applicationPackageId', new ParseUUIDPipe())
+    applicationPackageId: string,
     @Req() request: Request,
   ): Promise<void> {
     const userId = this.sessionUtil.extractUserIdFromRequest(request);
@@ -256,7 +261,8 @@ export class ApplicationPackageController {
   })
   @ApiResponse({ status: 404, description: 'Application package not found' })
   async validateHouseholdCompletion(
-    @Param('applicationPackageId') applicationPackageId: string,
+    @Param('applicationPackageId', new ParseUUIDPipe())
+    applicationPackageId: string,
     @Req() req: Request,
   ): Promise<ValidateHouseholdCompletionDto> {
     const userId = this.sessionUtil.extractUserIdFromRequest(req);
@@ -287,7 +293,8 @@ export class ApplicationPackageController {
     description: 'Server error during submission',
   })
   async submitApplicationPackage(
-    @Param('applicationPackageId') applicationPackageId: string,
+    @Param('applicationPackageId', new ParseUUIDPipe())
+    applicationPackageId: string,
     @Req() request: Request,
   ): Promise<{ serviceRequestId: string }> {
     try {
@@ -332,10 +339,11 @@ export class ApplicationPackageController {
     description: 'Server error during submission',
   })
   async submitReferralRequest(
-    @Param('applicationPackageId') applicationPackageId: string,
+    @Param('applicationPackageId', new ParseUUIDPipe())
+    applicationPackageId: string,
     @Body() dto: SubmitReferralRequestDto,
     @Req() request: Request,
-  ): Promise<{ serviceRequestId: string }> {
+  ): Promise<{ message: string }> {
     try {
       const userId = this.sessionUtil.extractUserIdFromRequest(request);
 
@@ -356,6 +364,39 @@ export class ApplicationPackageController {
       );
       throw error;
     }
+  }
+
+  @Post(':applicationPackageId/save-referral-contact')
+  @ApiOperation({
+    summary: 'Save referral form contact data without triggering Siebel',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Contact data saved successfully',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Application package not found',
+  })
+  async saveReferralContactData(
+    @Param('applicationPackageId', new ParseUUIDPipe())
+    applicationPackageId: string,
+    @Body(new ValidationPipe({ whitelist: true, transform: true }))
+    dto: SubmitReferralRequestDto,
+    @Req() request: Request,
+  ): Promise<{ message: string }> {
+    const userId = this.sessionUtil.extractUserIdFromRequest(request);
+
+    this.logger.info(
+      { applicationPackageId, userId },
+      'Saving referral contact data',
+    );
+
+    return await this.applicationPackageService.saveReferralContactData(
+      applicationPackageId,
+      userId,
+      dto,
+    );
   }
 
   @Post(':applicationPackageId/lock-application')
@@ -385,7 +426,8 @@ export class ApplicationPackageController {
   })
   @ApiResponse({ status: 404, description: 'Application package not found' })
   async validateAndProcessApplication(
-    @Param('applicationPackageId') applicationPackageId: string,
+    @Param('applicationPackageId', new ParseUUIDPipe())
+    applicationPackageId: string,
     @Req() req: Request,
   ): Promise<{
     status: ApplicationPackageStatus;
@@ -426,7 +468,8 @@ export class ApplicationPackageController {
     description: 'Application package not found',
   })
   async uploadMedicalAssessments(
-    @Param('applicationPackageId') applicationPackageId: string,
+    @Param('applicationPackageId', new ParseUUIDPipe())
+    applicationPackageId: string,
     @Req() request: Request,
   ): Promise<{ success: boolean; attachmentsUploaded: number }> {
     const userId = this.sessionUtil.extractUserIdFromRequest(request);

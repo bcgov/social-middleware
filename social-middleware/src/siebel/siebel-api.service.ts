@@ -67,12 +67,7 @@ export class SiebelApiService {
   }
 
   async getServiceRequests(query: any) {
-    const endpoint = this.configService.get<string>(
-      'SERVICE_REQUESTS_ENDPOINT',
-    );
-    if (!endpoint) {
-      throw new Error('SERVICE_REQUESTS_ENDPOINT configuration is missing');
-    }
+    const endpoint = '/ServiceRequest/ServiceRequest';
     return await this.get(endpoint, query);
   }
 
@@ -207,6 +202,9 @@ export class SiebelApiService {
     newStage: string,
   ): Promise<SiebelSRResponse> {
     const endpoint = `/ServiceRequest/ServiceRequest/${serviceRequestId}`;
+    const params = {
+      ViewMode: 'Catalog',
+    };
     const payload = {
       'ICM Stage': newStage,
     };
@@ -214,11 +212,33 @@ export class SiebelApiService {
       `Updating Service Request ${serviceRequestId} to stage: ${newStage}`,
     );
     try {
-      return await this.put(endpoint, payload);
+      return await this.put(endpoint, payload, params);
     } catch (error) {
       this.logger.error(
         { error, serviceRequestId, newStage },
         'Failed to update Service Request stage',
+      );
+      throw error;
+    }
+  }
+
+  async updateServiceRequestFields(
+    serviceRequestId: string,
+    fields: Record<string, any>,
+  ): Promise<SiebelSRResponse> {
+    const endpoint = `/ServiceRequest/ServiceRequest/${serviceRequestId}`;
+
+    this.logger.debug(
+      { serviceRequestId, fields },
+      'Updating Service Request fields',
+    );
+
+    try {
+      return await this.put(endpoint, fields);
+    } catch (error) {
+      this.logger.error(
+        { error, serviceRequestId, fields },
+        'Failed to update Service Request fields',
       );
       throw error;
     }
@@ -269,7 +289,7 @@ export class SiebelApiService {
       DocFileExt: 'json',
       DocFileName: attachmentData.fileName,
       'Office Name': 'MCFD',
-      Status: 'In Progress',
+      Status: 'Complete', // document will be readonly in ICM
       Template: attachmentData.template,
       'Final Flag': 'N',
       'XML Hierarchy': attachmentData.xmlHierarchy,

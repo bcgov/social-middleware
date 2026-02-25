@@ -28,6 +28,7 @@ import {
 import { ApplicationFormStatus } from '../enums/application-form-status.enum';
 import { AccessCodeService } from '../../household/services/access-code.service';
 import { HouseholdService } from '../../household/services/household.service';
+import { NotificationService } from '../../notifications/services/notification.service';
 import { GetApplicationFormDto } from '../dto/get-application-form.dto';
 import { DeleteApplicationFormDto } from '../dto/delete-application-form.dto';
 import {
@@ -54,6 +55,7 @@ export class ApplicationFormService {
     private readonly eventEmitter: EventEmitter2,
     private readonly accessCodeService: AccessCodeService,
     private readonly householdService: HouseholdService,
+    private readonly notificationService: NotificationService,
   ) {}
 
   async createApplicationForm(
@@ -144,11 +146,22 @@ export class ApplicationFormService {
 
       }
 
+      // generate an access code
       const { accessCode, expiresAt } =
         await this.accessCodeService.createAccessCode(
           applicationPackageId,
           householdMemberId,
         );
+
+      // send email notification to household member about access code.
+      if(householdMember.email) {
+        const householdMemberName = householdMember.firstName + " " + householdMember.lastName;
+        const primaryApplicant = await this.householdService.findPrimaryApplicant(applicationPackageId);
+        if( primaryApplicant) { // there WILL be a primary applicant
+          const primaryApplicantName = primaryApplicant.firstName + " " + primaryApplicant.lastName;
+          await this.notificationService.sendFCHAccessCode(householdMember.email, primaryApplicantName, householdMemberName, accessCode);
+        }       
+      }
 
       return {
         accessCode,
@@ -669,7 +682,11 @@ export class ApplicationFormService {
       const decodedJson = Buffer.from(form.formData, 'base64').toString('utf-8');
 
       // parse JSON
-      const formDataObject = JSON.parse(decodedJson) as Record<string, string | boolean | number>;
+      const parsedJson = JSON.parse(decodedJson);
+
+      // Extract only the data field if it exists (nested structure), otherwise use the entire object (flat structure)
+      // This ensures we only include form field values, not form_definition or metadata
+      const formDataObject = parsedJson.data ? parsedJson.data : parsedJson;
       
       // generate XML structure
       // xml2js expects { root: { fieldName: value }}
@@ -678,7 +695,7 @@ export class ApplicationFormService {
       };
 
       // build XML
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+       
       const builder = new Builder({
         xmldec: { version: '1.0' },
         renderOpts: { pretty: false }, // returns single line
@@ -686,7 +703,7 @@ export class ApplicationFormService {
       });
 
        
-      const xml = builder.buildObject(xmlObject) as string;
+      const xml = builder.buildObject(xmlObject);
 
       this.logger.info({applicationFormId}, 'successfully generated XML for form data')
 

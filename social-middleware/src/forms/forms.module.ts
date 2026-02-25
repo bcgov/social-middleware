@@ -12,16 +12,21 @@ import {
   ApplicationForm,
   ApplicationFormSchema,
 } from '../application-form/schemas/application-form.schema';
+import { UserService } from '../auth/user.service';
+import { User, UserSchema } from '../auth/schemas/user.schema';
+import { TokenBlacklistModule } from '../auth/services/token-blacklist.module';
 
 @Module({
   imports: [
     MongooseModule.forFeature([
       { name: ApplicationForm.name, schema: ApplicationFormSchema },
       { name: FormParameters.name, schema: FormParametersSchema },
+      { name: User.name, schema: UserSchema },
     ]),
     ApplicationFormModule,
+    TokenBlacklistModule,
   ],
   controllers: [FormsController],
-  providers: [FormsService],
+  providers: [FormsService, UserService],
 })
 export class FormsModule {}

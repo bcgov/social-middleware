@@ -8,7 +8,6 @@ import {
   IsPhoneNumber,
 } from 'class-validator';
 import { Transform } from 'class-transformer';
-import { GenderTypes } from '../../household/enums/gender-types.enum';
 
 export class CreateUserDto {
   @IsString()
@@ -31,13 +30,9 @@ export class CreateUserDto {
   @MaxLength(50)
   last_name!: string;
 
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  sex!: string;
-
-  @IsString()
-  @IsNotEmpty()
-  gender!: GenderTypes;
+  sex?: string;
 
   @IsEmail()
   @IsNotEmpty()

@@ -23,6 +23,7 @@ import { HouseholdModule } from 'src/household/household.module';
 import { ApplicationFormsController } from './application-form.controller';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { SessionUtil } from '../common/utils/session.util';
+import { NotificationModule } from '../notifications/notification.module';
 
 @Module({
   imports: [
@@ -35,6 +36,7 @@ import { SessionUtil } from '../common/utils/session.util';
     EventEmitterModule,
     AuthModule, // For UserService dependency
     HouseholdModule,
+    NotificationModule,
   ],
   exports: [ApplicationFormService, AccessCodeService, MongooseModule], // Export so other modules can use it
   controllers: [ApplicationFormsController],

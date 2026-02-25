@@ -8,6 +8,7 @@ import { UserService } from '../user.service';
 import { AuthService } from '../auth.service';
 import { UserUtil } from '../../common/utils/user.util';
 import { UserInfo } from '../interfaces/user-info.interface';
+import { TokenBlacklistService } from '../services/token-blacklist.service';
 
 @Injectable()
 export class KongOidcAuthStrategy
@@ -22,8 +23,16 @@ export class KongOidcAuthStrategy
     authService: AuthService,
     userUtil: UserUtil,
     logger: PinoLogger,
+    tokenBlacklistService: TokenBlacklistService,
   ) {
-    super(configService, userService, authService, userUtil, logger);
+    super(
+      configService,
+      userService,
+      authService,
+      userUtil,
+      logger,
+      tokenBlacklistService,
+    );
     this.middlewareURL = this.configService
       .get<string>('MIDDLEWARE_URL', 'http://localhost:3001')
       .trim();
@@ -36,7 +45,14 @@ export class KongOidcAuthStrategy
     const userInfoHeader = this.extractUserInfoHeader(req);
 
     if (!userInfoHeader) {
-      this.logger.warn(
+      this.logger.error(
+        {
+          allHeaders: Object.keys(req.headers),
+          xHeaders: Object.keys(req.headers).filter((h) => h.startsWith('x-')),
+          kongHeaders: Object.keys(req.headers).filter((h) =>
+            h.includes('kong'),
+          ),
+        },
         'Kong OIDC mode enabled but no X-Userinfo header received',
       );
       this.redirectWithError(res, 'not_authenticated');
@@ -57,7 +73,14 @@ export class KongOidcAuthStrategy
     const userInfoHeader = this.extractUserInfoHeader(req);
 
     if (!userInfoHeader) {
-      this.logger.error('Kong OIDC mode enabled but missing X-Userinfo header');
+      this.logger.error(
+        {
+          query: req.query,
+          allHeaders: Object.keys(req.headers),
+          xHeaders: Object.keys(req.headers).filter((h) => h.startsWith('x-')),
+        },
+        'Kong OIDC mode enabled but missing X-Userinfo header',
+      );
       this.redirectWithError(res, 'oidc_failed');
       return;
     }
@@ -90,11 +113,17 @@ export class KongOidcAuthStrategy
 
   handleLogout(req: Request, res: Response): void {
     this.logger.info('Kong OIDC logout - clearing session');
-
+    this.blacklistCurrentToken(req);
     this.clearSessionCookie(res);
 
+    // Redirect to BCSC logout through Kong to clear SSO session
+    const postLogoutRedirectUri = encodeURIComponent(
+      `${this.frontendURL}/login`,
+    );
+    const kongLogoutUrl = `${this.middlewareURL}/logout?post_logout_redirect_uri=${postLogoutRedirectUri}`;
+
     this.logger.info('Redirecting to Kong OIDC logout endpoint');
-    res.redirect(`${this.middlewareURL}/logout`);
+    res.redirect(kongLogoutUrl);
   }
 
   /**
@@ -128,24 +157,49 @@ export class KongOidcAuthStrategy
         throw new Error('X-Userinfo header missing');
       }
 
+      this.logger.info(
+        {
+          headerLength: userInfoHeader.length,
+          headerPreview: userInfoHeader.substring(0, 30) + '...',
+        },
+        'Attempting to decode X-Userinfo',
+      );
+
       // Decode base64-encoded user info
       let userInfo: UserInfo;
       try {
         const decoded = Buffer.from(userInfoHeader, 'base64').toString('utf-8');
         const parsed = JSON.parse(decoded);
 
+        this.logger.info(
+          {
+            hasSub: !!parsed.sub,
+            hasEmail: !!parsed.email,
+          },
+          'X-Userinfo parsed',
+        );
+
         // Validate before assigning
         this.validateUserInfo(parsed);
         userInfo = parsed;
       } catch (err) {
-        this.logger.error({ err }, 'Failed to decode X-Userinfo header');
+        this.logger.error(
+          {
+            err,
+            headerSample: userInfoHeader.substring(0, 50),
+          },
+          'Failed to decode X-Userinfo header',
+        );
         throw new Error('Invalid X-Userinfo header format');
       }
 
       this.logger.info({ sub: userInfo.sub }, 'OIDC user information decoded');
 
       // Use shared session creation logic
-      await this.createUserSessionAndRedirect(userInfo, res);
+      //await this.createUserSessionAndRedirect(userInfo, res);
+      await this.createUserSession(userInfo, res);
+      this.logger.info('Redirecting to frontend callback...');
+      res.redirect(`${this.frontendURL}/auth/callback`);
     } catch (err) {
       this.logger.error({ err }, 'Error during Kong OIDC callback processing');
       this.redirectWithError(res, 'auth_processing_failed');

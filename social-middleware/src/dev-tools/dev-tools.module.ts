@@ -16,7 +16,7 @@ import { HouseholdModule } from 'src/household/household.module';
 import {
   FormParameters,
   FormParametersSchema,
-} from '../application/schemas/form-parameters.schema';
+} from '../application-form/schemas/form-parameters.schema';
 import {
   ScreeningAccessCode,
   ScreeningAccessCodeSchema,

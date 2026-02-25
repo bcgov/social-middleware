@@ -16,6 +16,7 @@ import {
   BadRequestException,
   UnauthorizedException,
   NotFoundException,
+  ParseUUIDPipe,
 } from '@nestjs/common';
 import { Request } from 'express';
 import { SessionUtil } from '../common/utils/session.util';
@@ -36,9 +37,9 @@ import {
 import { HouseholdMemberWithFormsDto } from './dto/household-member-with-forms.dto';
 import { SessionAuthGuard } from '../auth/session-auth.guard';
 import { ApplicationFormStatus } from '../application-form/enums/application-form-status.enum';
-//TODO: ADD SESSION AUTH GUARD
 @ApiTags('Household Members')
 @Controller('application-package/:applicationPackageId/household-members')
+@UseGuards(SessionAuthGuard)
 export class HouseholdController {
   private readonly logger = new Logger(HouseholdController.name);
   constructor(
@@ -59,14 +60,26 @@ export class HouseholdController {
   })
   @ApiResponse({ status: 500, description: 'Internal server error.' })
   async create(
-    @Param('applicationPackageId', new ValidationPipe({ transform: true }))
+    @Param('applicationPackageId', new ParseUUIDPipe())
     applicationPackageId: string,
     @Body(new ValidationPipe({ whitelist: true, transform: true }))
     dto: CreateHouseholdMemberDto,
+    @Req() request: Request,
   ): Promise<HouseholdMembersDocument> {
     this.logger.log(
       `Received request to create household member for applicationPackageId=${applicationPackageId}`,
     );
+    const userId = this.sessionUtil.extractUserIdFromRequest(request);
+    const hasAccess = await this.householdService.verifyUserOwnsPackage(
+      applicationPackageId,
+      userId,
+    );
+    if (!hasAccess) {
+      throw new UnauthorizedException(
+        'Not authorized to modify this application package',
+      );
+    }
+
     try {
       return await this.householdService.createMember(dto);
     } catch (error: unknown) {
@@ -91,9 +104,20 @@ export class HouseholdController {
   })
   @ApiResponse({ status: 500, description: 'Internal server error.' })
   async getAllHouseholdMembers(
-    @Param('applicationPackageId', new ValidationPipe({ transform: true }))
+    @Param('applicationPackageId', new ParseUUIDPipe())
     applicationPackageId: string,
+    @Req() request: Request,
   ): Promise<HouseholdMembersDocument[]> {
+    const userId = this.sessionUtil.extractUserIdFromRequest(request);
+    const isOwner = await this.householdService.verifyUserOwnsPackage(
+      applicationPackageId,
+      userId,
+    );
+    if (!isOwner) {
+      throw new UnauthorizedException(
+        'Not authorized to view this application package',
+      );
+    }
     try {
       return await this.householdService.findAllHouseholdMembers(
         applicationPackageId,
@@ -122,9 +146,21 @@ export class HouseholdController {
   })
   @ApiResponse({ status: 500, description: 'Internal server error.' })
   async getHouseholdMember(
-    @Param('householdMemberId', new ValidationPipe({ transform: true }))
+    @Param('householdMemberId', new ParseUUIDPipe())
     householdMemberId: string,
+    @Req() request: Request,
   ): Promise<HouseholdMemberWithFormsDto | null> {
+    const userId = this.sessionUtil.extractUserIdFromRequest(request);
+    const hasAccess =
+      await this.householdService.verifyUserOwnsHouseholdMemberPackage(
+        householdMemberId,
+        userId,
+      );
+    if (!hasAccess) {
+      throw new UnauthorizedException(
+        'Not authorized to view this household member',
+      );
+    }
     try {
       const householdMember =
         await this.householdService.findById(householdMemberId);
@@ -170,14 +206,13 @@ export class HouseholdController {
   }
 
   @Post(':householdMemberId/confirm-screening-package')
-  @UseGuards(SessionAuthGuard)
   @ApiOperation({
     summary: 'Confirm screening package completion by household member',
     description:
       'Called when household member reviews and confirms their screening package submission',
   })
   async confirmScreeningPackage(
-    @Param('householdMemberId') householdMemberId: string,
+    @Param('householdMemberId', new ParseUUIDPipe()) householdMemberId: string,
     @Req() request: Request,
   ): Promise<{ success: boolean; message: string }> {
     const userId = this.sessionUtil.extractUserIdFromRequest(request);
@@ -218,7 +253,6 @@ export class HouseholdController {
   }
 
   @Post(':householdMemberId/mark-screening-documents-attached')
-  @UseGuards(SessionAuthGuard)
   @ApiOperation({
     summary: 'Mark all screening documents as attached for a household member',
     description:
@@ -234,8 +268,9 @@ export class HouseholdController {
     description: 'No screening forms found for household member',
   })
   async markScreeningDocumentsAttached(
-    @Param('applicationPackageId') applicationPackageId: string,
-    @Param('householdMemberId') householdMemberId: string,
+    @Param('applicationPackageId', new ParseUUIDPipe())
+    applicationPackageId: string,
+    @Param('householdMemberId', new ParseUUIDPipe()) householdMemberId: string,
     @Req() request: Request,
   ): Promise<{ success: boolean; formsUpdated: number }> {
     const userId = this.sessionUtil.extractUserIdFromRequest(request);
@@ -285,10 +320,10 @@ export class HouseholdController {
   }
 
   @Get(':householdMemberId/access-code')
-  @UseGuards(SessionAuthGuard)
   async getAccessCode(
-    @Param('applicationPackageId') applicationPackageId: string,
-    @Param('householdMemberId') householdMemberId: string,
+    @Param('applicationPackageId', new ParseUUIDPipe())
+    applicationPackageId: string,
+    @Param('householdMemberId', new ParseUUIDPipe()) householdMemberId: string,
     @Req() request: Request,
   ): Promise<{
     accessCode: string;
@@ -346,9 +381,21 @@ export class HouseholdController {
   @ApiResponse({ status: 404, description: 'Household member not found.' })
   @ApiResponse({ status: 500, description: 'Internal server error.' })
   async deleteHouseholdMember(
-    @Param('householdMemberId', new ValidationPipe({ transform: true }))
+    @Param('householdMemberId', new ParseUUIDPipe())
     householdMemberId: string,
+    @Req() request: Request,
   ): Promise<{ success: boolean; message: string }> {
+    const userId = this.sessionUtil.extractUserIdFromRequest(request);
+    const hasAccess =
+      await this.householdService.verifyUserOwnsHouseholdMemberPackage(
+        householdMemberId,
+        userId,
+      );
+    if (!hasAccess) {
+      throw new UnauthorizedException(
+        'Not authorized to delete this household member',
+      );
+    }
     try {
       const result = await this.householdService.remove(householdMemberId);
       return {
