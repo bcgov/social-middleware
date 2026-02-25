@@ -118,7 +118,7 @@ export class ApplicationPackageService {
       dateOfBirth: user.dateOfBirth,
       email: user.email,
       relationshipToPrimary: RelationshipToPrimary.Self,
-      genderType: (user.sex as GenderTypes) || GenderTypes.Unspecified,
+      genderType: GenderTypes.Unspecified,
     };
 
     const primaryHouseholdMember = await this.householdService.createMember(
