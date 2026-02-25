@@ -8,7 +8,13 @@ metadata:
     app.kubernetes.io/name: mongodb
     app.kubernetes.io/version: "7.0"
 spec:
-  replicas: 1
+  {{- if hasSuffix "-prod" .Release.Namespace }}
+  replicas: {{ .Values.mongodb.prod.replicas | default 2 }}
+  {{- else if hasSuffix "-test" .Release.Namespace }}
+  replicas: {{ .Values.mongodb.test.replicas | default 1 }}
+  {{- else }}
+  replicas: {{ .Values.mongodb.dev.replicas | default 1 }}
+  {{- end }}
   selector:
     matchLabels:
       app: {{ .Values.mongodb.podlabel }}
@@ -96,12 +102,21 @@ spec:
               mountPath: /scripts
               readOnly: true
           resources:
+            {{- if hasSuffix "-prod" .Release.Namespace }}
             limits:
-              cpu: "300m"
-              memory: 512Mi
+              cpu: {{ .Values.mongodb.prod.resources.limits.cpu | quote }}
+              memory: {{ .Values.mongodb.prod.resources.limits.memory }}
             requests:
-              cpu: "20m"
-              memory: 128Mi
+              cpu: {{ .Values.mongodb.prod.resources.requests.cpu | quote }}
+              memory: {{ .Values.mongodb.prod.resources.requests.memory }}
+            {{- else }}
+            limits:
+              cpu: {{ .Values.mongodb.dev.resources.limits.cpu | quote }}
+              memory: {{ .Values.mongodb.dev.resources.limits.memory }}
+            requests:
+              cpu: {{ .Values.mongodb.dev.resources.requests.cpu | quote }}
+              memory: {{ .Values.mongodb.dev.resources.requests.memory }}
+            {{- end }}
       restartPolicy: Always
       volumes:
         - name: mongodb-data

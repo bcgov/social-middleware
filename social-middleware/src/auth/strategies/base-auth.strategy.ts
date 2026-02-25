@@ -62,7 +62,7 @@ export abstract class BaseAuthStrategy {
     const requiredFields = [
       'sub',
       'email',
-      'given_name',
+      'given_names',
       'family_name',
       'birthdate',
     ];
@@ -106,7 +106,7 @@ export abstract class BaseAuthStrategy {
 
     const userData: CreateUserDto = {
       bc_services_card_id: userInfo.sub,
-      first_name: userInfo.given_name || '(Mononym)',
+      first_name: userInfo.given_names || '(Mononym)',
       last_name: userInfo.family_name,
       dateOfBirth: this.userUtil.icmDateFormat(userInfo.birthdate),
       //sex: userInfo.gender || '',
@@ -153,7 +153,8 @@ export abstract class BaseAuthStrategy {
       {
         sub: userInfo.sub,
         email: userInfo.email,
-        name: userInfo.name || `${userInfo.given_name} ${userInfo.family_name}`,
+        name:
+          userInfo.name || `${userInfo.given_names} ${userInfo.family_name}`,
         userId: user.id.toString(),
         jti: uuidv4(),
         iat: Math.floor(Date.now() / 1000),
