@@ -19,4 +19,4 @@ spec:
       script: |
         #!/bin/bash
         echo "Re-rolling deployment: $(params.deploymentName) in namespace: $(params.namespace)"
-        oc patch deployment $(params.deploymentName) -n f6e00d-$(params.namespace) -p '{"spec":{"template":{"metadata":{"labels":{"date":"'$(date +%s)'"}}}}}'
+        oc patch deployment $(params.deploymentName) -n $(params.namespace) -p '{"spec":{"template":{"metadata":{"labels":{"date":"'$(date +%s)'"}}}}}'
