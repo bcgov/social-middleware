@@ -45,8 +45,8 @@ export class User {
   @Prop({ required: true })
   postal_code!: string;
 
-  @Prop({ required: true })
-  sex!: string;
+  @Prop({ required: false })
+  sex?: string;
 
   @Prop({ required: false })
   contactId!: string; // row ID from ICM

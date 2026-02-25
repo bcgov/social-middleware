@@ -9,7 +9,6 @@ import {
   HttpStatus,
   UseGuards,
   Inject,
-  ValidationPipe,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Request, Response } from 'express';
@@ -21,11 +20,7 @@ import {
   ApiTags,
   ApiCookieAuth,
 } from '@nestjs/swagger';
-//import { AuthService } from './auth.service';
-//import { BcscOAuthService } from './bcsc-oauth.service';
-//import { CreateUserDto } from './dto';
 import { PinoLogger } from 'nestjs-pino';
-//import { UserUtil } from '../common/utils/user.util';
 import { SessionUtil } from '../common/utils/session.util';
 import { SessionAuthGuard } from './session-auth.guard';
 import { AuthStrategy } from './strategies/auth-strategy.interface';
@@ -36,32 +31,15 @@ import { UserPayload } from '../common/interfaces';
 @Controller('auth')
 export class AuthController {
   private readonly jwtSecret: string;
-  //private readonly nodeEnv: string;
-  //private readonly frontendURL: string;
-  //private readonly middlewareURL: string;
-  //private readonly cookieDomain: string | undefined;
-  //private readonly useKongOidc: boolean;
 
   constructor(
     private readonly userService: UserService,
     private readonly configService: ConfigService,
-    //private readonly authService: AuthService,
-    //private readonly bcscOAuthService: BcscOAuthService,
     @Inject('AUTH_STRATEGY') private readonly authStrategy: AuthStrategy,
     private readonly logger: PinoLogger,
-    //private readonly userUtil: UserUtil,
     private readonly sessionUtil: SessionUtil,
   ) {
     this.jwtSecret = this.configService.get<string>('JWT_SECRET')!;
-    //this.nodeEnv = this.configService.get<string>('NODE_ENV', 'development');
-    //this.frontendURL = this.configService.get<string>('FRONTEND_URL')!.trim();
-    //this.middlewareURL = this.configService
-    //  .get<string>('MIDDLEWARE_URL', 'http://localhost:3001')
-    //  .trim();
-    //this.cookieDomain =
-    //  this.configService.get<string>('COOKIE_DOMAIN') || undefined;
-    //this.useKongOidc =
-    //  this.configService.get<string>('USE_KONG_OIDC', 'true') === 'true';
     this.logger.setContext(AuthController.name);
 
     this.logger.info('Auth controller initialized');
@@ -75,6 +53,7 @@ export class AuthController {
    *    then forwards with X-Userinfo header
    * 2. Direct OAuth mode (USE_KONG_OIDC=false): Middleware handles OAuth directly
    */
+
   @Get('login')
   @ApiOperation({ summary: 'Initiate login or handle Kong OIDC callback' })
   async login(@Req() req: Request, @Res() res: Response) {
@@ -224,10 +203,10 @@ export class AuthController {
       region: user.region,
       postal_code: user.postal_code,
       date_of_birth: user.dateOfBirth,
+      gender: user.sex,
       email: user.email,
       home_phone: user.home_phone,
       alternate_phone: user.alternate_phone,
     };
   }
 }
-
