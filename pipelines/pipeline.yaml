@@ -70,12 +70,68 @@ spec:
       workspaces:
         - name: source
           workspace: shared-data
+    - name: set-env-config
+      runAfter:
+        - generate-id
+      params:
+        - name: branchName
+          value: $(params.branchName)
+      taskSpec:
+        params:
+          - name: branchName
+            type: string
+        results:
+          - name: namespace
+            type: string
+          - name: imageTag
+            type: string
+        steps:
+          - name: set-namespace-and-tag
+            image: registry.access.redhat.com/ubi9/ubi-minimal
+            env:
+              - name: BRANCH_NAME
+                value: $(params.branchName)
+              - name: NAMESPACE_PATH
+                value: $(results.namespace.path)
+              - name: IMAGE_TAG_PATH
+                value: $(results.imageTag.path)
+            script: |
+              #!/bin/bash
+              set -euxo pipefail
+
+              echo "DEBUG: branchName param = '${BRANCH_NAME}'"
+
+              # Clear any previous values
+              : > "${NAMESPACE_PATH}"
+              : > "${IMAGE_TAG_PATH}"
+
+              case "${BRANCH_NAME}" in
+                dev|develop)
+                  echo -n "f6e00d-dev" > "${NAMESPACE_PATH}"
+                  echo -n "dev" > "${IMAGE_TAG_PATH}"
+                  ;;
+                test)
+                  echo -n "f6e00d-test" > "${NAMESPACE_PATH}"
+                  echo -n "test" > "${IMAGE_TAG_PATH}"
+                  ;;
+                main|prod)
+                  echo -n "f6e00d-prod" > "${NAMESPACE_PATH}"
+                  echo -n "prod" > "${IMAGE_TAG_PATH}"
+                  ;;
+                *)
+                  echo "ERROR: Unknown branch '${BRANCH_NAME}'"
+                  exit 1
+                  ;;
+              esac
+
+              echo "DEBUG: resolved namespace = '$(cat "${NAMESPACE_PATH}")'"
+              echo "DEBUG: resolved imageTag  = '$(cat "${IMAGE_TAG_PATH}")'"
     - name: buildah
       params:
         - name: IMAGE
           value: $(params.imageUrl)
         - name: IMAGE_TAG
-          value: $(params.branchName)
+          value: $(tasks.set-env-config.results.imageTag)
         - name: IMAGE_REGISTRY
           value: $(params.imageRegistry)
         - name: IMAGE_REGISTRY_USER
@@ -89,7 +145,7 @@ spec:
         - name: BUILDAH_IMAGE
           value: $(params.buildahImage)
       runAfter:
-        - generate-id
+        - set-env-config
       taskRef:
         kind: Task
         name: buildah
@@ -109,7 +165,9 @@ spec:
         - name: IMAGE
           value: $(params.imageUrl)
         - name: IMAGE_TAG
-          value: $(params.branchName)
+          value: $(tasks.set-env-config.results.imageTag)
+        - name: NAMESPACE
+          value: $(tasks.set-env-config.results.namespace)
       runAfter:
         - buildah
       taskRef:
@@ -128,7 +186,7 @@ spec:
         - name: deploymentName
           value: $(params.deploymentName)
         - name: namespace
-          value: $(params.branchName)
+          value: $(tasks.set-env-config.results.namespace)
   workspaces:
     - description: |
         This workspace will receive the cloned git repo and be passed
