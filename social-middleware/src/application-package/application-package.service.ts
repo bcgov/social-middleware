@@ -853,7 +853,7 @@ export class ApplicationPackageService {
               EmailAddress: '', //householdMember.email,
               HomePhone: '', //memberUser.homePhone || '',
               AlternatePhone: '', // memberUser.alternatePhone || '',
-              Gender: householdMember.genderType,
+              Gender: householdMember.genderType || GenderTypes.Unspecified,
               Relationship: householdMember.relationshipToPrimary,
               ApplicantFlag: getApplicantFlag(
                 householdMember.relationshipToPrimary,
