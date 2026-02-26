@@ -1,0 +1,94 @@
+{{- if hasSuffix "-prod" .Release.Namespace }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: mongodb-backup
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: mongodb
+    component: backup
+spec:
+  schedule: "0 2 * * *"  # Daily at 2 AM
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels:
+            app: mongodb-backup
+        spec:
+          restartPolicy: OnFailure
+          serviceAccountName: {{ .Values.mongodb.podlabel }}-sa
+          containers:
+            - name: mongodump
+              image: {{ .Values.mongodb.image }}
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  set -e
+                  BACKUP_DIR="/backup/$(date +%Y%m%d-%H%M%S)"
+                  echo "Starting MongoDB backup to $BACKUP_DIR"
+
+                  mongodump \
+                    --host={{ .Values.mongodb.podlabel }}.{{ .Release.Namespace }}.svc \
+                    --port={{ .Values.mongodb.port }} \
+                    --username=$MONGODB_USER \
+                    --password=$MONGODB_PASSWORD \
+                    --authenticationDatabase=admin \
+                    --db=$MONGODB_DATABASE \
+                    --oplog \
+                    --gzip \
+                    --out=$BACKUP_DIR \
+                    --ssl \
+                    --sslCAFile=/etc/mongodb-ca/service-ca.crt \
+                    --sslAllowInvalidHostnames
+
+                  echo "Backup completed successfully"
+                  echo "Backup size: $(du -sh $BACKUP_DIR | cut -f1)"
+                  echo "Available space: $(df -h /backup | tail -1 | awk '{print $4}')"
+              env:
+                - name: MONGODB_USER
+                  valueFrom:
+                    secretKeyRef:
+                      name: mongodb
+                      key: database-admin-user
+                - name: MONGODB_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: mongodb
+                      key: database-admin-password
+                - name: MONGODB_DATABASE
+                  valueFrom:
+                    secretKeyRef:
+                      name: mongodb
+                      key: database-name
+              volumeMounts:
+                - name: backup
+                  mountPath: /backup
+                - name: mongodb-ca
+                  mountPath: /etc/mongodb-ca
+                  readOnly: true
+              resources:
+                limits:
+                  cpu: "500m"
+                  memory: 512Mi
+                requests:
+                  cpu: "100m"
+                  memory: 256Mi
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop:
+                    - ALL
+          volumes:
+            - name: backup
+              persistentVolumeClaim:
+                claimName: mongodb-backup
+            - name: mongodb-ca
+              configMap:
+                name: mongodb-ca-bundle
+                defaultMode: 0444
+{{- end }}
