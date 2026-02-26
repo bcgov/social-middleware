@@ -811,6 +811,17 @@ export class ApplicationPackageService {
       // process each non-primary household member
       for (const householdMember of nonPrimaryHouseholdMembers) {
         try {
+          // Skip if prospect already created (idempotent on retry)
+          if (householdMember.prospectId) {
+            this.logger.info(
+              {
+                householdMemberId: householdMember.householdMemberId,
+                prospectId: householdMember.prospectId,
+              },
+              'Prospect already exists for household member, skipping',
+            );
+            continue;
+          }
           let prospectPayload;
 
           // if they have a userId, it means they have logged in via BC Services card and we have their info in the user record
@@ -865,13 +876,22 @@ export class ApplicationPackageService {
           const memberProspectResponse =
             await this.siebelApiService.createProspect(prospectPayload);
 
+          const memberProspectId = (memberProspectResponse as { Id: string })
+            .Id;
+
+          // Save prospect ID to household member for idempotency on retry
+          await this.householdService.updateHouseholdMember(
+            householdMember.householdMemberId,
+            { prospectId: memberProspectId },
+          );
+
           this.logger.info(
             {
               householdMember: householdMember.householdMemberId,
-              prospectId: (memberProspectResponse as { Id: string }).Id, // should we save the prospectID??
+              prospectId: memberProspectId,
               relationship: householdMember.relationshipToPrimary,
             },
-            'Created prospect for household member',
+            'Created and saved prospect for household member',
           );
         } catch (error) {
           this.logger.error(
