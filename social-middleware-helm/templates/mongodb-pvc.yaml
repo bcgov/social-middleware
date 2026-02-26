@@ -5,6 +5,11 @@ metadata:
 spec:
   accessModes:
     - ReadWriteOnce
+  storageClassName: netapp-block-standard
   resources:
     requests:
-      storage: 700Mi
+      {{- if hasSuffix "-prod" .Release.Namespace }}
+      storage: {{ .Values.mongodb.prod.storage.size }}
+      {{- else }}
+      storage: {{ .Values.mongodb.dev.storage.size }}
+      {{- end }}
