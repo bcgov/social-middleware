@@ -6,12 +6,8 @@ metadata:
   labels:
     app: {{ .Values.nextjs.podlabel }}
 spec:
-  {{- if hasSuffix "-prod" .Release.Namespace }}
-  replicas: {{ .Values.nextjs.prod.replicas | default 3 }}
-  {{- else if hasSuffix "-test" .Release.Namespace }}
-  replicas: {{ .Values.nextjs.test.replicas | default 2 }}
-  {{- else }}
-  replicas: {{ .Values.nextjs.dev.replicas | default 1 }}
+  {{- if not (hasSuffix "-prod" .Release.Namespace) }}
+  replicas: {{ .Values.nextjs.replicas | default 2 }}
   {{- end }}
   selector:
     matchLabels:
