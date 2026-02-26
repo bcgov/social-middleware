@@ -482,7 +482,8 @@ export class ApplicationPackageProcessor {
         AlternatePhone:
           dto.alternate_phone || primaryApplicant.alternatePhone || '',
         Gender:
-          this.userUtil.sexToGenderType(dto.sex) || GenderTypes.Unspecified,
+          this.userUtil.sexToGenderType(primaryUser.sex) ||
+          GenderTypes.Unspecified,
         Relationship: 'Key player',
         ApplicantFlag: 'Y',
       };
