@@ -5,9 +5,25 @@ nextjs:
   replicas: 1
   autoscaling:
     minReplicas: 2
-    maxReplicas: 4
+    maxReplicas: 5
     targetCPUUtilizationPercentage: 70
     targetMemoryUtilizationPercentage: 80
+  dev:
+    resources:
+      limits:
+        cpu: "500m"
+        memory: 512Mi
+      requests:
+        cpu: "20m"
+        memory: 128Mi
+  prod:
+    resources:
+      limits:
+        cpu: "1000m"
+        memory: 1Gi
+      requests:
+        cpu: "100m"
+        memory: 512Mi
 
 mongodb:
   podlabel: mongodb
