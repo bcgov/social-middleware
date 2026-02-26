@@ -118,7 +118,7 @@ export class ApplicationPackageService {
       dateOfBirth: user.dateOfBirth,
       email: user.email,
       relationshipToPrimary: RelationshipToPrimary.Self,
-      genderType: GenderTypes.Unspecified,
+      genderType: (user.sex as GenderTypes) || GenderTypes.Unspecified,
     };
 
     const primaryHouseholdMember = await this.householdService.createMember(
@@ -683,10 +683,10 @@ export class ApplicationPackageService {
       await this.householdService.updateHouseholdMember(
         primaryApplicant.householdMemberId,
         {
-          email: dto.email,
-          genderType: (dto.sex as GenderTypes) || GenderTypes.Unspecified,
-          homePhone: dto.home_phone,
-          alternatePhone: dto.alternate_phone,
+          ...(dto.email && { email: dto.email }),
+          ...(dto.sex && { genderType: dto.sex as GenderTypes }),
+          ...(dto.home_phone && { homePhone: dto.home_phone }),
+          ...(dto.alternate_phone && { alternatePhone: dto.alternate_phone }),
         },
       );
     }
@@ -843,8 +843,7 @@ export class ApplicationPackageService {
               EmailAddress: memberUser.email,
               HomePhone: memberUser.home_phone || '',
               AlternatePhone: memberUser.alternate_phone || '',
-              Gender:
-                (memberUser.sex as GenderTypes) || GenderTypes.Unspecified,
+              Gender: householdMember.genderType || GenderTypes.Unspecified,
               Relationship: householdMember.relationshipToPrimary,
               ApplicantFlag: getApplicantFlag(
                 householdMember.relationshipToPrimary,
