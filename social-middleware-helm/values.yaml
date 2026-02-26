@@ -49,7 +49,7 @@ mongodb:
         cpu: "50m"
         memory: 256Mi
     storage:
-      size: 4Gi
+      size: 700Mi
 
 nextjsservice:
   port: 80
