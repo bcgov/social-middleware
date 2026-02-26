@@ -39,7 +39,6 @@ spec:
                     --password=$MONGODB_PASSWORD \
                     --authenticationDatabase=admin \
                     --db=$MONGODB_DATABASE \
-                    --oplog \
                     --gzip \
                     --out=$BACKUP_DIR \
                     --ssl \
