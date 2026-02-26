@@ -1,0 +1,17 @@
+{{- if hasSuffix "-prod" .Release.Namespace }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mongodb-backup
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: mongodb
+    component: backup
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: netapp-file-standard
+  resources:
+    requests:
+      storage: 100Mi
+{{- end }}

@@ -1,0 +1,72 @@
+{{- if hasSuffix "-prod" .Release.Namespace }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: mongodb-backup-cleanup
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: mongodb
+    component: backup-cleanup
+spec:
+  schedule: "0 3 * * *"  # Daily at 3 AM (after backup completes)
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels:
+            app: mongodb-backup-cleanup
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: cleanup
+              image: {{ .Values.mongodb.image }}
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  set -e
+                  echo "Starting backup cleanup (keeping last 7 backups)"
+
+                  cd /backup
+
+                  # Count total backups
+                  TOTAL=$(ls -1d */ 2>/dev/null | wc -l)
+                  echo "Total backups found: $TOTAL"
+
+                  # Keep only the last 3 backups (delete older ones)
+                  if [ $TOTAL -gt 3 ]; then
+                    TO_DELETE=$((TOTAL - 3))
+                    echo "Deleting $TO_DELETE old backup(s)"
+                    ls -1dt */ | tail -n $TO_DELETE | xargs rm -rf
+                    echo "Cleanup completed"
+                  else
+                    echo "No cleanup needed (3 or fewer backups)"
+                  fi
+
+                  echo "Remaining backups:"
+                  ls -lh
+                  echo "Disk usage:"
+                  df -h /backup
+              volumeMounts:
+                - name: backup
+                  mountPath: /backup
+              resources:
+                limits:
+                  cpu: "100m"
+                  memory: 128Mi
+                requests:
+                  cpu: "10m"
+                  memory: 64Mi
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop:
+                    - ALL
+          volumes:
+            - name: backup
+              persistentVolumeClaim:
+                claimName: mongodb-backup
+{{- end }}
