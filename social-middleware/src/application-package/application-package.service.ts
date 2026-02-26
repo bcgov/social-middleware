@@ -118,7 +118,7 @@ export class ApplicationPackageService {
       dateOfBirth: user.dateOfBirth,
       email: user.email,
       relationshipToPrimary: RelationshipToPrimary.Self,
-      genderType: GenderTypes.Unspecified,
+      genderType: (user.sex as GenderTypes) || GenderTypes.Unspecified,
     };
 
     const primaryHouseholdMember = await this.householdService.createMember(
@@ -683,10 +683,10 @@ export class ApplicationPackageService {
       await this.householdService.updateHouseholdMember(
         primaryApplicant.householdMemberId,
         {
-          email: dto.email,
-          genderType: (dto.sex as GenderTypes) || GenderTypes.Unspecified,
-          homePhone: dto.home_phone,
-          alternatePhone: dto.alternate_phone,
+          ...(dto.email && { email: dto.email }),
+          ...(dto.sex && { genderType: dto.sex as GenderTypes }),
+          ...(dto.home_phone && { homePhone: dto.home_phone }),
+          ...(dto.alternate_phone && { alternatePhone: dto.alternate_phone }),
         },
       );
     }
@@ -811,6 +811,17 @@ export class ApplicationPackageService {
       // process each non-primary household member
       for (const householdMember of nonPrimaryHouseholdMembers) {
         try {
+          // Skip if prospect already created (idempotent on retry)
+          if (householdMember.prospectId) {
+            this.logger.info(
+              {
+                householdMemberId: householdMember.householdMemberId,
+                prospectId: householdMember.prospectId,
+              },
+              'Prospect already exists for household member, skipping',
+            );
+            continue;
+          }
           let prospectPayload;
 
           // if they have a userId, it means they have logged in via BC Services card and we have their info in the user record
@@ -832,7 +843,7 @@ export class ApplicationPackageService {
               EmailAddress: memberUser.email,
               HomePhone: memberUser.home_phone || '',
               AlternatePhone: memberUser.alternate_phone || '',
-              Gender: memberUser.sex || GenderTypes.Unspecified,
+              Gender: householdMember.genderType || GenderTypes.Unspecified,
               Relationship: householdMember.relationshipToPrimary,
               ApplicantFlag: getApplicantFlag(
                 householdMember.relationshipToPrimary,
@@ -864,13 +875,22 @@ export class ApplicationPackageService {
           const memberProspectResponse =
             await this.siebelApiService.createProspect(prospectPayload);
 
+          const memberProspectId = (memberProspectResponse as { Id: string })
+            .Id;
+
+          // Save prospect ID to household member for idempotency on retry
+          await this.householdService.updateHouseholdMember(
+            householdMember.householdMemberId,
+            { prospectId: memberProspectId },
+          );
+
           this.logger.info(
             {
               householdMember: householdMember.householdMemberId,
-              prospectId: (memberProspectResponse as { Id: string }).Id, // should we save the prospectID??
+              prospectId: memberProspectId,
               relationship: householdMember.relationshipToPrimary,
             },
-            'Created prospect for household member',
+            'Created and saved prospect for household member',
           );
         } catch (error) {
           this.logger.error(
