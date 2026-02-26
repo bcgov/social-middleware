@@ -2,33 +2,12 @@ nextjs:
   podlabel: social-middleware
   image: image-registry.openshift-image-registry.svc:5000/f6e00d-tools/nextjs:latest
   port: 3001
-  dev:
-    replicas: 1
-    resources:
-      limits:
-        cpu: "500m"
-        memory: 512Mi
-      requests:
-        cpu: "20m"
-        memory: 128Mi
-  test:
-    replicas: 2
-    resources:
-      limits:
-        cpu: "500m"
-        memory: 512Mi
-      requests:
-        cpu: "50m"
-        memory: 256Mi
-  prod:
-    replicas: 3
-    resources:
-      limits:
-        cpu: "1000m"
-        memory: 1Gi
-      requests:
-        cpu: "100m"
-        memory: 512Mi
+  replicas: 1
+  autoscaling:
+    minReplicas: 2
+    maxReplicas: 4
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
 
 mongodb:
   podlabel: mongodb
@@ -36,7 +15,6 @@ mongodb:
   targetport: 27017
   image: image-registry.openshift-image-registry.svc:5000/f6e00d-tools/mongodb:7-stable
   dev:
-    replicas: 1
     resources:
       limits:
         cpu: "300m"
@@ -44,24 +22,18 @@ mongodb:
       requests:
         cpu: "20m"
         memory: 128Mi
-  test:
-    replicas: 1
-    resources:
-      limits:
-        cpu: "500m"
-        memory: 768Mi
-      requests:
-        cpu: "50m"
-        memory: 256Mi
+    storage:
+      size: 700Mi
   prod:
-    replicas: 2
     resources:
       limits:
         cpu: "1000m"
-        memory: 2Gi
+        memory: 1Gi
       requests:
-        cpu: "100m"
-        memory: 512Mi
+        cpu: "50m"
+        memory: 256Mi
+    storage:
+      size: 4Gi
 
 nextjsservice:
   port: 80
