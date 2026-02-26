@@ -832,7 +832,8 @@ export class ApplicationPackageService {
               EmailAddress: memberUser.email,
               HomePhone: memberUser.home_phone || '',
               AlternatePhone: memberUser.alternate_phone || '',
-              Gender: memberUser.sex || GenderTypes.Unspecified,
+              Gender:
+                (memberUser.sex as GenderTypes) || GenderTypes.Unspecified,
               Relationship: householdMember.relationshipToPrimary,
               ApplicantFlag: getApplicantFlag(
                 householdMember.relationshipToPrimary,
