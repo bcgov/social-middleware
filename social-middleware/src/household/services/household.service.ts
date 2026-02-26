@@ -14,11 +14,11 @@ import { CreateHouseholdMemberDto } from '../dto/create-household-member.dto';
 import { RelationshipToPrimary } from '../enums/relationship-to-primary.enum';
 import { MemberTypes } from '../enums/member-types.enum';
 import { v4 as uuidv4 } from 'uuid';
-import { sexToGenderType } from '../../common/utils/gender.util';
 import {
   ApplicationPackage,
   ApplicationPackageDocument,
 } from '../../application-package/schema/application-package.schema';
+import { GenderTypes } from '../enums/gender-types.enum';
 
 @Injectable()
 export class HouseholdService {
@@ -237,7 +237,7 @@ export class HouseholdService {
         updateData.firstName = userData.firstName;
       }
       if (userData.sex) {
-        updateData.genderType = sexToGenderType(userData.sex);
+        updateData.genderType = userData.sex as GenderTypes;
       }
 
       return this.updateHouseholdMember(householdMemberId, updateData);

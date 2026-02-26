@@ -9,4 +9,7 @@ export interface UserProfileResponse {
   email: string;
   home_phone?: string;
   alternate_phone?: string;
+  gender?: string;
+  previous_first_name?: string;
+  previous_last_name?: string;
 }
