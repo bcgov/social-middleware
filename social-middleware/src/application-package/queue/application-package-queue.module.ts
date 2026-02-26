@@ -25,6 +25,7 @@ import { CommonModule } from '../../common/common.module';
         redis: {
           host: configService.get<string>('REDIS_HOST'),
           port: Number(configService.get<string>('REDIS_PORT')),
+          password: configService.get<string>('REDIS_PASSWORD'),
           maxRetriesPerRequest: null, // Don't timeout individual commands
           enableReadyCheck: false, // Don't wait for Redis READY state
           retryStrategy: (times) => {

@@ -5,6 +5,7 @@ metadata:
 spec:
   accessModes:
     - ReadWriteOnce
+  storageClassName: netapp-block-standard
   resources:
     requests:
       storage: 200Mi
