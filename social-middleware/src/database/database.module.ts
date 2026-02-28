@@ -30,6 +30,16 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
         // Otherwise, append MONGO_PORT
         const hostsWithPorts = host.includes(':') ? host : `${host}:${port}`;
 
+        console.log('=== MongoDB Connection Debug ===');
+        console.log('MONGO_USER:', user);
+        console.log('MONGO_HOST:', host);
+        console.log('MONGO_PORT:', port);
+        console.log('MONGO_DB:', db);
+        console.log('MONGO_REPLICA_SET:', replicaSet);
+        console.log('MONGO_USE_TLS:', useTls);
+        console.log('MONGO_TLS_CA_FILE:', tlsCAFile);
+        console.log('hostsWithPorts:', hostsWithPorts);
+
         if (user && pass) {
           uri = `mongodb://${user}:${pass}@${hostsWithPorts}/${db}?authSource=${db}`;
         } else {
@@ -41,6 +51,8 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
           uri += uri.includes('?') ? '&' : '?';
           uri += `replicaSet=${replicaSet}`;
         }
+
+        console.log('Final MongoDB URI (sanitized):', uri.replace(/:([^:@]+)@/, ':***@'));
 
         const connectionOptions: any = {
           uri,
@@ -54,6 +66,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
             // Use CA file for certificate verification (production)
             connectionOptions.tlsCAFile = tlsCAFile;
             connectionOptions.tlsAllowInvalidCertificates = false;
+            console.log('TLS Config: Using CA file at', tlsCAFile);
           } else {
             // Allow connections without CA verification (development only)
             connectionOptions.tlsAllowInvalidCertificates = true;
@@ -61,7 +74,34 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
           }
         }
 
+        console.log('Connection options (sanitized):', {
+          ...connectionOptions,
+          uri: connectionOptions.uri.replace(/:([^:@]+)@/, ':***@')
+        });
+        console.log('================================');
+        console.log('Attempting to connect to MongoDB...');
+
+        // Add connection timeout and retry settings
+        connectionOptions.serverSelectionTimeoutMS = 10000; // 10 second timeout
+        connectionOptions.connectTimeoutMS = 10000;
+        connectionOptions.socketTimeoutMS = 45000;
+
         return connectionOptions;
+      },
+      connectionFactory: (connection) => {
+        connection.on('connected', () => {
+          console.log('✅ MongoDB: Successfully connected');
+        });
+        connection.on('error', (error) => {
+          console.error('❌ MongoDB connection error:', error);
+        });
+        connection.on('disconnected', () => {
+          console.warn('⚠️  MongoDB: Disconnected');
+        });
+        connection.on('reconnected', () => {
+          console.log('🔄 MongoDB: Reconnected');
+        });
+        return connection;
       },
     }),
   ],
