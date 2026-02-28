@@ -41,6 +41,11 @@ spec:
               chmod 400 /etc/mongodb-ssl/mongodb.pem
               cp /etc/mongodb-ca/service-ca.crt /etc/mongodb-ssl/ca.crt
               chmod 400 /etc/mongodb-ssl/ca.crt
+              {{- if hasSuffix "-prod" .Release.Namespace }}
+              # Copy and set permissions on keyfile for replica set
+              cp /etc/mongodb-keyfile-mount/mongodb-keyfile /etc/mongodb-ssl/mongodb-keyfile
+              chmod 400 /etc/mongodb-ssl/mongodb-keyfile
+              {{- end }}
           volumeMounts:
             - name: mongodb-tls
               mountPath: /etc/mongodb-tls
@@ -50,6 +55,11 @@ spec:
               readOnly: true
             - name: mongodb-ssl
               mountPath: /etc/mongodb-ssl
+            {{- if hasSuffix "-prod" .Release.Namespace }}
+            - name: mongodb-keyfile
+              mountPath: /etc/mongodb-keyfile-mount
+              readOnly: true
+            {{- end }}
       containers:
         - name: {{ .Values.mongodb.podlabel }}
           image: {{ .Values.mongodb.image }}
@@ -106,11 +116,6 @@ spec:
             - name: mongodb-init-script
               mountPath: /scripts
               readOnly: true
-            {{- if hasSuffix "-prod" .Release.Namespace }}
-            - name: mongodb-keyfile
-              mountPath: /etc/mongodb-keyfile
-              readOnly: true
-            {{- end }}
           resources:
             {{- if hasSuffix "-prod" .Release.Namespace }}
             limits:

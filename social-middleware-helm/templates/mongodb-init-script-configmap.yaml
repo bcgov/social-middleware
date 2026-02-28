@@ -30,7 +30,7 @@ data:
           --tlsCAFile /etc/mongodb-ssl/ca.crt \
           --tlsAllowConnectionsWithoutCertificates \
           --replSet ${REPLICA_SET_NAME} \
-          --keyFile /etc/mongodb-keyfile/mongodb-keyfile
+          --keyFile /etc/mongodb-ssl/mongodb-keyfile
       else
         exec mongod --bind_ip_all --auth --tlsMode requireTLS \
           --tlsCertificateKeyFile /etc/mongodb-ssl/mongodb.pem \
