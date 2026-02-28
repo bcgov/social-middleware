@@ -18,6 +18,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
         const db = configService.get<string>('MONGO_DB');
         const useTls = configService.get<string>('MONGO_USE_TLS', 'false') === 'true';
         const tlsCAFile = configService.get<string>('MONGO_TLS_CA_FILE');
+        const replicaSet = configService.get<string>('MONGO_REPLICA_SET');
 
         if (!host || !port || !db) {
           throw new Error('Missing required MongoDB environment variables');
@@ -29,6 +30,12 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
           uri = `mongodb://${user}:${pass}@${host}:${port}/${db}?authSource=${db}`;
         } else {
           uri = `mongodb://${host}:${port}/${db}`;
+        }
+
+        // Add replica set parameter if configured
+        if (replicaSet) {
+          uri += uri.includes('?') ? '&' : '?';
+          uri += `replicaSet=${replicaSet}`;
         }
 
         const connectionOptions: any = {

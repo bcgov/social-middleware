@@ -1,5 +1,5 @@
 apiVersion: apps/v1
-kind: Deployment
+kind: StatefulSet
 metadata:
   name: {{ .Values.mongodb.podlabel }}
   namespace: {{ .Release.Namespace }}
@@ -8,7 +8,12 @@ metadata:
     app.kubernetes.io/name: mongodb
     app.kubernetes.io/version: "7.0"
 spec:
+  {{- if hasSuffix "-prod" .Release.Namespace }}
+  replicas: 3
+  {{- else }}
   replicas: 1
+  {{- end }}
+  serviceName: {{ .Values.mongodb.podlabel }}
   selector:
     matchLabels:
       app: {{ .Values.mongodb.podlabel }}
@@ -57,6 +62,13 @@ spec:
           command:
             - /bin/sh
             - /scripts/mongodb-wrapper.sh
+          env:
+            - name: REPLICA_SET_NAME
+              value: "rs0"
+            - name: NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
           ports:
             - containerPort: {{ .Values.mongodb.port }}
               protocol: TCP
@@ -113,9 +125,6 @@ spec:
             {{- end }}
       restartPolicy: Always
       volumes:
-        - name: mongodb-data
-          persistentVolumeClaim:
-            claimName: mongodb
         - name: mongodb-tls
           secret:
             secretName: mongodb-tls
@@ -130,3 +139,15 @@ spec:
           configMap:
             name: mongodb-init-script
             defaultMode: 0555
+  volumeClaimTemplates:
+    - metadata:
+        name: mongodb-data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            {{- if hasSuffix "-prod" .Release.Namespace }}
+            storage: {{ .Values.mongodb.prod.storage.size }}
+            {{- else }}
+            storage: {{ .Values.mongodb.dev.storage.size }}
+            {{- end }}

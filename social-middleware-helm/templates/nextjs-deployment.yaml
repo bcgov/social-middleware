@@ -48,13 +48,21 @@ spec:
                   name: mongodb
                   key: database-name
             - name: MONGO_HOST
+              {{- if hasSuffix "-prod" .Release.Namespace }}
+              value: "mongodb-0.{{ .Values.mongodb.podlabel }}:27017,mongodb-1.{{ .Values.mongodb.podlabel }}:27017,mongodb-2.{{ .Values.mongodb.podlabel }}:27017"
+              {{- else }}
               value: "{{ .Values.mongodb.podlabel }}.{{ .Release.Namespace }}.svc"
+              {{- end }}
             - name: MONGO_PORT
               value: "{{ .Values.mongodb.port }}"
             - name: MONGO_USE_TLS
               value: "true"
             - name: MONGO_TLS_CA_FILE
               value: "/etc/mongodb-ca/service-ca.crt"
+            {{- if hasSuffix "-prod" .Release.Namespace }}
+            - name: MONGO_REPLICA_SET
+              value: "rs0"
+            {{- end }}
             - name: REDIS_HOST
               valueFrom:
                 secretKeyRef:

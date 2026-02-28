@@ -30,6 +30,9 @@ mongodb:
   port: 27017
   targetport: 27017
   image: image-registry.openshift-image-registry.svc:5000/f6e00d-tools/mongodb:7-stable
+  replicaSet:
+    name: rs0
+    replicas: 3
   dev:
     resources:
       limits:
@@ -43,13 +46,13 @@ mongodb:
   prod:
     resources:
       limits:
-        cpu: "1000m"
-        memory: 1Gi
+        cpu: "200m"
+        memory: 256Mi
       requests:
         cpu: "50m"
-        memory: 256Mi
+        memory: 128Mi
     storage:
-      size: 700Mi
+      size: 1Gi
 
 nextjsservice:
   port: 80

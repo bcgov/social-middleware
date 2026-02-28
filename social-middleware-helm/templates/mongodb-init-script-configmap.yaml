@@ -12,23 +12,48 @@ data:
 
     echo "=== MongoDB Startup with User Initialization ==="
 
+    # Detect if running in prod (replica set mode) or dev (standalone)
+    IS_PROD=false
+    if echo "$NAMESPACE" | grep -q -- "-prod$"; then
+      IS_PROD=true
+      echo "Running in PRODUCTION mode - Replica Set enabled"
+    else
+      echo "Running in DEVELOPMENT mode - Standalone"
+    fi
+
     # Check if initialization has already been done
     if [ -f /data/db/.mongodb-initialized ]; then
       echo "MongoDB already initialized, starting normally..."
-      exec mongod --bind_ip_all --auth --tlsMode requireTLS \
-        --tlsCertificateKeyFile /etc/mongodb-ssl/mongodb.pem \
-        --tlsCAFile /etc/mongodb-ssl/ca.crt \
-        --tlsAllowConnectionsWithoutCertificates
+      if [ "$IS_PROD" = "true" ]; then
+        exec mongod --bind_ip_all --auth --tlsMode requireTLS \
+          --tlsCertificateKeyFile /etc/mongodb-ssl/mongodb.pem \
+          --tlsCAFile /etc/mongodb-ssl/ca.crt \
+          --tlsAllowConnectionsWithoutCertificates \
+          --replSet ${REPLICA_SET_NAME}
+      else
+        exec mongod --bind_ip_all --auth --tlsMode requireTLS \
+          --tlsCertificateKeyFile /etc/mongodb-ssl/mongodb.pem \
+          --tlsCAFile /etc/mongodb-ssl/ca.crt \
+          --tlsAllowConnectionsWithoutCertificates
+      fi
     fi
 
     echo "First-time initialization detected..."
 
     # Start MongoDB in background
     echo "Starting MongoDB in background..."
-    mongod --bind_ip_all --auth --tlsMode requireTLS \
-      --tlsCertificateKeyFile /etc/mongodb-ssl/mongodb.pem \
-      --tlsCAFile /etc/mongodb-ssl/ca.crt \
-      --tlsAllowConnectionsWithoutCertificates &
+    if [ "$IS_PROD" = "true" ]; then
+      mongod --bind_ip_all --auth --tlsMode requireTLS \
+        --tlsCertificateKeyFile /etc/mongodb-ssl/mongodb.pem \
+        --tlsCAFile /etc/mongodb-ssl/ca.crt \
+        --tlsAllowConnectionsWithoutCertificates \
+        --replSet ${REPLICA_SET_NAME} &
+    else
+      mongod --bind_ip_all --auth --tlsMode requireTLS \
+        --tlsCertificateKeyFile /etc/mongodb-ssl/mongodb.pem \
+        --tlsCAFile /etc/mongodb-ssl/ca.crt \
+        --tlsAllowConnectionsWithoutCertificates &
+    fi
 
     MONGOD_PID=$!
     echo "MongoDB started with PID: $MONGOD_PID"
@@ -107,6 +132,62 @@ data:
       exit 1
     fi
 
+    # Initialize replica set if in prod mode
+    if [ "$IS_PROD" = "true" ]; then
+      echo ""
+      echo "=== Initializing Replica Set ==="
+
+      # Get pod hostname (e.g., mongodb-0)
+      HOSTNAME=$(hostname)
+      POD_INDEX=${HOSTNAME##*-}
+
+      # Only initialize replica set from pod-0
+      if [ "$POD_INDEX" = "0" ]; then
+        echo "This is pod-0, initializing replica set..."
+
+        # Wait a bit for other pods to be ready
+        sleep 10
+
+        mongosh "mongodb://$MONGODB_ADMIN_USER:$MONGODB_ADMIN_PASSWORD@127.0.0.1:27017/admin?tls=true&tlsAllowInvalidCertificates=true" \
+          --quiet \
+          --eval "
+            print('Initializing replica set: ${REPLICA_SET_NAME}');
+
+            // Check if replica set is already initialized
+            var status = null;
+            try {
+              status = rs.status();
+              print('Replica set already initialized');
+            } catch(e) {
+              // Replica set not initialized, proceed with initialization
+              print('Replica set not found, initializing...');
+
+              rs.initiate({
+                _id: '${REPLICA_SET_NAME}',
+                members: [
+                  { _id: 0, host: 'mongodb-0.mongodb:27017', priority: 2 },
+                  { _id: 1, host: 'mongodb-1.mongodb:27017', priority: 1 },
+                  { _id: 2, host: 'mongodb-2.mongodb:27017', priority: 1 }
+                ]
+              });
+
+              print('Waiting for replica set to stabilize...');
+              sleep(5000);
+
+              var rsStatus = rs.status();
+              print('Replica set status: ' + rsStatus.ok);
+              print('SUCCESS: Replica set initialized');
+            }
+          "
+
+        if [ $? -ne 0 ]; then
+          echo "WARNING: Replica set initialization had issues, but continuing..."
+        fi
+      else
+        echo "This is pod-$POD_INDEX, skipping replica set initialization (handled by pod-0)"
+      fi
+    fi
+
     # Create marker file to indicate initialization is complete
     touch /data/db/.mongodb-initialized
 
@@ -119,7 +200,15 @@ data:
     wait $MONGOD_PID 2>/dev/null || true
 
     # Start mongod in foreground
-    exec mongod --bind_ip_all --auth --tlsMode requireTLS \
-      --tlsCertificateKeyFile /etc/mongodb-ssl/mongodb.pem \
-      --tlsCAFile /etc/mongodb-ssl/ca.crt \
-      --tlsAllowConnectionsWithoutCertificates
+    if [ "$IS_PROD" = "true" ]; then
+      exec mongod --bind_ip_all --auth --tlsMode requireTLS \
+        --tlsCertificateKeyFile /etc/mongodb-ssl/mongodb.pem \
+        --tlsCAFile /etc/mongodb-ssl/ca.crt \
+        --tlsAllowConnectionsWithoutCertificates \
+        --replSet ${REPLICA_SET_NAME}
+    else
+      exec mongod --bind_ip_all --auth --tlsMode requireTLS \
+        --tlsCertificateKeyFile /etc/mongodb-ssl/mongodb.pem \
+        --tlsCAFile /etc/mongodb-ssl/ca.crt \
+        --tlsAllowConnectionsWithoutCertificates
+    fi

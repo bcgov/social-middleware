@@ -15,4 +15,8 @@ spec:
       protocol: TCP
       port: {{ .Values.mongodb.port }}
       targetPort: {{ .Values.mongodb.targetport }}
+  {{- if hasSuffix "-prod" .Release.Namespace }}
+  clusterIP: None
+  {{- else }}
   type: ClusterIP
+  {{- end }}
