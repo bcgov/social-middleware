@@ -106,6 +106,11 @@ spec:
             - name: mongodb-init-script
               mountPath: /scripts
               readOnly: true
+            {{- if hasSuffix "-prod" .Release.Namespace }}
+            - name: mongodb-keyfile
+              mountPath: /etc/mongodb-keyfile
+              readOnly: true
+            {{- end }}
           resources:
             {{- if hasSuffix "-prod" .Release.Namespace }}
             limits:
@@ -138,6 +143,12 @@ spec:
           configMap:
             name: mongodb-init-script
             defaultMode: 0555
+        {{- if hasSuffix "-prod" .Release.Namespace }}
+        - name: mongodb-keyfile
+          secret:
+            secretName: mongodb-keyfile
+            defaultMode: 0400
+        {{- end }}
   volumeClaimTemplates:
     - metadata:
         name: mongodb-data

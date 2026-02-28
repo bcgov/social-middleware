@@ -29,7 +29,8 @@ data:
           --tlsCertificateKeyFile /etc/mongodb-ssl/mongodb.pem \
           --tlsCAFile /etc/mongodb-ssl/ca.crt \
           --tlsAllowConnectionsWithoutCertificates \
-          --replSet ${REPLICA_SET_NAME}
+          --replSet ${REPLICA_SET_NAME} \
+          --keyFile /etc/mongodb-keyfile/mongodb-keyfile
       else
         exec mongod --bind_ip_all --auth --tlsMode requireTLS \
           --tlsCertificateKeyFile /etc/mongodb-ssl/mongodb.pem \
@@ -47,7 +48,8 @@ data:
         --tlsCertificateKeyFile /etc/mongodb-ssl/mongodb.pem \
         --tlsCAFile /etc/mongodb-ssl/ca.crt \
         --tlsAllowConnectionsWithoutCertificates \
-        --replSet ${REPLICA_SET_NAME} &
+        --replSet ${REPLICA_SET_NAME} \
+        --keyFile /etc/mongodb-keyfile/mongodb-keyfile &
     else
       mongod --bind_ip_all --auth --tlsMode requireTLS \
         --tlsCertificateKeyFile /etc/mongodb-ssl/mongodb.pem \
@@ -205,7 +207,8 @@ data:
         --tlsCertificateKeyFile /etc/mongodb-ssl/mongodb.pem \
         --tlsCAFile /etc/mongodb-ssl/ca.crt \
         --tlsAllowConnectionsWithoutCertificates \
-        --replSet ${REPLICA_SET_NAME}
+        --replSet ${REPLICA_SET_NAME} \
+        --keyFile /etc/mongodb-keyfile/mongodb-keyfile
     else
       exec mongod --bind_ip_all --auth --tlsMode requireTLS \
         --tlsCertificateKeyFile /etc/mongodb-ssl/mongodb.pem \
