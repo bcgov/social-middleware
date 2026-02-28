@@ -62,6 +62,9 @@ spec:
           command:
             - /bin/sh
             - /scripts/mongodb-wrapper.sh
+          ports:
+            - containerPort: {{ .Values.mongodb.port }}
+              protocol: TCP
           env:
             - name: REPLICA_SET_NAME
               value: "rs0"
@@ -69,10 +72,6 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.namespace
-          ports:
-            - containerPort: {{ .Values.mongodb.port }}
-              protocol: TCP
-          env:
             - name: MONGODB_ADMIN_USER
               valueFrom:
                 secretKeyRef:
