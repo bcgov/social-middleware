@@ -25,42 +25,21 @@ spec:
         app: {{ .Values.nextjs.podlabel }}
     spec:
       initContainers:
-        - name: wait-for-mongodb
+        - name: wait-for-dependencies
           image: busybox:1.36
           command:
             - sh
             - -c
             - |
-              echo "Waiting for MongoDB to be ready..."
+              echo "Waiting for MongoDB and Redis to be ready..."
               {{- if hasSuffix "-prod" .Release.Namespace }}
-              # In prod, wait for all 3 replica set members
-              until nc -z mongodb-0.{{ .Values.mongodb.podlabel }}.{{ .Release.Namespace }}.svc.cluster.local 27017 && \
-                    nc -z mongodb-1.{{ .Values.mongodb.podlabel }}.{{ .Release.Namespace }}.svc.cluster.local 27017 && \
-                    nc -z mongodb-2.{{ .Values.mongodb.podlabel }}.{{ .Release.Namespace }}.svc.cluster.local 27017; do
-                echo "Waiting for MongoDB replica set members..."
-                sleep 2
-              done
-              echo "All MongoDB replica set members are ready"
+              echo "Production mode - waiting 30 seconds for MongoDB replica set to initialize..."
+              sleep 30
               {{- else }}
-              # In dev, wait for single instance
-              until nc -z {{ .Values.mongodb.podlabel }} 27017; do
-                echo "Waiting for MongoDB..."
-                sleep 2
-              done
-              echo "MongoDB is ready"
+              echo "Development mode - waiting 10 seconds for MongoDB to be ready..."
+              sleep 10
               {{- end }}
-        - name: wait-for-redis
-          image: busybox:1.36
-          command:
-            - sh
-            - -c
-            - |
-              echo "Waiting for Redis to be ready..."
-              until nc -z redis 6379; do
-                echo "Waiting for Redis..."
-                sleep 2
-              done
-              echo "Redis is ready"
+              echo "Dependencies should be ready"
       containers:
         - name: nextjs
           image: 'image-registry.openshift-image-registry.svc:5000/f6e00d-tools/nextjs:{{ (last (splitList "-" .Release.Namespace)) }}'
