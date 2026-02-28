@@ -34,7 +34,9 @@ spec:
               echo "Waiting for MongoDB to be ready..."
               {{- if hasSuffix "-prod" .Release.Namespace }}
               # In prod, wait for all 3 replica set members
-              until nc -z mongodb-0.mongodb 27017 && nc -z mongodb-1.mongodb 27017 && nc -z mongodb-2.mongodb 27017; do
+              until nc -z mongodb-0.{{ .Values.mongodb.podlabel }}.{{ .Release.Namespace }}.svc.cluster.local 27017 && \
+                    nc -z mongodb-1.{{ .Values.mongodb.podlabel }}.{{ .Release.Namespace }}.svc.cluster.local 27017 && \
+                    nc -z mongodb-2.{{ .Values.mongodb.podlabel }}.{{ .Release.Namespace }}.svc.cluster.local 27017; do
                 echo "Waiting for MongoDB replica set members..."
                 sleep 2
               done
@@ -84,7 +86,7 @@ spec:
                   key: database-name
             - name: MONGO_HOST
               {{- if hasSuffix "-prod" .Release.Namespace }}
-              value: "mongodb-0.{{ .Values.mongodb.podlabel }}:27017,mongodb-1.{{ .Values.mongodb.podlabel }}:27017,mongodb-2.{{ .Values.mongodb.podlabel }}:27017"
+              value: "mongodb-0.{{ .Values.mongodb.podlabel }}.{{ .Release.Namespace }}.svc.cluster.local:27017,mongodb-1.{{ .Values.mongodb.podlabel }}.{{ .Release.Namespace }}.svc.cluster.local:27017,mongodb-2.{{ .Values.mongodb.podlabel }}.{{ .Release.Namespace }}.svc.cluster.local:27017"
               {{- else }}
               value: "{{ .Values.mongodb.podlabel }}.{{ .Release.Namespace }}.svc"
               {{- end }}
