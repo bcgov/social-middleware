@@ -1,0 +1,83 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: mongodb-test
+  namespace: f6e00d-prod
+  labels:
+    app: mongodb-test
+spec:
+  restartPolicy: Never
+  containers:
+    - name: test
+      image: image-registry.openshift-image-registry.svc:5000/f6e00d-tools/mongodb:7-stable
+      command:
+        - /bin/sh
+        - -c
+        - |
+          echo "=== MongoDB Connection Test Pod ==="
+          echo ""
+
+          # Get credentials
+          ADMIN_USER="$MONGODB_ADMIN_USER"
+          ADMIN_PASS="$MONGODB_ADMIN_PASSWORD"
+
+          echo "Environment variables:"
+          echo "ADMIN_USER: $ADMIN_USER"
+          echo "NAMESPACE: f6e00d-prod"
+          echo ""
+
+          echo "=== Testing DNS Resolution ==="
+          for i in 0 1 2; do
+            echo "Testing mongodb-$i.mongodb.f6e00d-prod.svc.cluster.local"
+            nslookup mongodb-$i.mongodb.f6e00d-prod.svc.cluster.local || echo "DNS failed for mongodb-$i"
+          done
+          echo ""
+
+          echo "=== Testing TCP Connectivity ==="
+          for i in 0 1 2; do
+            echo "Testing mongodb-$i:27017"
+            nc -zv mongodb-$i.mongodb.f6e00d-prod.svc.cluster.local 27017 2>&1 || echo "Connection failed"
+          done
+          echo ""
+
+          echo "=== Testing MongoDB Connection (no auth) ==="
+          mongosh "mongodb://mongodb-0.mongodb.f6e00d-prod.svc.cluster.local:27017/admin?tls=true&tlsAllowInvalidCertificates=true" \
+            --eval "db.adminCommand('ping')" 2>&1 || echo "Ping without auth failed (expected if auth is enabled)"
+          echo ""
+
+          echo "=== Testing MongoDB Connection (with admin auth) ==="
+          mongosh "mongodb://$ADMIN_USER:$ADMIN_PASS@mongodb-0.mongodb.f6e00d-prod.svc.cluster.local:27017/admin?tls=true&tlsAllowInvalidCertificates=true" \
+            --eval "db.adminCommand('ping')" 2>&1
+          echo ""
+
+          echo "=== Checking Replica Set Status ==="
+          mongosh "mongodb://$ADMIN_USER:$ADMIN_PASS@mongodb-0.mongodb.f6e00d-prod.svc.cluster.local:27017/admin?tls=true&tlsAllowInvalidCertificates=true" \
+            --eval "rs.status()" 2>&1
+          echo ""
+
+          echo "=== Testing Replica Set Connection String ==="
+          mongosh "mongodb://$ADMIN_USER:$ADMIN_PASS@mongodb-0.mongodb.f6e00d-prod.svc.cluster.local:27017,mongodb-1.mongodb.f6e00d-prod.svc.cluster.local:27017,mongodb-2.mongodb.f6e00d-prod.svc.cluster.local:27017/admin?replicaSet=rs0&tls=true&tlsAllowInvalidCertificates=true" \
+            --eval "db.adminCommand('ping')" 2>&1
+          echo ""
+
+          echo "=== Test Complete - Sleeping for 1 hour for manual inspection ==="
+          sleep 3600
+      env:
+        - name: MONGODB_ADMIN_USER
+          valueFrom:
+            secretKeyRef:
+              name: mongodb
+              key: database-admin-user
+        - name: MONGODB_ADMIN_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: mongodb
+              key: database-admin-password
+      volumeMounts:
+        - name: mongodb-ca
+          mountPath: /etc/mongodb-ca
+          readOnly: true
+  volumes:
+    - name: mongodb-ca
+      configMap:
+        name: mongodb-ca-bundle
