@@ -85,22 +85,60 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
         connectionOptions.serverSelectionTimeoutMS = 10000; // 10 second timeout
         connectionOptions.connectTimeoutMS = 10000;
         connectionOptions.socketTimeoutMS = 45000;
+        connectionOptions.maxPoolSize = 10;
+        connectionOptions.minPoolSize = 1;
+
+        console.log('Timeout settings:', {
+          serverSelectionTimeoutMS: connectionOptions.serverSelectionTimeoutMS,
+          connectTimeoutMS: connectionOptions.connectTimeoutMS,
+          socketTimeoutMS: connectionOptions.socketTimeoutMS
+        });
 
         return connectionOptions;
       },
       connectionFactory: (connection) => {
+        console.log('🔧 MongoDB connectionFactory called - setting up event handlers');
+
+        connection.on('connecting', () => {
+          console.log('🔌 MongoDB: Connecting...');
+        });
+
         connection.on('connected', () => {
-          console.log('✅ MongoDB: Successfully connected');
+          console.log('✅ MongoDB: Successfully connected!');
+          console.log('MongoDB connection state:', connection.readyState);
         });
+
+        connection.on('open', () => {
+          console.log('📖 MongoDB: Connection opened');
+        });
+
         connection.on('error', (error) => {
-          console.error('❌ MongoDB connection error:', error);
+          console.error('❌ MongoDB connection error:');
+          console.error('Error name:', error.name);
+          console.error('Error message:', error.message);
+          console.error('Full error:', JSON.stringify(error, null, 2));
         });
+
+        connection.on('disconnecting', () => {
+          console.warn('⏳ MongoDB: Disconnecting...');
+        });
+
         connection.on('disconnected', () => {
           console.warn('⚠️  MongoDB: Disconnected');
         });
+
         connection.on('reconnected', () => {
           console.log('🔄 MongoDB: Reconnected');
         });
+
+        connection.on('close', () => {
+          console.warn('🚪 MongoDB: Connection closed');
+        });
+
+        // Log initial connection state
+        console.log('Initial MongoDB connection state:', connection.readyState);
+        console.log('0=disconnected, 1=connected, 2=connecting, 3=disconnecting');
+
         return connection;
       },
     }),
