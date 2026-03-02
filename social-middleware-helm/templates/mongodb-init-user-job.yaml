@@ -40,7 +40,15 @@ spec:
               while [ $COUNTER -lt $MAX_TRIES ]; do
                 echo "Attempt $((COUNTER + 1))/$MAX_TRIES: Checking MongoDB connection..."
 
-                if mongosh "mongodb://$MONGODB_USER:$MONGODB_PASSWORD@$MONGODB_SERVICE:$MONGODB_PORT/$MONGO_INITDB_DATABASE?tls=true&tlsAllowInvalidCertificates=true" \
+                {{- if hasSuffix "-prod" .Release.Namespace }}
+                # Production: Use replica set connection string
+                CONNECTION_STRING="mongodb://$MONGODB_USER:$MONGODB_PASSWORD@mongodb-0.mongodb:27017,mongodb-1.mongodb:27017,mongodb-2.mongodb:27017/$MONGO_INITDB_DATABASE?replicaSet=rs0&tls=true&tlsAllowInvalidCertificates=true"
+                {{- else }}
+                # Development: Use single instance
+                CONNECTION_STRING="mongodb://$MONGODB_USER:$MONGODB_PASSWORD@$MONGODB_SERVICE:$MONGODB_PORT/$MONGO_INITDB_DATABASE?tls=true&tlsAllowInvalidCertificates=true"
+                {{- end }}
+
+                if mongosh "$CONNECTION_STRING" \
                   --quiet \
                   --eval "db.adminCommand('ping')" > /dev/null 2>&1; then
                   echo "SUCCESS: MongoDB is ready and authentication works!"
@@ -60,7 +68,15 @@ spec:
               echo "=== Verifying MongoDB Users ==="
 
               # Verify application user exists and has correct roles
-              mongosh "mongodb://$MONGODB_USER:$MONGODB_PASSWORD@$MONGODB_SERVICE:$MONGODB_PORT/$MONGO_INITDB_DATABASE?tls=true&tlsAllowInvalidCertificates=true" \
+              {{- if hasSuffix "-prod" .Release.Namespace }}
+              # Production: Use replica set connection string
+              VERIFY_CONNECTION="mongodb://$MONGODB_USER:$MONGODB_PASSWORD@mongodb-0.mongodb:27017,mongodb-1.mongodb:27017,mongodb-2.mongodb:27017/$MONGO_INITDB_DATABASE?replicaSet=rs0&tls=true&tlsAllowInvalidCertificates=true"
+              {{- else }}
+              # Development: Use single instance
+              VERIFY_CONNECTION="mongodb://$MONGODB_USER:$MONGODB_PASSWORD@$MONGODB_SERVICE:$MONGODB_PORT/$MONGO_INITDB_DATABASE?tls=true&tlsAllowInvalidCertificates=true"
+              {{- end }}
+
+              mongosh "$VERIFY_CONNECTION" \
                 --quiet \
                 --eval "
                   print('Checking application user: $MONGODB_USER');
