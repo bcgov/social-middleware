@@ -101,6 +101,7 @@ data:
 
         # Use localhost exception to initialize replica set with just this node first
         # We'll add other members once they're ready
+        echo "Using FQDN for replica set member: mongodb-0.mongodb.${NAMESPACE}.svc.cluster.local:27017"
         mongosh "mongodb://127.0.0.1:27017/admin?tls=true&tlsAllowInvalidCertificates=true" \
           --quiet \
           --eval "
@@ -111,20 +112,24 @@ data:
             try {
               status = rs.status();
               print('Replica set already initialized');
+              print('Current config: ' + JSON.stringify(rs.conf().members.map(m => m.host)));
             } catch(e) {
               // Replica set not initialized, start with just this node
               print('Replica set not found, initializing with mongodb-0 only...');
+              print('Using FQDN: mongodb-0.mongodb.${NAMESPACE}.svc.cluster.local:27017');
 
               rs.initiate({
                 _id: '${REPLICA_SET_NAME}',
                 members: [
-                  { _id: 0, host: 'mongodb-0.mongodb:27017', priority: 2 }
+                  { _id: 0, host: 'mongodb-0.mongodb.${NAMESPACE}.svc.cluster.local:27017', priority: 2 }
                 ]
               });
 
               print('Waiting for replica set to stabilize...');
               sleep(5000);
 
+              var config = rs.conf();
+              print('Replica set initialized with member: ' + config.members[0].host);
               print('SUCCESS: Replica set initialized with mongodb-0');
               print('Other members will be added automatically when they start');
             }
@@ -250,7 +255,12 @@ data:
         echo "=== Adding Other Replica Set Members ==="
 
         # Wait for other pods to be ready
+        echo "Waiting 20 seconds for other pods to start..."
         sleep 20
+
+        echo "Adding members with FQDNs to match TLS certificates:"
+        echo "  - mongodb-1.mongodb.f6e00d-prod.svc.cluster.local:27017"
+        echo "  - mongodb-2.mongodb.f6e00d-prod.svc.cluster.local:27017"
 
         mongosh "mongodb://$MONGODB_ADMIN_USER:$MONGODB_ADMIN_PASSWORD@127.0.0.1:27017/admin?tls=true&tlsAllowInvalidCertificates=true" \
           --quiet \
@@ -260,25 +270,33 @@ data:
             var config = rs.conf();
             var currentMembers = config.members.length;
             print('Current member count: ' + currentMembers);
+            print('Current members: ' + JSON.stringify(config.members.map(m => m.host)));
 
             if (currentMembers === 1) {
-              // Add mongodb-1
-              rs.add({ _id: 1, host: 'mongodb-1.mongodb:27017', priority: 1 });
-              print('Added mongodb-1');
+              // Add mongodb-1 with FQDN (required for TLS certificate matching)
+              print('Adding mongodb-1 with FQDN: mongodb-1.mongodb.f6e00d-prod.svc.cluster.local:27017');
+              rs.add({ _id: 1, host: 'mongodb-1.mongodb.f6e00d-prod.svc.cluster.local:27017', priority: 1 });
+              print('Added mongodb-1 to replica set');
 
               sleep(5000);
 
-              // Add mongodb-2
-              rs.add({ _id: 2, host: 'mongodb-2.mongodb:27017', priority: 1 });
-              print('Added mongodb-2');
+              // Add mongodb-2 with FQDN (required for TLS certificate matching)
+              print('Adding mongodb-2 with FQDN: mongodb-2.mongodb.f6e00d-prod.svc.cluster.local:27017');
+              rs.add({ _id: 2, host: 'mongodb-2.mongodb.f6e00d-prod.svc.cluster.local:27017', priority: 1 });
+              print('Added mongodb-2 to replica set');
 
               sleep(5000);
 
               var status = rs.status();
               print('Replica set now has ' + status.members.length + ' members');
+              print('Final member list:');
+              status.members.forEach(function(member) {
+                print('  - ' + member.name + ' (state: ' + member.stateStr + ')');
+              });
               print('SUCCESS: All members added to replica set');
             } else {
               print('Replica set already has ' + currentMembers + ' members, skipping add');
+              print('Existing members: ' + JSON.stringify(config.members.map(m => m.host)));
             }
           "
 
