@@ -24,6 +24,22 @@ spec:
       labels:
         app: {{ .Values.nextjs.podlabel }}
     spec:
+      initContainers:
+        - name: wait-for-dependencies
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - |
+              echo "Waiting for MongoDB and Redis to be ready..."
+              {{- if hasSuffix "-prod" .Release.Namespace }}
+              echo "Production mode - waiting 30 seconds for MongoDB replica set to initialize..."
+              sleep 30
+              {{- else }}
+              echo "Development mode - waiting 10 seconds for MongoDB to be ready..."
+              sleep 10
+              {{- end }}
+              echo "Dependencies should be ready"
       containers:
         - name: nextjs
           image: 'image-registry.openshift-image-registry.svc:5000/f6e00d-tools/nextjs:{{ (last (splitList "-" .Release.Namespace)) }}'
@@ -48,13 +64,21 @@ spec:
                   name: mongodb
                   key: database-name
             - name: MONGO_HOST
+              {{- if hasSuffix "-prod" .Release.Namespace }}
+              value: "mongodb-0.{{ .Values.mongodb.podlabel }}.{{ .Release.Namespace }}.svc.cluster.local:27017,mongodb-1.{{ .Values.mongodb.podlabel }}.{{ .Release.Namespace }}.svc.cluster.local:27017,mongodb-2.{{ .Values.mongodb.podlabel }}.{{ .Release.Namespace }}.svc.cluster.local:27017"
+              {{- else }}
               value: "{{ .Values.mongodb.podlabel }}.{{ .Release.Namespace }}.svc"
+              {{- end }}
             - name: MONGO_PORT
               value: "{{ .Values.mongodb.port }}"
             - name: MONGO_USE_TLS
               value: "true"
             - name: MONGO_TLS_CA_FILE
               value: "/etc/mongodb-ca/service-ca.crt"
+            {{- if hasSuffix "-prod" .Release.Namespace }}
+            - name: MONGO_REPLICA_SET
+              value: "rs0"
+            {{- end }}
             - name: REDIS_HOST
               valueFrom:
                 secretKeyRef:

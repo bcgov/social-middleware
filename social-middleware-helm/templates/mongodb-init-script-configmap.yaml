@@ -12,23 +12,52 @@ data:
 
     echo "=== MongoDB Startup with User Initialization ==="
 
+    # Detect if running in prod (replica set mode) or dev (standalone)
+    IS_PROD=false
+    if echo "$NAMESPACE" | grep -q -- "-prod$"; then
+      IS_PROD=true
+      echo "Running in PRODUCTION mode - Replica Set enabled"
+    else
+      echo "Running in DEVELOPMENT mode - Standalone"
+    fi
+
     # Check if initialization has already been done
     if [ -f /data/db/.mongodb-initialized ]; then
       echo "MongoDB already initialized, starting normally..."
-      exec mongod --bind_ip_all --auth --tlsMode requireTLS \
-        --tlsCertificateKeyFile /etc/mongodb-ssl/mongodb.pem \
-        --tlsCAFile /etc/mongodb-ssl/ca.crt \
-        --tlsAllowConnectionsWithoutCertificates
+      if [ "$IS_PROD" = "true" ]; then
+        exec mongod --bind_ip_all --auth --tlsMode requireTLS \
+          --tlsCertificateKeyFile /etc/mongodb-ssl/mongodb.pem \
+          --tlsCAFile /etc/mongodb-ssl/ca.crt \
+          --tlsAllowConnectionsWithoutCertificates \
+          --replSet ${REPLICA_SET_NAME} \
+          --keyFile /etc/mongodb-ssl/mongodb-keyfile
+      else
+        exec mongod --bind_ip_all --auth --tlsMode requireTLS \
+          --tlsCertificateKeyFile /etc/mongodb-ssl/mongodb.pem \
+          --tlsCAFile /etc/mongodb-ssl/ca.crt \
+          --tlsAllowConnectionsWithoutCertificates
+      fi
     fi
 
     echo "First-time initialization detected..."
 
-    # Start MongoDB in background
-    echo "Starting MongoDB in background..."
-    mongod --bind_ip_all --auth --tlsMode requireTLS \
-      --tlsCertificateKeyFile /etc/mongodb-ssl/mongodb.pem \
-      --tlsCAFile /etc/mongodb-ssl/ca.crt \
-      --tlsAllowConnectionsWithoutCertificates &
+    # Start MongoDB with full security enabled from the start
+    # The localhost exception allows user creation via 127.0.0.1 even with --auth
+    # until the first user is created. This is the most secure approach.
+    echo "Starting MongoDB in background with authentication enabled..."
+    if [ "$IS_PROD" = "true" ]; then
+      mongod --bind_ip_all --auth --tlsMode requireTLS \
+        --tlsCertificateKeyFile /etc/mongodb-ssl/mongodb.pem \
+        --tlsCAFile /etc/mongodb-ssl/ca.crt \
+        --tlsAllowConnectionsWithoutCertificates \
+        --replSet ${REPLICA_SET_NAME} \
+        --keyFile /etc/mongodb-ssl/mongodb-keyfile &
+    else
+      mongod --bind_ip_all --auth --tlsMode requireTLS \
+        --tlsCertificateKeyFile /etc/mongodb-ssl/mongodb.pem \
+        --tlsCAFile /etc/mongodb-ssl/ca.crt \
+        --tlsAllowConnectionsWithoutCertificates &
+    fi
 
     MONGOD_PID=$!
     echo "MongoDB started with PID: $MONGOD_PID"
@@ -56,11 +85,127 @@ data:
       sleep 2
     done
 
-    echo ""
-    echo "=== Creating Admin User ==="
+    # Initialize replica set if in prod mode (BEFORE creating users)
+    # This is required because MongoDB with --replSet won't accept writes until initialized
+    if [ "$IS_PROD" = "true" ]; then
+      echo ""
+      echo "=== Initializing Replica Set ==="
 
-    # Create admin user using localhost exception
-    # The localhost exception allows this to work even with --auth enabled
+      # Get pod hostname (e.g., mongodb-0)
+      HOSTNAME=$(hostname)
+      POD_INDEX=${HOSTNAME##*-}
+
+      # Only initialize replica set from pod-0
+      if [ "$POD_INDEX" = "0" ]; then
+        echo "This is pod-0, initializing replica set..."
+
+        # Use localhost exception to initialize replica set with just this node first
+        # We'll add other members once they're ready
+        echo "Using FQDN for replica set member: mongodb-0.mongodb.${NAMESPACE}.svc.cluster.local:27017"
+        mongosh "mongodb://127.0.0.1:27017/admin?tls=true&tlsAllowInvalidCertificates=true" \
+          --quiet \
+          --eval "
+            print('Checking if replica set is initialized...');
+
+            // Check if replica set is already initialized
+            var isInitialized = false;
+            try {
+              var status = rs.status();
+              if (status.ok === 1) {
+                isInitialized = true;
+              }
+            } catch(e) {
+              print('rs.status() check: ' + e.message);
+            }
+
+            if (isInitialized) {
+              print('SUCCESS: Replica set ${REPLICA_SET_NAME} is already initialized');
+              print('Skipping replica set initialization');
+            } else {
+              // Replica set not initialized, start with just this node
+              print('Replica set not found, initializing with mongodb-0 only...');
+              print('Using FQDN: mongodb-0.mongodb.${NAMESPACE}.svc.cluster.local:27017');
+
+              rs.initiate({
+                _id: '${REPLICA_SET_NAME}',
+                members: [
+                  { _id: 0, host: 'mongodb-0.mongodb.${NAMESPACE}.svc.cluster.local:27017', priority: 2 }
+                ]
+              });
+
+              print('Waiting for replica set to stabilize...');
+              sleep(5000);
+
+              var config = rs.conf();
+              print('Replica set initialized with member: ' + config.members[0].host);
+              print('SUCCESS: Replica set initialized with mongodb-0');
+              print('Other members will be added automatically when they start');
+            }
+          "
+
+        if [ $? -ne 0 ]; then
+          echo "ERROR: Replica set initialization failed"
+          kill $MONGOD_PID 2>/dev/null || true
+          exit 1
+        fi
+
+        # Wait for this node to become PRIMARY
+        echo "Waiting for this node to become PRIMARY..."
+        COUNTER=0
+        MAX_TRIES=30
+        while [ $COUNTER -lt $MAX_TRIES ]; do
+          PRIMARY_STATUS=$(mongosh "mongodb://127.0.0.1:27017/admin?tls=true&tlsAllowInvalidCertificates=true" \
+            --quiet \
+            --eval "rs.status().myState" 2>/dev/null || echo "0")
+
+          if [ "$PRIMARY_STATUS" = "1" ]; then
+            echo "This node is now PRIMARY - ready to create users"
+            break
+          fi
+
+          COUNTER=$((COUNTER + 1))
+          if [ $COUNTER -eq $MAX_TRIES ]; then
+            echo "ERROR: Did not become primary after $MAX_TRIES attempts"
+            kill $MONGOD_PID 2>/dev/null || true
+            exit 1
+          fi
+
+          echo "Waiting for primary election... (attempt $COUNTER/$MAX_TRIES, current state: $PRIMARY_STATUS)"
+          sleep 2
+        done
+      else
+        echo "This is pod-$POD_INDEX, waiting for pod-0 to complete setup..."
+        echo "pod-0 will initialize the replica set and create all users"
+        # Wait for pod-0 to complete initialization and add this member to replica set
+        sleep 60
+
+        echo "Skipping user creation on this pod - users are created on pod-0 and replicated"
+        # Mark initialization as complete and proceed to foreground mode
+        touch /data/db/.mongodb-initialized
+
+        echo ""
+        echo "=== Initialization Complete (Secondary Node) ==="
+        echo "Switching to foreground mode..."
+
+        # Kill background mongod
+        kill $MONGOD_PID 2>/dev/null || true
+        wait $MONGOD_PID 2>/dev/null || true
+
+        # Start mongod in foreground
+        exec mongod --bind_ip_all --auth --tlsMode requireTLS \
+          --tlsCertificateKeyFile /etc/mongodb-ssl/mongodb.pem \
+          --tlsCAFile /etc/mongodb-ssl/ca.crt \
+          --tlsAllowConnectionsWithoutCertificates \
+          --replSet ${REPLICA_SET_NAME} \
+          --keyFile /etc/mongodb-ssl/mongodb-keyfile
+      fi
+    fi
+
+    echo ""
+    echo "=== Creating Admin User (pod-0 only) ==="
+
+    # Create admin user using localhost exception (works even with --auth enabled)
+    # The localhost exception is only available BEFORE the first user is created
     mongosh "mongodb://127.0.0.1:27017/admin?tls=true&tlsAllowInvalidCertificates=true" \
       --quiet \
       --eval "
@@ -74,6 +219,7 @@ data:
           ]
         });
         print('SUCCESS: Admin user created');
+        print('Note: Localhost exception is now closed - all connections require authentication');
       "
 
     if [ $? -ne 0 ]; then
@@ -85,7 +231,7 @@ data:
     echo ""
     echo "=== Creating Application User ==="
 
-    # Connect with admin credentials to create the application user
+    # Now we must authenticate as admin to create additional users
     mongosh "mongodb://$MONGODB_ADMIN_USER:$MONGODB_ADMIN_PASSWORD@127.0.0.1:27017/$MONGO_INITDB_DATABASE?tls=true&tlsAllowInvalidCertificates=true&authSource=admin" \
       --quiet \
       --eval "
@@ -107,19 +253,89 @@ data:
       exit 1
     fi
 
+    # Add other replica set members if this is pod-0 in production
+    if [ "$IS_PROD" = "true" ]; then
+      HOSTNAME=$(hostname)
+      POD_INDEX=${HOSTNAME##*-}
+
+      if [ "$POD_INDEX" = "0" ]; then
+        echo ""
+        echo "=== Adding Other Replica Set Members ==="
+
+        # Wait for other pods to be ready
+        echo "Waiting 20 seconds for other pods to start..."
+        sleep 20
+
+        echo "Adding members with FQDNs to match TLS certificates:"
+        echo "  - mongodb-1.mongodb.f6e00d-prod.svc.cluster.local:27017"
+        echo "  - mongodb-2.mongodb.f6e00d-prod.svc.cluster.local:27017"
+
+        mongosh "mongodb://$MONGODB_ADMIN_USER:$MONGODB_ADMIN_PASSWORD@127.0.0.1:27017/admin?tls=true&tlsAllowInvalidCertificates=true" \
+          --quiet \
+          --eval "
+            print('Adding mongodb-1 and mongodb-2 to replica set...');
+
+            var config = rs.conf();
+            var currentMembers = config.members.length;
+            print('Current member count: ' + currentMembers);
+            print('Current members: ' + JSON.stringify(config.members.map(m => m.host)));
+
+            if (currentMembers === 1) {
+              // Add mongodb-1 with FQDN (required for TLS certificate matching)
+              print('Adding mongodb-1 with FQDN: mongodb-1.mongodb.f6e00d-prod.svc.cluster.local:27017');
+              rs.add({ _id: 1, host: 'mongodb-1.mongodb.f6e00d-prod.svc.cluster.local:27017', priority: 1 });
+              print('Added mongodb-1 to replica set');
+
+              sleep(5000);
+
+              // Add mongodb-2 with FQDN (required for TLS certificate matching)
+              print('Adding mongodb-2 with FQDN: mongodb-2.mongodb.f6e00d-prod.svc.cluster.local:27017');
+              rs.add({ _id: 2, host: 'mongodb-2.mongodb.f6e00d-prod.svc.cluster.local:27017', priority: 1 });
+              print('Added mongodb-2 to replica set');
+
+              sleep(5000);
+
+              var status = rs.status();
+              print('Replica set now has ' + status.members.length + ' members');
+              print('Final member list:');
+              status.members.forEach(function(member) {
+                print('  - ' + member.name + ' (state: ' + member.stateStr + ')');
+              });
+              print('SUCCESS: All members added to replica set');
+            } else {
+              print('Replica set already has ' + currentMembers + ' members, skipping add');
+              print('Existing members: ' + JSON.stringify(config.members.map(m => m.host)));
+            }
+          "
+
+        if [ $? -ne 0 ]; then
+          echo "WARNING: Failed to add replica set members, but continuing..."
+        fi
+      fi
+    fi
+
     # Create marker file to indicate initialization is complete
     touch /data/db/.mongodb-initialized
 
     echo ""
-    echo "=== User Initialization Complete ==="
+    echo "=== Initialization Complete ==="
     echo "Switching to foreground mode..."
 
     # Kill background mongod
     kill $MONGOD_PID 2>/dev/null || true
     wait $MONGOD_PID 2>/dev/null || true
 
-    # Start mongod in foreground
-    exec mongod --bind_ip_all --auth --tlsMode requireTLS \
-      --tlsCertificateKeyFile /etc/mongodb-ssl/mongodb.pem \
-      --tlsCAFile /etc/mongodb-ssl/ca.crt \
-      --tlsAllowConnectionsWithoutCertificates
+    # Start mongod in foreground (same parameters as background startup)
+    if [ "$IS_PROD" = "true" ]; then
+      exec mongod --bind_ip_all --auth --tlsMode requireTLS \
+        --tlsCertificateKeyFile /etc/mongodb-ssl/mongodb.pem \
+        --tlsCAFile /etc/mongodb-ssl/ca.crt \
+        --tlsAllowConnectionsWithoutCertificates \
+        --replSet ${REPLICA_SET_NAME} \
+        --keyFile /etc/mongodb-ssl/mongodb-keyfile
+    else
+      exec mongod --bind_ip_all --auth --tlsMode requireTLS \
+        --tlsCertificateKeyFile /etc/mongodb-ssl/mongodb.pem \
+        --tlsCAFile /etc/mongodb-ssl/ca.crt \
+        --tlsAllowConnectionsWithoutCertificates
+    fi

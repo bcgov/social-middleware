@@ -8,4 +8,8 @@ spec:
   storageClassName: netapp-block-standard
   resources:
     requests:
-      storage: 200Mi
+      {{- if hasSuffix "-prod" .Release.Namespace }}
+      storage: {{ .Values.redis.prod.storage.size }}
+      {{- else }}
+      storage: {{ .Values.redis.dev.storage.size }}
+      {{- end }}
