@@ -9,9 +9,7 @@ metadata:
 spec:
   serviceName: redis
   {{- if hasSuffix "-prod" .Release.Namespace }}
-  # Temporarily using 1 replica in all environments due to memory constraints
-  # TODO: Restore to 3 replicas in prod once more RAM is allocated
-  replicas: 1
+  replicas: {{ .Values.redis.replicas }}
   {{- else }}
   replicas: 1
   {{- end }}

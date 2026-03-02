@@ -4,7 +4,7 @@ nextjs:
   port: 3001
   replicas: 1
   autoscaling:
-    minReplicas: 1  # Reduced to 1 to save memory in resource-constrained cluster
+    minReplicas: 2
     maxReplicas: 5
     targetCPUUtilizationPercentage: 70
     targetMemoryUtilizationPercentage: 80
@@ -20,10 +20,10 @@ nextjs:
     resources:
       limits:
         cpu: "1000m"
-        memory: 512Mi  # Reduced from 1Gi to fit resource constraints
+        memory: 1Gi
       requests:
         cpu: "100m"
-        memory: 256Mi  # Reduced from 512Mi
+        memory: 512Mi
 
 mongodb:
   podlabel: mongodb
@@ -46,19 +46,20 @@ mongodb:
   prod:
     resources:
       limits:
-        cpu: "200m"
-        memory: 384Mi
+        cpu: "500m"
+        memory: 1536Mi
       requests:
-        cpu: "50m"
-        memory: 256Mi
+        cpu: "100m"
+        memory: 512Mi
     storage:
       size: 1Gi
 
 redis:
+  replicas: 3
   dev:
     resources:
       limits:
-        cpu: "500m"
+        cpu: "300m"
         memory: 512Mi
       requests:
         cpu: "50m"
@@ -71,8 +72,8 @@ redis:
         cpu: "500m"
         memory: 512Mi
       requests:
-        cpu: "50m"
-        memory: 128Mi
+        cpu: "100m"
+        memory: 256Mi
     storage:
       size: 200Mi
 
