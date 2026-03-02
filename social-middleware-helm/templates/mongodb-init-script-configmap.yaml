@@ -41,8 +41,10 @@ data:
 
     echo "First-time initialization detected..."
 
-    # Start MongoDB in background
-    echo "Starting MongoDB in background..."
+    # Start MongoDB with full security enabled from the start
+    # The localhost exception allows user creation via 127.0.0.1 even with --auth
+    # until the first user is created. This is the most secure approach.
+    echo "Starting MongoDB in background with authentication enabled..."
     if [ "$IS_PROD" = "true" ]; then
       mongod --bind_ip_all --auth --tlsMode requireTLS \
         --tlsCertificateKeyFile /etc/mongodb-ssl/mongodb.pem \
@@ -86,8 +88,8 @@ data:
     echo ""
     echo "=== Creating Admin User ==="
 
-    # Create admin user using localhost exception
-    # The localhost exception allows this to work even with --auth enabled
+    # Create admin user using localhost exception (works even with --auth enabled)
+    # The localhost exception is only available BEFORE the first user is created
     mongosh "mongodb://127.0.0.1:27017/admin?tls=true&tlsAllowInvalidCertificates=true" \
       --quiet \
       --eval "
@@ -101,6 +103,7 @@ data:
           ]
         });
         print('SUCCESS: Admin user created');
+        print('Note: Localhost exception is now closed - all connections require authentication');
       "
 
     if [ $? -ne 0 ]; then
@@ -112,7 +115,7 @@ data:
     echo ""
     echo "=== Creating Application User ==="
 
-    # Connect with admin credentials to create the application user
+    # Now we must authenticate as admin to create additional users
     mongosh "mongodb://$MONGODB_ADMIN_USER:$MONGODB_ADMIN_PASSWORD@127.0.0.1:27017/$MONGO_INITDB_DATABASE?tls=true&tlsAllowInvalidCertificates=true&authSource=admin" \
       --quiet \
       --eval "
@@ -134,7 +137,7 @@ data:
       exit 1
     fi
 
-    # Initialize replica set if in prod mode
+    # Initialize replica set if in prod mode (AFTER creating users)
     if [ "$IS_PROD" = "true" ]; then
       echo ""
       echo "=== Initializing Replica Set ==="
@@ -194,14 +197,14 @@ data:
     touch /data/db/.mongodb-initialized
 
     echo ""
-    echo "=== User Initialization Complete ==="
+    echo "=== Initialization Complete ==="
     echo "Switching to foreground mode..."
 
     # Kill background mongod
     kill $MONGOD_PID 2>/dev/null || true
     wait $MONGOD_PID 2>/dev/null || true
 
-    # Start mongod in foreground
+    # Start mongod in foreground (same parameters as background startup)
     if [ "$IS_PROD" = "true" ]; then
       exec mongod --bind_ip_all --auth --tlsMode requireTLS \
         --tlsCertificateKeyFile /etc/mongodb-ssl/mongodb.pem \
