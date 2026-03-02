@@ -1,5 +1,5 @@
 apiVersion: apps/v1
-kind: Deployment
+kind: StatefulSet
 metadata:
   name: redis
   namespace: {{ .Release.Namespace }}
@@ -7,7 +7,14 @@ metadata:
     app: redis
     app.openshift.io/runtime: redis
 spec:
+  serviceName: redis
+  {{- if hasSuffix "-prod" .Release.Namespace }}
+  # Temporarily using 1 replica in all environments due to memory constraints
+  # TODO: Restore to 3 replicas in prod once more RAM is allocated
   replicas: 1
+  {{- else }}
+  replicas: 1
+  {{- end }}
   selector:
     matchLabels:
       app: redis
@@ -67,12 +74,21 @@ spec:
             - name: QUEUE_BACKOFF_DELAY
               value: "5000"
           resources:
+            {{- if hasSuffix "-prod" .Release.Namespace }}
             limits:
-              cpu: "500m"
-              memory: "512Mi"
+              cpu: {{ .Values.redis.prod.resources.limits.cpu | quote }}
+              memory: {{ .Values.redis.prod.resources.limits.memory }}
             requests:
-              cpu: "50m"
-              memory: "128Mi"
+              cpu: {{ .Values.redis.prod.resources.requests.cpu | quote }}
+              memory: {{ .Values.redis.prod.resources.requests.memory }}
+            {{- else }}
+            limits:
+              cpu: {{ .Values.redis.dev.resources.limits.cpu | quote }}
+              memory: {{ .Values.redis.dev.resources.limits.memory }}
+            requests:
+              cpu: {{ .Values.redis.dev.resources.requests.cpu | quote }}
+              memory: {{ .Values.redis.dev.resources.requests.memory }}
+            {{- end }}
           livenessProbe:
             exec:
               command:
@@ -101,9 +117,19 @@ spec:
             timeoutSeconds: 3
             failureThreshold: 30
           volumeMounts:
-            - name: redis-storage
+            - name: redis-data
               mountPath: /data
-      volumes:
-        - name: redis-storage
-          persistentVolumeClaim:
-            claimName: redis-pvc
+  volumeClaimTemplates:
+    - metadata:
+        name: redis-data
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        storageClassName: netapp-block-standard
+        resources:
+          requests:
+            {{- if hasSuffix "-prod" .Release.Namespace }}
+            storage: {{ .Values.redis.prod.storage.size }}
+            {{- else }}
+            storage: {{ .Values.redis.dev.storage.size }}
+            {{- end }}

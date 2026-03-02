@@ -56,9 +56,23 @@ mongodb:
 
 redis:
   dev:
+    resources:
+      limits:
+        cpu: "500m"
+        memory: 512Mi
+      requests:
+        cpu: "50m"
+        memory: 128Mi
     storage:
       size: 100Mi
   prod:
+    resources:
+      limits:
+        cpu: "500m"
+        memory: 512Mi
+      requests:
+        cpu: "50m"
+        memory: 128Mi
     storage:
       size: 200Mi
 
