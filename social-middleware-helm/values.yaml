@@ -54,6 +54,14 @@ mongodb:
     storage:
       size: 1Gi
 
+redis:
+  dev:
+    storage:
+      size: 100Mi
+  prod:
+    storage:
+      size: 200Mi
+
 nextjsservice:
   port: 80
   targetPort: 3001
