@@ -99,66 +99,39 @@ data:
       if [ "$POD_INDEX" = "0" ]; then
         echo "This is pod-0, initializing replica set..."
 
-        # Wait for other pods to be ready and listening
-        echo "Waiting for other MongoDB pods to be ready..."
-        sleep 30
+        # Use localhost exception to initialize replica set with just this node first
+        # We'll add other members once they're ready
+        mongosh "mongodb://127.0.0.1:27017/admin?tls=true&tlsAllowInvalidCertificates=true" \
+          --quiet \
+          --eval "
+            print('Initializing replica set: ${REPLICA_SET_NAME}');
 
-        # Check if other pods are reachable (optional, for logging)
-        for i in 1 2; do
-          if nc -zv mongodb-$i.mongodb 27017 2>&1 | grep -q succeeded; then
-            echo "mongodb-$i is reachable"
-          else
-            echo "WARNING: mongodb-$i not yet reachable, but continuing anyway"
-          fi
-        done
+            // Check if replica set is already initialized
+            var status = null;
+            try {
+              status = rs.status();
+              print('Replica set already initialized');
+            } catch(e) {
+              // Replica set not initialized, start with just this node
+              print('Replica set not found, initializing with mongodb-0 only...');
 
-        # Use localhost exception to initialize replica set
-        # Retry logic in case other pods aren't quite ready
-        INIT_SUCCESS=false
-        for attempt in 1 2 3; do
-          echo "Replica set initialization attempt $attempt/3..."
+              rs.initiate({
+                _id: '${REPLICA_SET_NAME}',
+                members: [
+                  { _id: 0, host: 'mongodb-0.mongodb:27017', priority: 2 }
+                ]
+              });
 
-          if mongosh "mongodb://127.0.0.1:27017/admin?tls=true&tlsAllowInvalidCertificates=true" \
-            --quiet \
-            --eval "
-              print('Initializing replica set: ${REPLICA_SET_NAME}');
+              print('Waiting for replica set to stabilize...');
+              sleep(5000);
 
-              // Check if replica set is already initialized
-              var status = null;
-              try {
-                status = rs.status();
-                print('Replica set already initialized');
-              } catch(e) {
-                // Replica set not initialized, proceed with initialization
-                print('Replica set not found, initializing...');
+              print('SUCCESS: Replica set initialized with mongodb-0');
+              print('Other members will be added automatically when they start');
+            }
+          "
 
-                rs.initiate({
-                  _id: '${REPLICA_SET_NAME}',
-                  members: [
-                    { _id: 0, host: 'mongodb-0.mongodb:27017', priority: 2 },
-                    { _id: 1, host: 'mongodb-1.mongodb:27017', priority: 1 },
-                    { _id: 2, host: 'mongodb-2.mongodb:27017', priority: 1 }
-                  ]
-                });
-
-                print('Waiting for replica set to stabilize...');
-                sleep(5000);
-
-                var rsStatus = rs.status();
-                print('Replica set status: ' + rsStatus.ok);
-                print('SUCCESS: Replica set initialized');
-              }
-            " 2>&1; then
-            INIT_SUCCESS=true
-            break
-          else
-            echo "Attempt $attempt failed, waiting 10 seconds before retry..."
-            sleep 10
-          fi
-        done
-
-        if [ "$INIT_SUCCESS" = "false" ]; then
-          echo "ERROR: Replica set initialization failed after 3 attempts"
+        if [ $? -ne 0 ]; then
+          echo "ERROR: Replica set initialization failed"
           kill $MONGOD_PID 2>/dev/null || true
           exit 1
         fi
@@ -188,9 +161,10 @@ data:
           sleep 2
         done
       else
-        echo "This is pod-$POD_INDEX, waiting for replica set initialization by pod-0..."
-        # Wait longer for pod-0 to initialize and stabilize
-        sleep 60
+        echo "This is pod-$POD_INDEX, replica set will be single-node initially"
+        echo "pod-0 will add this member after user creation"
+        # Just wait a bit for pod-0 to finish initialization
+        sleep 10
       fi
     fi
 
@@ -244,6 +218,54 @@ data:
       echo "ERROR: Failed to create application user"
       kill $MONGOD_PID 2>/dev/null || true
       exit 1
+    fi
+
+    # Add other replica set members if this is pod-0 in production
+    if [ "$IS_PROD" = "true" ]; then
+      HOSTNAME=$(hostname)
+      POD_INDEX=${HOSTNAME##*-}
+
+      if [ "$POD_INDEX" = "0" ]; then
+        echo ""
+        echo "=== Adding Other Replica Set Members ==="
+
+        # Wait for other pods to be ready
+        sleep 20
+
+        mongosh "mongodb://$MONGODB_ADMIN_USER:$MONGODB_ADMIN_PASSWORD@127.0.0.1:27017/admin?tls=true&tlsAllowInvalidCertificates=true" \
+          --quiet \
+          --eval "
+            print('Adding mongodb-1 and mongodb-2 to replica set...');
+
+            var config = rs.conf();
+            var currentMembers = config.members.length;
+            print('Current member count: ' + currentMembers);
+
+            if (currentMembers === 1) {
+              // Add mongodb-1
+              rs.add({ _id: 1, host: 'mongodb-1.mongodb:27017', priority: 1 });
+              print('Added mongodb-1');
+
+              sleep(5000);
+
+              // Add mongodb-2
+              rs.add({ _id: 2, host: 'mongodb-2.mongodb:27017', priority: 1 });
+              print('Added mongodb-2');
+
+              sleep(5000);
+
+              var status = rs.status();
+              print('Replica set now has ' + status.members.length + ' members');
+              print('SUCCESS: All members added to replica set');
+            } else {
+              print('Replica set already has ' + currentMembers + ' members, skipping add');
+            }
+          "
+
+        if [ $? -ne 0 ]; then
+          echo "WARNING: Failed to add replica set members, but continuing..."
+        fi
+      fi
     fi
 
     # Create marker file to indicate initialization is complete
