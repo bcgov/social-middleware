@@ -1,5 +1,5 @@
 apiVersion: apps/v1
-kind: Deployment
+kind: StatefulSet
 metadata:
   name: {{ .Values.mongodb.podlabel }}
   namespace: {{ .Release.Namespace }}
@@ -8,7 +8,10 @@ metadata:
     app.kubernetes.io/name: mongodb
     app.kubernetes.io/version: "7.0"
 spec:
+  # Temporarily using 1 replica in all environments due to memory constraints
+  # TODO: Restore to 3 replicas in prod once more RAM is allocated
   replicas: 1
+  serviceName: {{ .Values.mongodb.podlabel }}
   selector:
     matchLabels:
       app: {{ .Values.mongodb.podlabel }}
@@ -36,6 +39,11 @@ spec:
               chmod 400 /etc/mongodb-ssl/mongodb.pem
               cp /etc/mongodb-ca/service-ca.crt /etc/mongodb-ssl/ca.crt
               chmod 400 /etc/mongodb-ssl/ca.crt
+              {{- if hasSuffix "-prod" .Release.Namespace }}
+              # Copy and set permissions on keyfile for replica set
+              cp /etc/mongodb-keyfile-mount/mongodb-keyfile /etc/mongodb-ssl/mongodb-keyfile
+              chmod 400 /etc/mongodb-ssl/mongodb-keyfile
+              {{- end }}
           volumeMounts:
             - name: mongodb-tls
               mountPath: /etc/mongodb-tls
@@ -45,6 +53,11 @@ spec:
               readOnly: true
             - name: mongodb-ssl
               mountPath: /etc/mongodb-ssl
+            {{- if hasSuffix "-prod" .Release.Namespace }}
+            - name: mongodb-keyfile
+              mountPath: /etc/mongodb-keyfile-mount
+              readOnly: true
+            {{- end }}
       containers:
         - name: {{ .Values.mongodb.podlabel }}
           image: {{ .Values.mongodb.image }}
@@ -61,6 +74,12 @@ spec:
             - containerPort: {{ .Values.mongodb.port }}
               protocol: TCP
           env:
+            - name: REPLICA_SET_NAME
+              value: "rs0"
+            - name: NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
             - name: MONGODB_ADMIN_USER
               valueFrom:
                 secretKeyRef:
@@ -113,9 +132,6 @@ spec:
             {{- end }}
       restartPolicy: Always
       volumes:
-        - name: mongodb-data
-          persistentVolumeClaim:
-            claimName: mongodb
         - name: mongodb-tls
           secret:
             secretName: mongodb-tls
@@ -130,3 +146,21 @@ spec:
           configMap:
             name: mongodb-init-script
             defaultMode: 0555
+        {{- if hasSuffix "-prod" .Release.Namespace }}
+        - name: mongodb-keyfile
+          secret:
+            secretName: mongodb-keyfile
+            defaultMode: 0400
+        {{- end }}
+  volumeClaimTemplates:
+    - metadata:
+        name: mongodb-data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            {{- if hasSuffix "-prod" .Release.Namespace }}
+            storage: {{ .Values.mongodb.prod.storage.size }}
+            {{- else }}
+            storage: {{ .Values.mongodb.dev.storage.size }}
+            {{- end }}

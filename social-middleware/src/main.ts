@@ -39,7 +39,7 @@ async function bootstrap() {
     const formsUrl = config.get<string>('FORMS_URL') || 'http://localhost:8080';
     // Enable CORS to handle preflight OPTIONS requests
     const allowedOrigins = [frontendUrl, apiUrl, formsUrl];
-    logger.log('🔧 CORS Configuration:');
+    logger.log('CORS Configuration:');
     logger.log('Allowed origins:', allowedOrigins);
 
     app.enableCors({
@@ -134,9 +134,9 @@ async function bootstrap() {
     );
 
     await app.listen(port);
-    logger.log(`🚀 Server running at http://localhost:${port}/health`);
+    logger.log(`Server running at http://localhost:${port}/health`);
   } catch (error) {
-    console.error('❌ Failed to create NestJS app:', error);
+    console.error('Failed to create NestJS app:', error);
     throw error;
   }
 }
