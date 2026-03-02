@@ -161,15 +161,35 @@ data:
           sleep 2
         done
       else
-        echo "This is pod-$POD_INDEX, replica set will be single-node initially"
-        echo "pod-0 will add this member after user creation"
-        # Just wait a bit for pod-0 to finish initialization
-        sleep 10
+        echo "This is pod-$POD_INDEX, waiting for pod-0 to complete setup..."
+        echo "pod-0 will initialize the replica set and create all users"
+        # Wait for pod-0 to complete initialization and add this member to replica set
+        sleep 60
+
+        echo "Skipping user creation on this pod - users are created on pod-0 and replicated"
+        # Mark initialization as complete and proceed to foreground mode
+        touch /data/db/.mongodb-initialized
+
+        echo ""
+        echo "=== Initialization Complete (Secondary Node) ==="
+        echo "Switching to foreground mode..."
+
+        # Kill background mongod
+        kill $MONGOD_PID 2>/dev/null || true
+        wait $MONGOD_PID 2>/dev/null || true
+
+        # Start mongod in foreground
+        exec mongod --bind_ip_all --auth --tlsMode requireTLS \
+          --tlsCertificateKeyFile /etc/mongodb-ssl/mongodb.pem \
+          --tlsCAFile /etc/mongodb-ssl/ca.crt \
+          --tlsAllowConnectionsWithoutCertificates \
+          --replSet ${REPLICA_SET_NAME} \
+          --keyFile /etc/mongodb-ssl/mongodb-keyfile
       fi
     fi
 
     echo ""
-    echo "=== Creating Admin User ==="
+    echo "=== Creating Admin User (pod-0 only) ==="
 
     # Create admin user using localhost exception (works even with --auth enabled)
     # The localhost exception is only available BEFORE the first user is created
