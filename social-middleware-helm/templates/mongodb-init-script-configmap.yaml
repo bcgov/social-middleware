@@ -99,44 +99,66 @@ data:
       if [ "$POD_INDEX" = "0" ]; then
         echo "This is pod-0, initializing replica set..."
 
-        # Wait a bit for other pods to be ready
-        sleep 10
+        # Wait for other pods to be ready and listening
+        echo "Waiting for other MongoDB pods to be ready..."
+        sleep 30
+
+        # Check if other pods are reachable (optional, for logging)
+        for i in 1 2; do
+          if nc -zv mongodb-$i.mongodb 27017 2>&1 | grep -q succeeded; then
+            echo "mongodb-$i is reachable"
+          else
+            echo "WARNING: mongodb-$i not yet reachable, but continuing anyway"
+          fi
+        done
 
         # Use localhost exception to initialize replica set
-        mongosh "mongodb://127.0.0.1:27017/admin?tls=true&tlsAllowInvalidCertificates=true" \
-          --quiet \
-          --eval "
-            print('Initializing replica set: ${REPLICA_SET_NAME}');
+        # Retry logic in case other pods aren't quite ready
+        INIT_SUCCESS=false
+        for attempt in 1 2 3; do
+          echo "Replica set initialization attempt $attempt/3..."
 
-            // Check if replica set is already initialized
-            var status = null;
-            try {
-              status = rs.status();
-              print('Replica set already initialized');
-            } catch(e) {
-              // Replica set not initialized, proceed with initialization
-              print('Replica set not found, initializing...');
+          if mongosh "mongodb://127.0.0.1:27017/admin?tls=true&tlsAllowInvalidCertificates=true" \
+            --quiet \
+            --eval "
+              print('Initializing replica set: ${REPLICA_SET_NAME}');
 
-              rs.initiate({
-                _id: '${REPLICA_SET_NAME}',
-                members: [
-                  { _id: 0, host: 'mongodb-0.mongodb:27017', priority: 2 },
-                  { _id: 1, host: 'mongodb-1.mongodb:27017', priority: 1 },
-                  { _id: 2, host: 'mongodb-2.mongodb:27017', priority: 1 }
-                ]
-              });
+              // Check if replica set is already initialized
+              var status = null;
+              try {
+                status = rs.status();
+                print('Replica set already initialized');
+              } catch(e) {
+                // Replica set not initialized, proceed with initialization
+                print('Replica set not found, initializing...');
 
-              print('Waiting for replica set to stabilize...');
-              sleep(5000);
+                rs.initiate({
+                  _id: '${REPLICA_SET_NAME}',
+                  members: [
+                    { _id: 0, host: 'mongodb-0.mongodb:27017', priority: 2 },
+                    { _id: 1, host: 'mongodb-1.mongodb:27017', priority: 1 },
+                    { _id: 2, host: 'mongodb-2.mongodb:27017', priority: 1 }
+                  ]
+                });
 
-              var rsStatus = rs.status();
-              print('Replica set status: ' + rsStatus.ok);
-              print('SUCCESS: Replica set initialized');
-            }
-          "
+                print('Waiting for replica set to stabilize...');
+                sleep(5000);
 
-        if [ $? -ne 0 ]; then
-          echo "ERROR: Replica set initialization failed"
+                var rsStatus = rs.status();
+                print('Replica set status: ' + rsStatus.ok);
+                print('SUCCESS: Replica set initialized');
+              }
+            " 2>&1; then
+            INIT_SUCCESS=true
+            break
+          else
+            echo "Attempt $attempt failed, waiting 10 seconds before retry..."
+            sleep 10
+          fi
+        done
+
+        if [ "$INIT_SUCCESS" = "false" ]; then
+          echo "ERROR: Replica set initialization failed after 3 attempts"
           kill $MONGOD_PID 2>/dev/null || true
           exit 1
         fi
