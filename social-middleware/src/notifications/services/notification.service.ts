@@ -11,7 +11,12 @@ export class NotificationService {
     private readonly configService: ConfigService,
     @InjectPinoLogger(NotificationService.name)
     private readonly logger: PinoLogger,
-  ) {}
+  ) {
+    this.frontendUrl =
+      this.configService.get<string>('FRONTEND_URL') ?? 'http://localhost:5173';
+  }
+
+  private readonly frontendUrl: string;
 
   /**
    * Send application submitted notification
@@ -56,7 +61,7 @@ export class NotificationService {
       body: `
         <h2>Continue your caregiver journey</h2>
         <p>Hello ${applicantName},</p>
-        <p>You may now complete your foster caregiver application through the portal.</p>
+        <p>You may now complete your foster caregiver application through the <a href="${this.frontendUrl}">Foster & Care Provider Portal</a>.</p>
         <p>Sign in and continue the application from My Tasks.</p>
         <p>Thank you,<br>BC Caregiver Registry Team</p>
       `,
@@ -86,7 +91,7 @@ export class NotificationService {
           <h2>You have been named as a household member on a foster caregiver application</h2>
           <p>Hello ${householdMemberName},</p>
           <p>${applicantName} has identified you as a household member on their application to become a foster caregiver. As part of the assessment process, the Ministry of Children and Family Development requires each adult household member to provide background information and consent to screening activities.</p>
-          <p>Sign into the caregiver portal using your BC Services Card and use <b>${accessCode}</b> as the access code to begin the process.</p>
+          <p>Sign into the <a href="${this.frontendUrl}">Foster & Care Provider Portal</a> using your BC Services Card and use <b>${accessCode}</b> as the access code to begin the process.</p>
           <p>Thank you,<br>BC Caregiver Registry Team</p>
         `,
       bodyType: 'html',
@@ -112,8 +117,8 @@ export class NotificationService {
       body: `
             <h2>A household member has provided their screening information</h2>
             <p>Hello ${applicantName},</p>
-            <p>${householdMemberName} has provided their screening and consent information via the caregiver portal.</p>
-            <p>Once all household members have provided their information, your application will be forwarded along for processesing. You can track the status of your household members through the caregiver portal.</p>
+            <p>${householdMemberName} has provided their screening and consent information via the Foster & Care Provider Portal.</p>
+            <p>Once all household members have provided their information, your application will be forwarded along for processesing. You can track the status of your household members through the <a href="${this.frontendUrl}">Foster & Care Provider Portal</a>.</p>
             <p>Thank you,<br>BC Caregiver Registry Team</p>
           `,
       bodyType: 'html',
@@ -139,7 +144,7 @@ export class NotificationService {
               <h2>Your foster caregiver application has been submitted</h2>
               <p>Hello ${applicantName},</p>
               <p>All outstanding information has been provided for your caregiver application. It has been submitted to the Ministry of Child and Family Development for processing.</p> 
-              <p>Social workers will be in touch in the coming weeks about any outstanding questions they may have. You may proceed to complete your Medical Screening form. Please log into the caregiver portal for information on providing your Medical Screening information.</p>
+              <p>Social workers will be in touch in the coming weeks about any outstanding questions they may have. You may proceed to complete your Medical Screening form. Please log into the <a href="${this.frontendUrl}">Foster & Care Provider Portal</a> for information on providing your Medical Screening information.</p>
               <p>Thank you,<br>BC Caregiver Registry Team</p>
             `,
       bodyType: 'html',
