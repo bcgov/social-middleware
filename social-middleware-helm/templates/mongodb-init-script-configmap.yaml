@@ -120,8 +120,7 @@ data:
 
             if (isInitialized) {
               print('SUCCESS: Replica set ${REPLICA_SET_NAME} is already initialized');
-              var config = rs.conf();
-              print('Current members: ' + JSON.stringify(config.members.map(m => m.host)));
+              print('Skipping replica set initialization');
             } else {
               // Replica set not initialized, start with just this node
               print('Replica set not found, initializing with mongodb-0 only...');
