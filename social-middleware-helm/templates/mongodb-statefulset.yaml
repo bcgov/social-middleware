@@ -8,9 +8,11 @@ metadata:
     app.kubernetes.io/name: mongodb
     app.kubernetes.io/version: "7.0"
 spec:
-  # Temporarily using 1 replica in all environments due to memory constraints
-  # TODO: Restore to 3 replicas in prod once more RAM is allocated
+  {{- if hasSuffix "-prod" .Release.Namespace }}
+  replicas: {{ .Values.mongodb.replicaSet.replicas }}
+  {{- else }}
   replicas: 1
+  {{- end }}
   serviceName: {{ .Values.mongodb.podlabel }}
   selector:
     matchLabels:
