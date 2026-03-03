@@ -61,8 +61,8 @@ export class NotificationService {
       body: `
         <h2>Foster Caregiver Application Ready to Continue</h2>
         <p>Hello ${applicantName},</p>
-        <p>Your foster caregiver application is now ready for you to continue.</p>
-        <p>Please sign in to the <a href="${this.frontendUrl}">Foster & Care Provider Portal</a> and select <strong>My Tasks</strong> to complete the next steps.</p>
+        <p>You may now complete your foster caregiver application through the <a href="${this.frontendUrl}">Foster & Care Provider Portal</a>.</p>
+        <p>Sign in and continue the application from My Tasks.</p>
         <p>Thank you,<br>BC Caregiver Registry Team</p>
       `,
       bodyType: 'html',
