@@ -21,6 +21,7 @@ import {
   ScreeningAccessCode,
   ScreeningAccessCodeSchema,
 } from '../household/schemas/screening-access-code.schema';
+import { ApplicationPackageModule } from '../application-package/application-package.module';
 @Module({
   imports: [
     ConfigModule,
@@ -32,6 +33,7 @@ import {
       { name: ScreeningAccessCode.name, schema: ScreeningAccessCodeSchema },
     ]),
     HouseholdModule,
+    ApplicationPackageModule,
   ],
   controllers: [DevToolsController],
   providers: [DevToolsService],
