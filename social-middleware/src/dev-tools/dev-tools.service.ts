@@ -27,6 +27,8 @@ import {
 } from '../application-form/schemas/form-parameters.schema';
 import { HouseholdService } from '../household/services/household.service';
 import { ApplicationPackageStatus } from '../application-package/enums/application-package-status.enum';
+import { ApplicationPackageService } from '../application-package/application-package.service';
+import { ServiceRequestStage } from '../application-package/enums/application-package-status.enum';
 
 @Injectable()
 export class DevToolsService {
@@ -42,6 +44,7 @@ export class DevToolsService {
     @InjectModel(ScreeningAccessCode.name)
     private screeningAccessCodeModel: Model<ScreeningAccessCodeDocument>,
     private readonly householdService: HouseholdService,
+    private readonly applicationPackageService: ApplicationPackageService,
     private readonly logger: PinoLogger,
   ) {}
 
@@ -152,6 +155,30 @@ export class DevToolsService {
       this.logger.error({ error, userId }, 'Error in [DevTools] clearUserData');
       throw new InternalServerErrorException('Failed to clear user data');
     }
+  }
+
+  async triggerStageTransition(
+    applicationPackageId: string,
+    stage: ServiceRequestStage,
+  ): Promise<{ message: string }> {
+    const pkg = await this.applicationPackageModel
+      .findOne({ applicationPackageId })
+      .lean();
+
+    if (!pkg) {
+      throw new BadRequestException(
+        `Package ${applicationPackageId} not found`,
+      );
+    }
+
+    await this.applicationPackageService.updateApplicationPackageStage(
+      pkg as ApplicationPackage,
+      stage,
+    );
+
+    return {
+      message: `Transitioned ${applicationPackageId} to stage: ${stage}`,
+    };
   }
 
   async resetApplicationPackage(

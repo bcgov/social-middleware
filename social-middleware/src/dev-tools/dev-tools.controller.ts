@@ -2,6 +2,7 @@ import {
   Controller,
   Delete,
   Query,
+  Post,
   BadRequestException,
   ForbiddenException,
   ValidationPipe,
@@ -13,6 +14,7 @@ import { DevOnlyResetPackageDocs } from '../common/decorators/dev-only-reset-pac
 import { isDev } from '../common/config/config-loader';
 import { ClearUserDataQueryDto } from './dto/clear-user-data-query.dto';
 import { ResetApplicationPackageQueryDto } from './dto/reset-application-package-query.dto';
+import { TriggerStageQueryDto } from './dto/trigger-stage-query.dto';
 
 @Controller('dev-tools')
 @ApiTags('[DevTools]')
@@ -52,6 +54,18 @@ export class DevToolsController {
 
     return await this.devToolsService.resetApplicationPackage(
       query.applicationPackageId,
+    );
+  }
+
+  @Post('trigger-stage')
+  async triggerStage(
+    @Query(new ValidationPipe({ whitelist: true, transform: true }))
+    query: TriggerStageQueryDto,
+  ) {
+    if (!isDev) throw new ForbiddenException('Dev tools are disabled');
+    return this.devToolsService.triggerStageTransition(
+      query.applicationPackageId,
+      query.stage,
     );
   }
 }
