@@ -74,14 +74,12 @@ spec:
           resources:
             {{- if hasSuffix "-prod" .Release.Namespace }}
             limits:
-              cpu: {{ .Values.redis.prod.resources.limits.cpu | quote }}
               memory: {{ .Values.redis.prod.resources.limits.memory }}
             requests:
               cpu: {{ .Values.redis.prod.resources.requests.cpu | quote }}
               memory: {{ .Values.redis.prod.resources.requests.memory }}
             {{- else }}
             limits:
-              cpu: {{ .Values.redis.dev.resources.limits.cpu | quote }}
               memory: {{ .Values.redis.dev.resources.limits.memory }}
             requests:
               cpu: {{ .Values.redis.dev.resources.requests.cpu | quote }}
