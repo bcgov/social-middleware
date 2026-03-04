@@ -4,11 +4,15 @@ import { GenderTypes } from '../../household/enums/gender-types.enum';
 @Injectable()
 export class UserUtil {
   sexToGenderType(sex?: string): GenderTypes {
-    if (!sex) return GenderTypes.Unspecified;
+    if (!sex) {
+      return GenderTypes.Unspecified;
+    }
     switch (sex.toLowerCase()) {
       case 'male':
+      case 'man/boy':
         return GenderTypes.ManBoy;
       case 'female':
+      case 'woman/girl':
         return GenderTypes.WomanGirl;
       case 'non-binary':
         return GenderTypes.NonBinary;
