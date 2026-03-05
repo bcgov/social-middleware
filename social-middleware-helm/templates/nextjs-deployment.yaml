@@ -107,14 +107,12 @@ spec:
           resources:
             {{- if hasSuffix "-prod" .Release.Namespace }}
             limits:
-              cpu: {{ .Values.nextjs.prod.resources.limits.cpu | quote }}
               memory: {{ .Values.nextjs.prod.resources.limits.memory }}
             requests:
               cpu: {{ .Values.nextjs.prod.resources.requests.cpu | quote }}
               memory: {{ .Values.nextjs.prod.resources.requests.memory }}
             {{- else }}
             limits:
-              cpu: {{ .Values.nextjs.dev.resources.limits.cpu | quote }}
               memory: {{ .Values.nextjs.dev.resources.limits.memory }}
             requests:
               cpu: {{ .Values.nextjs.dev.resources.requests.cpu | quote }}
