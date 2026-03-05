@@ -80,7 +80,7 @@ export class BcscOAuthService {
       response_type: 'code',
       client_id: clientId,
       redirect_uri: redirectUri,
-      scope: 'openid email profile address',
+      scope: 'openid email profile',
       state: this.pkceChallenge.state,
       code_challenge: this.pkceChallenge.codeChallenge,
       code_challenge_method: 'S256',
