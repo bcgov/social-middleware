@@ -1,0 +1,16 @@
+{{- if hasSuffix "-prod" .Release.Namespace }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: mongodb-pdb
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: {{ .Values.mongodb.podlabel }}
+    app.kubernetes.io/name: mongodb
+    app.kubernetes.io/component: database
+spec:
+  minAvailable: 2  # Maintain quorum for 3-node replica set (need 2 out of 3)
+  selector:
+    matchLabels:
+      app: {{ .Values.mongodb.podlabel }}
+{{- end }}
