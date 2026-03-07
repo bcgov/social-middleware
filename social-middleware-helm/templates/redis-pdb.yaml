@@ -1,0 +1,16 @@
+{{- if hasSuffix "-prod" .Release.Namespace }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: redis-pdb
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: redis
+    app.kubernetes.io/name: redis
+    app.kubernetes.io/component: cache
+spec:
+  minAvailable: 2  # Keep at least 2 out of 3 Redis instances available
+  selector:
+    matchLabels:
+      app: redis
+{{- end }}
