@@ -22,7 +22,8 @@ export class ApplicationPackageQueueService {
       'completeness-check',
       { applicationPackageId },
       {
-        attempts: 3, // Completeness checks don't need as many retries
+        jobId: `completeness-check-${applicationPackageId}`,
+        attempts: 3, // Completeness checks don't need as many retriesi
         backoff: {
           type: 'fixed',
           delay: 10000, // 10 seconds between attempts
@@ -61,9 +62,13 @@ export class ApplicationPackageQueueService {
       return;
     }
 
-    await this.applicationPackageQueue.add('submission', {
-      applicationPackageId,
-    });
+    await this.applicationPackageQueue.add(
+      'submission',
+      {
+        applicationPackageId,
+      },
+      { jobId: `submission${applicationPackageId}` },
+    );
 
     this.logger.info(
       { applicationPackageId },
@@ -81,7 +86,11 @@ export class ApplicationPackageQueueService {
   }> {
     this.logger.info('Starting periodic scan for application packages');
 
-    await this.applicationPackageQueue.add('periodic-scan', {});
+    await this.applicationPackageQueue.add(
+      'periodic-scan',
+      {},
+      { jobId: 'periodic-scan' },
+    );
 
     return { completenessChecks: 0, submissions: 0 }; // Actual counts from processor
   }
@@ -103,6 +112,7 @@ export class ApplicationPackageQueueService {
         dto,
       },
       {
+        jobId: `submit-referral-${applicationPackageId}`,
         attempts: 12,
         backoff: {
           type: 'exponential',

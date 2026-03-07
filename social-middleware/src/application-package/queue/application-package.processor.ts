@@ -90,9 +90,13 @@ export class ApplicationPackageProcessor {
 
       // Enqueue completeness checks for each
       for (const pkg of consentPackages) {
-        await job.queue.add('completeness-check', {
-          applicationPackageId: pkg.applicationPackageId,
-        });
+        await job.queue.add(
+          'completeness-check',
+          {
+            applicationPackageId: pkg.applicationPackageId,
+          },
+          { jobId: `completeness-check-${pkg.applicationPackageId}` },
+        );
         completenessChecks++;
       }
 
@@ -128,9 +132,11 @@ export class ApplicationPackageProcessor {
       // Enqueue submissions for packages not already queued
       for (const pkg of readyPackages) {
         if (!queuedPackageIds.has(pkg.applicationPackageId)) {
-          await job.queue.add('submission', {
-            applicationPackageId: pkg.applicationPackageId,
-          });
+          await job.queue.add(
+            'submission',
+            { applicationPackageId: pkg.applicationPackageId },
+            { jobId: `submission-${pkg.applicationPackageId}` },
+          );
           submissions++;
         } else {
           this.logger.debug(
@@ -155,11 +161,15 @@ export class ApplicationPackageProcessor {
           { applicationPackageId: pkg.applicationPackageId },
           'Found orphaned referral package - re-enqueuing',
         );
-        await job.queue.add('submit-referral', {
-          applicationPackageId: pkg.applicationPackageId,
-          userId: pkg.userId,
-          dto: {}, //original dto is lost, but processor can pull contact info from user record
-        });
+        await job.queue.add(
+          'submit-referral',
+          {
+            applicationPackageId: pkg.applicationPackageId,
+            userId: pkg.userId,
+            dto: {},
+          },
+          { jobId: `submit-referral-${pkg.applicationPackageId}` },
+        );
       }
 
       this.logger.info(
@@ -329,7 +339,11 @@ export class ApplicationPackageProcessor {
       );
 
       // Enqueue submission
-      await job.queue.add('submission', { applicationPackageId });
+      await job.queue.add(
+        'submission',
+        { applicationPackageId },
+        { jobId: `submission-${applicationPackageId}` },
+      );
 
       return { isComplete: true, status: ApplicationPackageStatus.READY };
     } catch (error) {
