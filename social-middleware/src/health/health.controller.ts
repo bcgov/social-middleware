@@ -6,7 +6,7 @@ export class HealthController {
   constructor(private readonly logger: PinoLogger) {}
   @Get()
   getHealth() {
-    this.logger.info('Health check endpoint hit');
+    //this.logger.info('Health check endpoint hit');
 
     return {
       status: 'ok',
