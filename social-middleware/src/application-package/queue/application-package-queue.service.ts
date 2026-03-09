@@ -22,11 +22,13 @@ export class ApplicationPackageQueueService {
       'completeness-check',
       { applicationPackageId },
       {
-        attempts: 3, // Completeness checks don't need as many retries
+        jobId: `completeness-check-${applicationPackageId}`,
+        attempts: 3, // Completeness checks don't need as many retriesi
         backoff: {
           type: 'fixed',
           delay: 10000, // 10 seconds between attempts
         },
+        removeOnComplete: true,
       },
     );
 
@@ -61,9 +63,13 @@ export class ApplicationPackageQueueService {
       return;
     }
 
-    await this.applicationPackageQueue.add('submission', {
-      applicationPackageId,
-    });
+    await this.applicationPackageQueue.add(
+      'submission',
+      {
+        applicationPackageId,
+      },
+      { jobId: `submission-${applicationPackageId}` },
+    );
 
     this.logger.info(
       { applicationPackageId },
@@ -81,9 +87,23 @@ export class ApplicationPackageQueueService {
   }> {
     this.logger.info('Starting periodic scan for application packages');
 
+    //const waiting = await this.applicationPackageQueue.getWaitingCount();
+    //const active = await this.applicationPackageQueue.getActiveCount();
+
+    const waitingJobs = await this.applicationPackageQueue.getWaiting();
+    const activeJobs = await this.applicationPackageQueue.getActive();
+    const alreadyQueued = [...waitingJobs, ...activeJobs].some(
+      (j) => j.name === 'periodic-scan',
+    );
+
+    if (alreadyQueued) {
+      this.logger.info('Periodic scan already queued or active, skipping');
+      return { completenessChecks: 0, submissions: 0 };
+    }
+
     await this.applicationPackageQueue.add('periodic-scan', {});
 
-    return { completenessChecks: 0, submissions: 0 }; // Actual counts from processor
+    return { completenessChecks: 0, submissions: 0 };
   }
 
   /**
@@ -103,6 +123,7 @@ export class ApplicationPackageQueueService {
         dto,
       },
       {
+        jobId: `submit-referral-${applicationPackageId}`,
         attempts: 12,
         backoff: {
           type: 'exponential',

@@ -38,6 +38,9 @@ export class AppModule {
           useFactory: (config: ConfigService) => ({
             pinoHttp: {
               level: config.get('NODE_ENV') === 'production' ? 'info' : 'debug',
+              autoLogging: {
+                ignore: (req) => req.url === '/health',
+              },
               transport:
                 config.get('NODE_ENV') !== 'production'
                   ? {

@@ -40,6 +40,9 @@ export class ApplicationForm {
   @Prop({ default: false })
   userAttachedForm!: boolean;
 
+  @Prop({ required: false, type: String, default: null })
+  siebelAttachmentId!: string | null;
+
   @Prop({ default: Date.now })
   submittedAt!: Date;
 
