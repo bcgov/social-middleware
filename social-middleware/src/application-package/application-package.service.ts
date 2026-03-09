@@ -969,6 +969,21 @@ export class ApplicationPackageService {
             continue; // skip this form
           }
 
+          if (form.siebelAttachmentId) {
+            this.logger.info(
+              {
+                applicationFormId: form.applicationFormId,
+                siebelAttachmentId: form.siebelAttachmentId,
+              },
+              'Form already attached to Siebel, skipping',
+            );
+            attachmentResults.push({
+              applicationFormId: form.applicationFormId,
+              attachmentId: form.siebelAttachmentId,
+            });
+            continue;
+          }
+
           if (form.formData) {
             let fileName = form.type as string;
 
@@ -1007,6 +1022,10 @@ export class ApplicationPackageService {
                   fileContent: fileContent,
                 },
               )) as { Id: string };
+            await this.applicationFormService.saveSiebelAttachmentId(
+              form.applicationFormId,
+              attachmentResult.Id,
+            );
 
             attachmentResults.push({
               applicationFormId: form.applicationFormId,
@@ -1061,6 +1080,21 @@ export class ApplicationPackageService {
           // Upload each attachment to Siebel
           for (const attachmentMeta of attachmentList) {
             try {
+              if (attachmentMeta.icmAttachmentId) {
+                this.logger.info(
+                  {
+                    attachmentId: attachmentMeta.attachmentId,
+                    icmAttachmentId: attachmentMeta.icmAttachmentId,
+                  },
+                  'Attachment already uploaded to ICM, skipping',
+                );
+                attachmentResults.push({
+                  attachmentId: attachmentMeta.attachmentId,
+                  siebelAttachmentId: attachmentMeta.icmAttachmentId,
+                });
+                continue;
+              }
+
               // Get the full attachment with file data
               const fullAttachment = await this.attachmentsService.findById(
                 attachmentMeta.attachmentId,
@@ -1086,6 +1120,11 @@ export class ApplicationPackageService {
                       `Attachment for household member`,
                   },
                 )) as { Id: string };
+
+              await this.attachmentsService.saveIcmAttachmentId(
+                fullAttachment.attachmentId,
+                attachmentResult.Id,
+              );
 
               attachmentResults.push({
                 attachmentId: fullAttachment.attachmentId,
