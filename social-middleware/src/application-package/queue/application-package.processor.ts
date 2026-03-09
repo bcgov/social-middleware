@@ -552,7 +552,7 @@ export class ApplicationPackageProcessor {
       (f) => f.type === ApplicationFormType.INDIGENOUS,
     );
 
-    if (indigenousForm?.formData) {
+    if (indigenousForm?.formData && !indigenousForm.siebelAttachmentId) {
       this.logger.info(
         {
           applicationPackageId,
@@ -575,6 +575,11 @@ export class ApplicationPackageProcessor {
           fileContent: indigenousForm.formData,
         })) as { Id: string };
 
+      await this.applicationFormService.saveSiebelAttachmentId(
+        indigenousForm.applicationFormId,
+        attachmentResult.Id,
+      );
+
       this.logger.info(
         {
           applicationPackageId,
@@ -582,6 +587,14 @@ export class ApplicationPackageProcessor {
           attachmentId: attachmentResult.Id,
         },
         'Indigenous form attached to Siebel SR',
+      );
+    } else if (indigenousForm?.siebelAttachmentId) {
+      this.logger.info(
+        {
+          applicationPackageId,
+          siebelAttachmentId: indigenousForm.siebelAttachmentId,
+        },
+        'Step 3: Indigenous form already attached, skipping',
       );
     } else {
       this.logger.warn(
