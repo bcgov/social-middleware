@@ -93,6 +93,7 @@ export class AttachmentsService {
       fileSize: attachment.fileSize,
       description: attachment.description,
       uploadedBy: attachment.uploadedBy,
+      icmAttachmentId: attachment.icmAttachmentId,
       createdAt: attachment.createdAt,
       updatedAt: attachment.updatedAt,
     }));
@@ -134,5 +135,15 @@ export class AttachmentsService {
     applicationPackageId: string,
   ): Promise<void> {
     await this.attachmentModel.deleteMany({ applicationPackageId }).exec();
+  }
+
+  async saveIcmAttachmentId(
+    attachmentId: string,
+    icmAttachmentId: string,
+  ): Promise<void> {
+    await this.attachmentModel.findOneAndUpdate(
+      { attachmentId },
+      { icmAttachmentId },
+    );
   }
 }
