@@ -17,6 +17,9 @@ export class GetAttachmentDto {
   @ApiProperty({ enum: AttachmentType })
   attachmentType!: AttachmentType;
 
+  @ApiProperty({ required: false })
+  icmAttachmentId?: string | null;
+
   @ApiProperty()
   fileName!: string;
 
