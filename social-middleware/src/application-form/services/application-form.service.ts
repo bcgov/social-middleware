@@ -445,6 +445,17 @@ export class ApplicationFormService {
     }
   }
 
+  // keep track of the siebelAttachmentID
+  async saveSiebelAttachmentId(
+    applicationFormId: string,
+    siebelAttachmentId: string,
+  ): Promise<void> {
+    await this.applicationFormModel.findOneAndUpdate(
+      { applicationFormId },
+      { siebelAttachmentId },
+    );
+  }
+
   // used by front end to determine the current state of the applicationForm
   async getApplicationFormById(
     applicationFormId: string,
