@@ -28,6 +28,7 @@ export class ApplicationPackageQueueService {
           type: 'fixed',
           delay: 10000, // 10 seconds between attempts
         },
+        removeOnComplete: true,
       },
     );
 
@@ -67,7 +68,7 @@ export class ApplicationPackageQueueService {
       {
         applicationPackageId,
       },
-      { jobId: `submission${applicationPackageId}` },
+      { jobId: `submission-${applicationPackageId}` },
     );
 
     this.logger.info(
@@ -86,14 +87,17 @@ export class ApplicationPackageQueueService {
   }> {
     this.logger.info('Starting periodic scan for application packages');
 
-    const waiting = await this.applicationPackageQueue.getWaitingCount();
-    const active = await this.applicationPackageQueue.getActiveCount();
+    //const waiting = await this.applicationPackageQueue.getWaitingCount();
+    //const active = await this.applicationPackageQueue.getActiveCount();
 
-    if (waiting > 0 || active > 0) {
-      this.logger.info(
-        { waiting, active },
-        'Periodic scan already queued or active, skipping',
-      );
+    const waitingJobs = await this.applicationPackageQueue.getWaiting();
+    const activeJobs = await this.applicationPackageQueue.getActive();
+    const alreadyQueued = [...waitingJobs, ...activeJobs].some(
+      (j) => j.name === 'periodic-scan',
+    );
+
+    if (alreadyQueued) {
+      this.logger.info('Periodic scan already queued or active, skipping');
       return { completenessChecks: 0, submissions: 0 };
     }
 
