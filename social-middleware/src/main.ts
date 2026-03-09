@@ -47,13 +47,13 @@ async function bootstrap() {
         origin: string | undefined,
         callback: (error: Error | null, allow?: boolean) => void,
       ) => {
-        logger.log('Incoming request origin:', origin);
-        logger.log('Checking against allowed origins:', allowedOrigins);
+        //logger.log('Incoming request origin:', origin);
+        //logger.log('Checking against allowed origins:', allowedOrigins);
 
         if (!origin) return callback(null, true);
 
         if (allowedOrigins.includes(origin)) {
-          logger.log('Origin allowed');
+          //logger.log('Origin allowed');
           return callback(null, true);
         }
 
