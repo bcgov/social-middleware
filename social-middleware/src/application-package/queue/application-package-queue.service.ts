@@ -86,13 +86,20 @@ export class ApplicationPackageQueueService {
   }> {
     this.logger.info('Starting periodic scan for application packages');
 
-    await this.applicationPackageQueue.add(
-      'periodic-scan',
-      {},
-      { jobId: 'periodic-scan' },
-    );
+    const waiting = await this.applicationPackageQueue.getWaitingCount();
+    const active = await this.applicationPackageQueue.getActiveCount();
 
-    return { completenessChecks: 0, submissions: 0 }; // Actual counts from processor
+    if (waiting > 0 || active > 0) {
+      this.logger.info(
+        { waiting, active },
+        'Periodic scan already queued or active, skipping',
+      );
+      return { completenessChecks: 0, submissions: 0 };
+    }
+
+    await this.applicationPackageQueue.add('periodic-scan', {});
+
+    return { completenessChecks: 0, submissions: 0 };
   }
 
   /**
