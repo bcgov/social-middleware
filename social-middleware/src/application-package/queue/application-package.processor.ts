@@ -95,7 +95,10 @@ export class ApplicationPackageProcessor {
           {
             applicationPackageId: pkg.applicationPackageId,
           },
-          { jobId: `completeness-check-${pkg.applicationPackageId}` },
+          {
+            jobId: `completeness-check-${pkg.applicationPackageId}`,
+            removeOnComplete: true,
+          },
         );
         completenessChecks++;
       }
