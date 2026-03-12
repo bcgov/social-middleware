@@ -12,6 +12,7 @@ import { Transform } from 'class-transformer';
 export class CreateUserDto {
   @IsString()
   @IsNotEmpty()
+  @MaxLength(80)
   bc_services_card_id!: string;
 
   @IsOptional() // it's possible that we get a mononym; in this case the first name will be blank
@@ -63,6 +64,7 @@ export class CreateUserDto {
 
   @IsString()
   @IsNotEmpty()
+  @MaxLength(50)
   country!: string;
 
   @IsString()

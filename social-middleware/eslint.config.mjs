@@ -34,4 +34,10 @@ export default tseslint.config(
       '@typescript-eslint/no-unsafe-member-access': 'off',
     },
   },
+  {                                                                                                        
+    files: ['**/*.spec.ts'],                                                                               
+    rules: {                                                                                               
+      '@typescript-eslint/unbound-method': 'off',
+    },
+  },
 );
