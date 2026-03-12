@@ -653,7 +653,7 @@ export class HouseholdService {
       .exec();
     return !!appPackage;
   }
-  // verify that the household member and
+  // verify that the household member application packageID is owned by a given userId
   async verifyUserOwnsHouseholdMemberPackage(
     householdMemberId: string,
     userId: string,
