@@ -76,7 +76,11 @@ spec:
             - name: MONGO_USE_TLS
               value: "true"
             - name: MONGO_TLS_CA_FILE
+              {{- if or (hasSuffix "-prod" .Release.Namespace) (hasSuffix "-test" .Release.Namespace) }}
+              value: "/etc/mongodb-custom-ca/ca.crt"
+              {{- else }}
               value: "/etc/mongodb-ca/service-ca.crt"
+              {{- end }}
             {{- if or (hasSuffix "-prod" .Release.Namespace) (hasSuffix "-test" .Release.Namespace) }}
             - name: MONGO_REPLICA_SET
               value: "rs0"
@@ -106,6 +110,11 @@ spec:
             - name: mongodb-ca
               mountPath: /etc/mongodb-ca
               readOnly: true
+            {{- if or (hasSuffix "-prod" .Release.Namespace) (hasSuffix "-test" .Release.Namespace) }}
+            - name: mongodb-custom-ca
+              mountPath: /etc/mongodb-custom-ca
+              readOnly: true
+            {{- end }}
           resources:
             {{- if or (hasSuffix "-prod" .Release.Namespace) (hasSuffix "-test" .Release.Namespace) }}
             limits:
@@ -150,6 +159,14 @@ spec:
         - name: mongodb-ca
           configMap:
             name: mongodb-ca-bundle
+        {{- if or (hasSuffix "-prod" .Release.Namespace) (hasSuffix "-test" .Release.Namespace) }}
+        - name: mongodb-custom-ca
+          secret:
+            secretName: mongodb-tls
+            items:
+              - key: ca.crt
+                path: ca.crt
+        {{- end }}
       restartPolicy: Always
       terminationGracePeriodSeconds: 30
       dnsPolicy: ClusterFirst
