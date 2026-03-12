@@ -1135,6 +1135,7 @@ export class ApplicationPackageService {
                     fileName: fullAttachment.fileName,
                     fileContent: fullAttachment.fileData,
                     fileType: fullAttachment.fileType,
+                    category: 'Consent',
                     description:
                       fullAttachment.description ||
                       `Attachment for household member`,
@@ -1525,6 +1526,7 @@ export class ApplicationPackageService {
           fileName: fullAttachment.fileName,
           fileContent: fullAttachment.fileData,
           fileType: fullAttachment.fileType,
+          category: 'Medical',
           description: 'Medical Assessment Form',
         });
 
