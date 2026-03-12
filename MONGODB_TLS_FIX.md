@@ -152,9 +152,20 @@ oc exec -n f6e00d-prod mongodb-0 -- mongosh \
 
 ---
 
+## Important: mongodb-tls is a Manually Managed Secret
+
+The `mongodb-tls` secret is **not created or managed by the CI/CD pipeline or Helm**. It must exist in the namespace before deployment.
+
+Previously, OpenShift auto-generated this secret via a service annotation (`service.beta.openshift.io/serving-cert-secret-name`). That annotation has been removed because OpenShift's CA only issues `serverAuth` certificates — MongoDB replica sets also require `clientAuth` for internal communication.
+
+**If this secret is missing, pods will fail to start** (the StatefulSet volume mount requires it).
+
+This secret is a one-time setup per namespace, similar to `mongodb-keyfile`. If it is ever accidentally deleted, re-run Steps 1–3 above for the affected namespace and restart the StatefulSet.
+
+Store the generated `ca.key`, `ca.crt`, `tls.key`, and `tls.crt` files somewhere secure (password manager, vault) so they can be reused if needed.
+
 ## Notes
 
-- The cert files for test are at `/tmp/mongodb-certs/` — these will be lost on reboot. The secret is already applied to the cluster so test is fine, but keep the files if you want to renew later.
-- Prod cert files will be at `/tmp/mongodb-certs-prod/` — same caveat. Consider storing them securely (e.g., in a password manager or vault) for future renewal.
 - Both certs are valid 10 years. No urgency on renewal.
-- This fix is on the `scale-up-test` branch. Needs to be merged to `main` before the prod Helm deploy (the chart is deployed from the working directory).
+- Cert files for test are at `/tmp/mongodb-certs/` on the dev machine — will be lost on reboot. Secret is already in the cluster so test is fine.
+- Cert files for prod will be at `/tmp/mongodb-certs-prod/` after tonight's fix — store securely before rebooting.
