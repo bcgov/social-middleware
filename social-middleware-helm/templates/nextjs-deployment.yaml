@@ -6,8 +6,10 @@ metadata:
   labels:
     app: {{ .Values.nextjs.podlabel }}
 spec:
-  {{- if not (hasSuffix "-prod" .Release.Namespace) }}
-  replicas: {{ .Values.nextjs.replicas | default 2 }}
+  {{- if hasSuffix "-test" .Release.Namespace }}
+  replicas: 2
+  {{- else if not (hasSuffix "-prod" .Release.Namespace) }}
+  replicas: {{ .Values.nextjs.replicas | default 1 }}
   {{- end }}
   selector:
     matchLabels:
@@ -32,7 +34,7 @@ spec:
             - -c
             - |
               echo "Waiting for MongoDB and Redis to be ready..."
-              {{- if hasSuffix "-prod" .Release.Namespace }}
+              {{- if or (hasSuffix "-prod" .Release.Namespace) (hasSuffix "-test" .Release.Namespace) }}
               echo "Production mode - waiting 30 seconds for MongoDB replica set to initialize..."
               sleep 30
               {{- else }}
@@ -64,7 +66,7 @@ spec:
                   name: mongodb
                   key: database-name
             - name: MONGO_HOST
-              {{- if hasSuffix "-prod" .Release.Namespace }}
+              {{- if or (hasSuffix "-prod" .Release.Namespace) (hasSuffix "-test" .Release.Namespace) }}
               value: "mongodb-0.{{ .Values.mongodb.podlabel }}.{{ .Release.Namespace }}.svc.cluster.local,mongodb-1.{{ .Values.mongodb.podlabel }}.{{ .Release.Namespace }}.svc.cluster.local,mongodb-2.{{ .Values.mongodb.podlabel }}.{{ .Release.Namespace }}.svc.cluster.local"
               {{- else }}
               value: "{{ .Values.mongodb.podlabel }}.{{ .Release.Namespace }}.svc"
@@ -75,7 +77,7 @@ spec:
               value: "true"
             - name: MONGO_TLS_CA_FILE
               value: "/etc/mongodb-ca/service-ca.crt"
-            {{- if hasSuffix "-prod" .Release.Namespace }}
+            {{- if or (hasSuffix "-prod" .Release.Namespace) (hasSuffix "-test" .Release.Namespace) }}
             - name: MONGO_REPLICA_SET
               value: "rs0"
             {{- end }}
@@ -105,7 +107,7 @@ spec:
               mountPath: /etc/mongodb-ca
               readOnly: true
           resources:
-            {{- if hasSuffix "-prod" .Release.Namespace }}
+            {{- if or (hasSuffix "-prod" .Release.Namespace) (hasSuffix "-test" .Release.Namespace) }}
             limits:
               memory: {{ .Values.nextjs.prod.resources.limits.memory }}
             requests:

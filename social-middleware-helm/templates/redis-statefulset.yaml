@@ -8,7 +8,7 @@ metadata:
     app.openshift.io/runtime: redis
 spec:
   serviceName: redis
-  {{- if hasSuffix "-prod" .Release.Namespace }}
+  {{- if or (hasSuffix "-prod" .Release.Namespace) (hasSuffix "-test" .Release.Namespace) }}
   replicas: {{ .Values.redis.replicas }}
   {{- else }}
   replicas: 1
@@ -72,7 +72,7 @@ spec:
             - name: QUEUE_BACKOFF_DELAY
               value: "5000"
           resources:
-            {{- if hasSuffix "-prod" .Release.Namespace }}
+            {{- if or (hasSuffix "-prod" .Release.Namespace) (hasSuffix "-test" .Release.Namespace) }}
             limits:
               memory: {{ .Values.redis.prod.resources.limits.memory }}
             requests:
@@ -124,7 +124,7 @@ spec:
         storageClassName: netapp-block-standard
         resources:
           requests:
-            {{- if hasSuffix "-prod" .Release.Namespace }}
+            {{- if or (hasSuffix "-prod" .Release.Namespace) (hasSuffix "-test" .Release.Namespace) }}
             storage: {{ .Values.redis.prod.storage.size }}
             {{- else }}
             storage: {{ .Values.redis.dev.storage.size }}
