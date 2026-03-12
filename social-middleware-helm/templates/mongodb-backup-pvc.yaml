@@ -1,4 +1,4 @@
-{{- if hasSuffix "-prod" .Release.Namespace }}
+{{- if or (hasSuffix "-prod" .Release.Namespace) (hasSuffix "-test" .Release.Namespace) }}
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
