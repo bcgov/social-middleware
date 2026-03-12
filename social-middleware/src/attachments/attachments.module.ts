@@ -4,12 +4,14 @@ import { AttachmentsController } from './attachments.controller';
 import { AttachmentsService } from './attachments.service';
 import { Attachment, AttachmentSchema } from './schemas/attachment.schema';
 import { SessionUtil } from '../common/utils/session.util';
+import { HouseholdModule } from '../household/household.module';
 
 @Module({
   imports: [
     MongooseModule.forFeature([
       { name: Attachment.name, schema: AttachmentSchema },
     ]),
+    HouseholdModule,
   ],
   controllers: [AttachmentsController],
   providers: [AttachmentsService, SessionUtil],
