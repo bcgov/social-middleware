@@ -56,7 +56,6 @@ export class AppModule {
           }),
         }),
         HealthModule,
-        ContactModule,
         FormsModule,
         DatabaseModule,
         ApplicationFormModule,
