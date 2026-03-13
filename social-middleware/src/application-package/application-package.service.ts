@@ -359,96 +359,116 @@ export class ApplicationPackageService {
         (applicationPackage.srStage === ServiceRequestStage.REFERRAL ||
           applicationPackage.srStage == null)
       ) {
-        // create aboutme as the first application Form
-        const aboutMeDto = {
-          applicationPackageId: applicationPackage.applicationPackageId,
-          formId: getFormIdForFormType(ApplicationFormType.ABOUTME),
-          userId: applicationPackage.userId,
-          householdMemberId: primaryApplicantMember.householdMemberId,
-          type: ApplicationFormType.ABOUTME,
-          formParameters: {},
-        };
-        await this.applicationFormService.createApplicationForm(aboutMeDto);
-
-        // note, household is handled differently from the other forms;
-        // we use the applicationForm table to track the status of the household data,
-        // but there is no actual form to fill out; the data is collected
-        // via the household API endpoints
-
-        const householdDto = {
-          applicationPackageId: applicationPackage.applicationPackageId,
-          formId: getFormIdForFormType(ApplicationFormType.HOUSEHOLD),
-          userId: applicationPackage.userId,
-          householdMemberId: primaryApplicantMember.householdMemberId,
-          type: ApplicationFormType.HOUSEHOLD,
-          formParameters: {},
-        };
-        await this.applicationFormService.createApplicationForm(householdDto);
-
-        const childrenDto = {
-          applicationPackageId: applicationPackage.applicationPackageId,
-          formId: getFormIdForFormType(ApplicationFormType.CHILDREN),
-          userId: applicationPackage.userId,
-          householdMemberId: primaryApplicantMember.householdMemberId,
-          type: ApplicationFormType.CHILDREN,
-          formParameters: {},
-        };
-        await this.applicationFormService.createApplicationForm(childrenDto);
-
-        const placementDto = {
-          applicationPackageId: applicationPackage.applicationPackageId,
-          formId: getFormIdForFormType(ApplicationFormType.PLACEMENT),
-          userId: applicationPackage.userId,
-          householdMemberId: primaryApplicantMember.householdMemberId,
-          type: ApplicationFormType.PLACEMENT,
-          formParameters: {},
-        };
-
-        await this.applicationFormService.createApplicationForm(placementDto);
-
-        // references is the fourth form
-        const referencesDto = {
-          applicationPackageId: applicationPackage.applicationPackageId,
-          formId: getFormIdForFormType(ApplicationFormType.REFERENCES),
-          userId: applicationPackage.userId,
-          householdMemberId: primaryApplicantMember.householdMemberId,
-          type: ApplicationFormType.REFERENCES,
-          formParameters: {},
-        };
-
-        await this.applicationFormService.createApplicationForm(referencesDto);
-
-        // consent is the final form
-        const disclosureConsentDto = {
-          applicationPackageId: applicationPackage.applicationPackageId,
-          formId: getFormIdForFormType(ApplicationFormType.DISCLOSURECONSENT),
-          userId: applicationPackage.userId,
-          householdMemberId: primaryApplicantMember.householdMemberId,
-          type: ApplicationFormType.DISCLOSURECONSENT,
-          formParameters: {},
-        };
-        await this.applicationFormService.createApplicationForm(
-          disclosureConsentDto,
+        // Idempotency check: if ABOUTME already exists, forms were already created
+        const existingForms =
+          await this.applicationFormService.getApplicationFormByHouseholdId(
+            primaryApplicantMember.householdMemberId,
+          );
+        const formsAlreadyCreated = existingForms.some(
+          (f) => f.type === ApplicationFormType.ABOUTME,
         );
 
-        // consent is the final form
-        const pccConsentDto = {
-          applicationPackageId: applicationPackage.applicationPackageId,
-          formId: getFormIdForFormType(ApplicationFormType.PCCCONSENT),
-          userId: applicationPackage.userId,
-          householdMemberId: primaryApplicantMember.householdMemberId,
-          type: ApplicationFormType.PCCCONSENT,
-          formParameters: {},
-        };
-        await this.applicationFormService.createApplicationForm(pccConsentDto);
-
-        // send notification that the application can be accessed
-        if (primaryApplicantMember.email) {
-          // they will 100% have an email, it's just that not all household-members have an email.
-          await this.notificationService.sendApplicationReady(
-            primaryApplicantMember.email,
-            applicantName,
+        if (formsAlreadyCreated) {
+          this.logger.warn(
+            { applicationPackageId: applicationPackage.applicationPackageId },
+            'Application forms already exist for this package — skipping creation (duplicate stage transition)',
           );
+        } else {
+          // create aboutme as the first application Form
+          const aboutMeDto = {
+            applicationPackageId: applicationPackage.applicationPackageId,
+            formId: getFormIdForFormType(ApplicationFormType.ABOUTME),
+            userId: applicationPackage.userId,
+            householdMemberId: primaryApplicantMember.householdMemberId,
+            type: ApplicationFormType.ABOUTME,
+            formParameters: {},
+          };
+          await this.applicationFormService.createApplicationForm(aboutMeDto);
+
+          // note, household is handled differently from the other forms;
+          // we use the applicationForm table to track the status of the household data,
+          // but there is no actual form to fill out; the data is collected
+          // via the household API endpoints
+
+          const householdDto = {
+            applicationPackageId: applicationPackage.applicationPackageId,
+            formId: getFormIdForFormType(ApplicationFormType.HOUSEHOLD),
+            userId: applicationPackage.userId,
+            householdMemberId: primaryApplicantMember.householdMemberId,
+            type: ApplicationFormType.HOUSEHOLD,
+            formParameters: {},
+          };
+          await this.applicationFormService.createApplicationForm(householdDto);
+
+          const childrenDto = {
+            applicationPackageId: applicationPackage.applicationPackageId,
+            formId: getFormIdForFormType(ApplicationFormType.CHILDREN),
+            userId: applicationPackage.userId,
+            householdMemberId: primaryApplicantMember.householdMemberId,
+            type: ApplicationFormType.CHILDREN,
+            formParameters: {},
+          };
+          await this.applicationFormService.createApplicationForm(childrenDto);
+
+          const placementDto = {
+            applicationPackageId: applicationPackage.applicationPackageId,
+            formId: getFormIdForFormType(ApplicationFormType.PLACEMENT),
+            userId: applicationPackage.userId,
+            householdMemberId: primaryApplicantMember.householdMemberId,
+            type: ApplicationFormType.PLACEMENT,
+            formParameters: {},
+          };
+
+          await this.applicationFormService.createApplicationForm(placementDto);
+
+          // references is the fourth form
+          const referencesDto = {
+            applicationPackageId: applicationPackage.applicationPackageId,
+            formId: getFormIdForFormType(ApplicationFormType.REFERENCES),
+            userId: applicationPackage.userId,
+            householdMemberId: primaryApplicantMember.householdMemberId,
+            type: ApplicationFormType.REFERENCES,
+            formParameters: {},
+          };
+
+          await this.applicationFormService.createApplicationForm(
+            referencesDto,
+          );
+
+          // consent is the final form
+          const disclosureConsentDto = {
+            applicationPackageId: applicationPackage.applicationPackageId,
+            formId: getFormIdForFormType(ApplicationFormType.DISCLOSURECONSENT),
+            userId: applicationPackage.userId,
+            householdMemberId: primaryApplicantMember.householdMemberId,
+            type: ApplicationFormType.DISCLOSURECONSENT,
+            formParameters: {},
+          };
+          await this.applicationFormService.createApplicationForm(
+            disclosureConsentDto,
+          );
+
+          // consent is the final form
+          const pccConsentDto = {
+            applicationPackageId: applicationPackage.applicationPackageId,
+            formId: getFormIdForFormType(ApplicationFormType.PCCCONSENT),
+            userId: applicationPackage.userId,
+            householdMemberId: primaryApplicantMember.householdMemberId,
+            type: ApplicationFormType.PCCCONSENT,
+            formParameters: {},
+          };
+          await this.applicationFormService.createApplicationForm(
+            pccConsentDto,
+          );
+
+          // send notification that the application can be accessed
+          if (primaryApplicantMember.email) {
+            // they will 100% have an email, it's just that not all household-members have an email.
+            await this.notificationService.sendApplicationReady(
+              primaryApplicantMember.email,
+              applicantName,
+            );
+          }
         }
       }
 
@@ -1115,6 +1135,7 @@ export class ApplicationPackageService {
                     fileName: fullAttachment.fileName,
                     fileContent: fullAttachment.fileData,
                     fileType: fullAttachment.fileType,
+                    category: 'Consent',
                     description:
                       fullAttachment.description ||
                       `Attachment for household member`,
@@ -1505,6 +1526,7 @@ export class ApplicationPackageService {
           fileName: fullAttachment.fileName,
           fileContent: fullAttachment.fileData,
           fileType: fullAttachment.fileType,
+          category: 'Medical',
           description: 'Medical Assessment Form',
         });
 

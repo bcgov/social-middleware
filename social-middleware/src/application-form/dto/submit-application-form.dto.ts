@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsUUID } from 'class-validator';
+import { IsString, IsUUID, MaxLength } from 'class-validator';
 export class SubmitApplicationFormDto {
   @ApiProperty({
     description: 'Unique token associated with the form submission',
@@ -14,5 +14,6 @@ export class SubmitApplicationFormDto {
     type: String,
   })
   @IsString()
+  @MaxLength(7000000)
   readonly jsonToSave!: string;
 }

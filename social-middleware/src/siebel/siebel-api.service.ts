@@ -251,6 +251,7 @@ export class SiebelApiService {
       fileContent: string; // base64 encoded string
       fileType: string;
       description: string;
+      category: string;
     },
   ) {
     const endpoint = '/Attachment/Attachment';
@@ -259,7 +260,7 @@ export class SiebelApiService {
       'Memo Id': 'NULL',
       'Memo Number': '',
       Categorie: 'Attachment',
-      Category: 'Decision',
+      Category: attachmentData.category,
       Status: 'Complete',
       FileExt: attachmentData.fileType,
       FileName: attachmentData.fileName,

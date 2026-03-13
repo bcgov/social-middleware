@@ -2,6 +2,7 @@ import { ApiProperty } from '@nestjs/swagger';
 import {
   IsEnum,
   IsString,
+  IsUUID,
   IsOptional,
   MinLength,
   MaxLength,
@@ -14,16 +15,17 @@ import { GenderTypes } from '../enums/gender-types.enum';
 
 export class CreateHouseholdMemberDto {
   @ApiProperty({ example: 'f47ac10b-58cc-4372-a567-0e02b2c3d479' })
-  @IsString()
+  @IsUUID()
   applicationPackageId!: string;
 
   @ApiProperty({ example: 'f47ac10b-58cc-4372-a567-0e02b2c3d479' })
   @IsOptional() // will be auto-generated if not provided
-  @IsString()
+  @IsUUID()
   householdMemberId?: string; // Unique ID for the household member (UUID)
 
   @IsOptional() // when created for a family member, we will not have a userId
   @IsString()
+  @MaxLength(30)
   userId?: string; // ID of the user this member represents (UUID)
 
   @IsString()

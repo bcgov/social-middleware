@@ -10,6 +10,8 @@ import {
   HttpStatus,
   ValidationPipe,
   ParseUUIDPipe,
+  UseGuards,
+  ForbiddenException,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -17,19 +19,25 @@ import {
   ApiResponse,
   ApiParam,
   ApiBody,
+  ApiBearerAuth,
 } from '@nestjs/swagger';
 import { Request } from 'express';
 import { AttachmentsService } from './attachments.service';
 import { CreateAttachmentDto } from './dto/create-attachment.dto';
 import { GetAttachmentDto } from './dto/get-attachment.dto';
 import { SessionUtil } from '../common/utils/session.util';
+import { SessionAuthGuard } from '../auth/session-auth.guard';
+import { HouseholdService } from '../household/services/household.service';
 
+@ApiBearerAuth()
 @ApiTags('Attachments')
 @Controller('attachments')
+@UseGuards(SessionAuthGuard)
 export class AttachmentsController {
   constructor(
     private readonly attachmentsService: AttachmentsService,
     private readonly sessionUtil: SessionUtil,
+    private readonly householdService: HouseholdService, // used to validate ownership
   ) {}
 
   @Post()
@@ -69,7 +77,6 @@ export class AttachmentsController {
     @Req() request: Request,
   ): Promise<GetAttachmentDto[]> {
     const userId = this.sessionUtil.extractUserIdFromRequest(request);
-    // TODO: Add session protection
     return await this.attachmentsService.findByApplicationPackageId(
       applicationPackageId,
       userId,
@@ -84,14 +91,19 @@ export class AttachmentsController {
     description: 'Attachments retrieved successfully',
     type: [GetAttachmentDto],
   })
-
-  //TODO: ADD SESSION PROTECTION
   async getByApplicationPackageAndHouseholdMemberId(
     @Param('householdMemberId', new ParseUUIDPipe()) householdMemberId: string,
-    // @Req() request: Request,
+    @Req() request: Request,
   ): Promise<GetAttachmentDto[]> {
-    //const userId = this.sessionUtil.extractUserIdFromRequest(request);
-    // TODO: Add session protection
+    const userId = this.sessionUtil.extractUserIdFromRequest(request);
+    const owns =
+      await this.householdService.verifyUserOwnsHouseholdMemberPackage(
+        householdMemberId,
+        userId,
+      );
+    if (!owns) {
+      throw new ForbiddenException();
+    }
     return await this.attachmentsService.findByHouseholdMemberId(
       householdMemberId,
     );
