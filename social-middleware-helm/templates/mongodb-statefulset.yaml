@@ -8,7 +8,7 @@ metadata:
     app.kubernetes.io/name: mongodb
     app.kubernetes.io/version: "7.0"
 spec:
-  {{- if hasSuffix "-prod" .Release.Namespace }}
+  {{- if or (hasSuffix "-prod" .Release.Namespace) (hasSuffix "-test" .Release.Namespace) }}
   replicas: {{ .Values.mongodb.replicaSet.replicas }}
   {{- else }}
   replicas: 1
@@ -39,9 +39,13 @@ spec:
             - |
               cat /etc/mongodb-tls/tls.crt /etc/mongodb-tls/tls.key > /etc/mongodb-ssl/mongodb.pem
               chmod 400 /etc/mongodb-ssl/mongodb.pem
-              cp /etc/mongodb-ca/service-ca.crt /etc/mongodb-ssl/ca.crt
+              if [ -f /etc/mongodb-tls/ca.crt ]; then
+                cp /etc/mongodb-tls/ca.crt /etc/mongodb-ssl/ca.crt
+              else
+                cp /etc/mongodb-ca/service-ca.crt /etc/mongodb-ssl/ca.crt
+              fi
               chmod 400 /etc/mongodb-ssl/ca.crt
-              {{- if hasSuffix "-prod" .Release.Namespace }}
+              {{- if or (hasSuffix "-prod" .Release.Namespace) (hasSuffix "-test" .Release.Namespace) }}
               # Copy and set permissions on keyfile for replica set
               cp /etc/mongodb-keyfile-mount/mongodb-keyfile /etc/mongodb-ssl/mongodb-keyfile
               chmod 400 /etc/mongodb-ssl/mongodb-keyfile
@@ -55,7 +59,7 @@ spec:
               readOnly: true
             - name: mongodb-ssl
               mountPath: /etc/mongodb-ssl
-            {{- if hasSuffix "-prod" .Release.Namespace }}
+            {{- if or (hasSuffix "-prod" .Release.Namespace) (hasSuffix "-test" .Release.Namespace) }}
             - name: mongodb-keyfile
               mountPath: /etc/mongodb-keyfile-mount
               readOnly: true
@@ -117,7 +121,7 @@ spec:
               mountPath: /scripts
               readOnly: true
           resources:
-            {{- if hasSuffix "-prod" .Release.Namespace }}
+            {{- if or (hasSuffix "-prod" .Release.Namespace) (hasSuffix "-test" .Release.Namespace) }}
             limits:
               memory: {{ .Values.mongodb.prod.resources.limits.memory }}
             requests:
@@ -146,7 +150,7 @@ spec:
           configMap:
             name: mongodb-init-script
             defaultMode: 0555
-        {{- if hasSuffix "-prod" .Release.Namespace }}
+        {{- if or (hasSuffix "-prod" .Release.Namespace) (hasSuffix "-test" .Release.Namespace) }}
         - name: mongodb-keyfile
           secret:
             secretName: mongodb-keyfile
@@ -159,7 +163,7 @@ spec:
         accessModes: ["ReadWriteOnce"]
         resources:
           requests:
-            {{- if hasSuffix "-prod" .Release.Namespace }}
+            {{- if or (hasSuffix "-prod" .Release.Namespace) (hasSuffix "-test" .Release.Namespace) }}
             storage: {{ .Values.mongodb.prod.storage.size }}
             {{- else }}
             storage: {{ .Values.mongodb.dev.storage.size }}

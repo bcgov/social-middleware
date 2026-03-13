@@ -6,8 +6,10 @@ metadata:
   labels:
     app: {{ .Values.nextjs.podlabel }}
 spec:
-  {{- if not (hasSuffix "-prod" .Release.Namespace) }}
-  replicas: {{ .Values.nextjs.replicas | default 2 }}
+  {{- if hasSuffix "-test" .Release.Namespace }}
+  replicas: 2
+  {{- else if not (hasSuffix "-prod" .Release.Namespace) }}
+  replicas: {{ .Values.nextjs.replicas | default 1 }}
   {{- end }}
   selector:
     matchLabels:
@@ -32,7 +34,7 @@ spec:
             - -c
             - |
               echo "Waiting for MongoDB and Redis to be ready..."
-              {{- if hasSuffix "-prod" .Release.Namespace }}
+              {{- if or (hasSuffix "-prod" .Release.Namespace) (hasSuffix "-test" .Release.Namespace) }}
               echo "Production mode - waiting 30 seconds for MongoDB replica set to initialize..."
               sleep 30
               {{- else }}
@@ -64,7 +66,7 @@ spec:
                   name: mongodb
                   key: database-name
             - name: MONGO_HOST
-              {{- if hasSuffix "-prod" .Release.Namespace }}
+              {{- if or (hasSuffix "-prod" .Release.Namespace) (hasSuffix "-test" .Release.Namespace) }}
               value: "mongodb-0.{{ .Values.mongodb.podlabel }}.{{ .Release.Namespace }}.svc.cluster.local,mongodb-1.{{ .Values.mongodb.podlabel }}.{{ .Release.Namespace }}.svc.cluster.local,mongodb-2.{{ .Values.mongodb.podlabel }}.{{ .Release.Namespace }}.svc.cluster.local"
               {{- else }}
               value: "{{ .Values.mongodb.podlabel }}.{{ .Release.Namespace }}.svc"
@@ -74,8 +76,12 @@ spec:
             - name: MONGO_USE_TLS
               value: "true"
             - name: MONGO_TLS_CA_FILE
+              {{- if or (hasSuffix "-prod" .Release.Namespace) (hasSuffix "-test" .Release.Namespace) }}
+              value: "/etc/mongodb-custom-ca/ca.crt"
+              {{- else }}
               value: "/etc/mongodb-ca/service-ca.crt"
-            {{- if hasSuffix "-prod" .Release.Namespace }}
+              {{- end }}
+            {{- if or (hasSuffix "-prod" .Release.Namespace) (hasSuffix "-test" .Release.Namespace) }}
             - name: MONGO_REPLICA_SET
               value: "rs0"
             {{- end }}
@@ -104,8 +110,13 @@ spec:
             - name: mongodb-ca
               mountPath: /etc/mongodb-ca
               readOnly: true
+            {{- if or (hasSuffix "-prod" .Release.Namespace) (hasSuffix "-test" .Release.Namespace) }}
+            - name: mongodb-custom-ca
+              mountPath: /etc/mongodb-custom-ca
+              readOnly: true
+            {{- end }}
           resources:
-            {{- if hasSuffix "-prod" .Release.Namespace }}
+            {{- if or (hasSuffix "-prod" .Release.Namespace) (hasSuffix "-test" .Release.Namespace) }}
             limits:
               memory: {{ .Values.nextjs.prod.resources.limits.memory }}
             requests:
@@ -148,6 +159,14 @@ spec:
         - name: mongodb-ca
           configMap:
             name: mongodb-ca-bundle
+        {{- if or (hasSuffix "-prod" .Release.Namespace) (hasSuffix "-test" .Release.Namespace) }}
+        - name: mongodb-custom-ca
+          secret:
+            secretName: mongodb-tls
+            items:
+              - key: ca.crt
+                path: ca.crt
+        {{- end }}
       restartPolicy: Always
       terminationGracePeriodSeconds: 30
       dnsPolicy: ClusterFirst
