@@ -3,7 +3,6 @@ import {
   Post,
   Param,
   Body,
-  Logger,
   HttpException,
   UseGuards,
   HttpStatus,
@@ -37,17 +36,18 @@ import {
 import { HouseholdMemberWithFormsDto } from './dto/household-member-with-forms.dto';
 import { SessionAuthGuard } from '../auth/session-auth.guard';
 import { ApplicationFormStatus } from '../application-form/enums/application-form-status.enum';
+import { PinoLogger } from 'nestjs-pino';
 @ApiTags('Household Members')
 @Controller('application-package/:applicationPackageId/household-members')
 @UseGuards(SessionAuthGuard)
 export class HouseholdController {
-  private readonly logger = new Logger(HouseholdController.name);
   constructor(
     private readonly householdService: HouseholdService,
     @Inject(forwardRef(() => ApplicationFormService))
     private readonly applicationFormService: ApplicationFormService,
     private readonly accessCodeService: AccessCodeService,
     private readonly sessionUtil: SessionUtil,
+    private readonly logger: PinoLogger,
   ) {}
 
   @Post()
@@ -66,7 +66,7 @@ export class HouseholdController {
     dto: CreateHouseholdMemberDto,
     @Req() request: Request,
   ): Promise<HouseholdMembersDocument> {
-    this.logger.log(
+    this.logger.info(
       `Received request to create household member for applicationPackageId=${applicationPackageId}`,
     );
     const userId = this.sessionUtil.extractUserIdFromRequest(request);
@@ -242,7 +242,7 @@ export class HouseholdController {
       );
     }
     await this.householdService.markScreeningProvided(householdMemberId);
-    this.logger.log(
+    this.logger.info(
       `Household member ${householdMemberId} confirmed screening package completion (${forms.length} forms)`,
     );
 
@@ -308,7 +308,7 @@ export class HouseholdController {
     // Mark household member screening as provided
     await this.householdService.markScreeningProvided(householdMemberId);
 
-    this.logger.log(
+    this.logger.info(
       `Marked ${forms.length} screening form(s) as attached for household member 
   ${householdMemberId}`,
     );
@@ -355,7 +355,7 @@ export class HouseholdController {
       );
     }
 
-    this.logger.log(
+    this.logger.info(
       `Retrieved access code for household member ${householdMemberId}`,
     );
 

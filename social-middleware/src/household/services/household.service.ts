@@ -253,6 +253,8 @@ export class HouseholdService {
     }
   }
 
+  /* Return the Household Member Document for a given householdMemberId
+   */
   async findById(
     householdMemberId: string,
   ): Promise<HouseholdMembersDocument | null> {
@@ -651,12 +653,13 @@ export class HouseholdService {
       .exec();
     return !!appPackage;
   }
-
+  // verify that the household member application packageID is owned by a given userId
   async verifyUserOwnsHouseholdMemberPackage(
     householdMemberId: string,
     userId: string,
   ): Promise<boolean> {
     try {
+      // get the householdMember record for the householdMemberId
       const member = await this.findById(householdMemberId);
 
       if (!member) {
@@ -665,13 +668,10 @@ export class HouseholdService {
       }
 
       // Check if user owns the application package
-      const appPackage = await this.applicationPackageModel
-        .findOne({
-          applicationPackageId: member.applicationPackageId,
-          userId: userId,
-        })
-        .lean()
-        .exec();
+      const appPackage = await this.verifyUserOwnsPackage(
+        member.applicationPackageId,
+        userId,
+      );
 
       return !!appPackage;
     } catch (error) {

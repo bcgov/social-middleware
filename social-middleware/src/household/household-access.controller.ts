@@ -3,7 +3,6 @@ import {
   Post,
   Body,
   Req,
-  Logger,
   UnauthorizedException,
   UseGuards,
   ValidationPipe,
@@ -15,16 +14,16 @@ import { SessionAuthGuard } from '../auth/session-auth.guard';
 import { AccessCodeService } from './services/access-code.service';
 import { UserService } from '../auth/user.service';
 import { AssociateAccessCodeDto } from './dto/associate-access-code.dto';
+import { PinoLogger } from 'nestjs-pino';
 
 @ApiTags('Household Access Codes')
 @Controller('household')
 export class HouseholdAccessCodeController {
-  private readonly logger = new Logger(HouseholdAccessCodeController.name);
-
   constructor(
     private readonly accessCodeService: AccessCodeService,
     private readonly sessionUtil: SessionUtil,
     private readonly userService: UserService,
+    private readonly logger: PinoLogger,
   ) {}
 
   @Post('access-code/associate')

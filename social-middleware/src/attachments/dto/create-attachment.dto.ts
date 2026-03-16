@@ -1,5 +1,12 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsEnum, IsOptional, IsNotEmpty } from 'class-validator';
+import {
+  IsString,
+  IsEnum,
+  IsOptional,
+  IsNotEmpty,
+  IsUUID,
+  MaxLength,
+} from 'class-validator';
 import {
   AttachmentType,
   AllowedFileType,
@@ -7,7 +14,7 @@ import {
 
 export class CreateAttachmentDto {
   @ApiProperty()
-  @IsString()
+  @IsUUID()
   @IsNotEmpty()
   applicationPackageId!: string;
 
@@ -28,6 +35,7 @@ export class CreateAttachmentDto {
   @ApiProperty()
   @IsString()
   @IsNotEmpty()
+  @MaxLength(255)
   fileName!: string;
 
   @ApiProperty({
@@ -43,6 +51,7 @@ export class CreateAttachmentDto {
   @ApiProperty()
   @IsString()
   @IsNotEmpty()
+  @MaxLength(7000000)
   fileData!: string; //base 64 encoded
 
   @ApiProperty({ required: false })
