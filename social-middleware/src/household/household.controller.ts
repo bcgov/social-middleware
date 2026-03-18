@@ -1,6 +1,7 @@
 import {
   Controller,
   Post,
+  Patch,
   Param,
   Body,
   HttpException,
@@ -24,6 +25,7 @@ import { AccessCodeService } from './services/access-code.service';
 import { ApplicationFormService } from '../application-form/services/application-form.service';
 import { CreateHouseholdMemberDto } from './dto/create-household-member.dto';
 import { GetApplicationFormDto } from '../application-form/dto/get-application-form.dto';
+import { UpdateHouseholdMemberDto } from './dto/update-household-member.dto';
 import { HouseholdMembersDocument } from './schemas/household-members.schema';
 import {
   ApiTags,
@@ -360,6 +362,134 @@ export class HouseholdController {
     );
 
     return accessCode;
+  }
+
+  // if the primary applicant made an error entering the household information
+  // we may need to enable the primary applicant to update their information
+  @Patch(':householdMemberId')
+  @ApiOperation({
+    summary:
+      'Update household member info (only before access code is redeemed)',
+  })
+  async updateMemberInfo(
+    @Param('applicationPackageId', new ParseUUIDPipe())
+    applicationPackageId: string,
+    @Param('householdMemberId', new ParseUUIDPipe()) householdMemberId: string,
+    @Body(new ValidationPipe({ whitelist: true, transform: true }))
+    dto: UpdateHouseholdMemberDto,
+    @Req() request: Request,
+  ): Promise<HouseholdMembersDocument> {
+    const userId = this.sessionUtil.extractUserIdFromRequest(request);
+    const hasAccess = await this.householdService.verifyUserOwnsPackage(
+      applicationPackageId,
+      userId,
+    );
+    if (!hasAccess) {
+      throw new UnauthorizedException(
+        'Not authorized to modify this application package',
+      );
+    }
+
+    const member = await this.householdService.findById(householdMemberId);
+    if (!member) {
+      throw new NotFoundException('Household member not found');
+    }
+    if (member.userId !== null) {
+      throw new BadRequestException(
+        'Cannot edit a household member who has already redeemed their access code',
+      );
+    }
+    if (member.screeningInfoProvided) {
+      throw new BadRequestException(
+        'Cannot edit a household member whose screening has been submitted',
+      );
+    }
+
+    const isEditable =
+      await this.householdService.verifyPackageEditable(applicationPackageId);
+    if (!isEditable) {
+      throw new BadRequestException(
+        'Application package is not in an editable state',
+      );
+    }
+
+    return this.householdService.updateHouseholdMember(householdMemberId, {
+      lastName: dto.lastName,
+      dateOfBirth: dto.dateOfBirth,
+      email: dto.email,
+    });
+  }
+
+  @Post(':householdMemberId/access-code/resend')
+  @ApiOperation({ summary: 'Resend access code to household member' })
+  async resendAccessCode(
+    @Param('applicationPackageId', new ParseUUIDPipe())
+    applicationPackageId: string,
+    @Param('householdMemberId', new ParseUUIDPipe()) householdMemberId: string,
+    @Req() request: Request,
+  ): Promise<{
+    accessCode: string;
+    expiresAt: Date;
+    isNew: boolean;
+    resendsRemainingToday: number;
+  }> {
+    const userId = this.sessionUtil.extractUserIdFromRequest(request);
+    const hasAccess = await this.householdService.verifyUserOwnsPackage(
+      applicationPackageId,
+      userId,
+    );
+    if (!hasAccess) {
+      throw new UnauthorizedException(
+        'Not authorized to modify this application package',
+      );
+    }
+
+    const member = await this.householdService.findById(householdMemberId);
+    if (!member) {
+      throw new NotFoundException('Household member not found');
+    }
+    if (member.userId !== null) {
+      throw new BadRequestException(
+        'Cannot resend access code to a member who has already logged in',
+      );
+    }
+    if (member.screeningInfoProvided) {
+      throw new BadRequestException(
+        'Cannot resend access code after screening has been submitted',
+      );
+    }
+
+    const resendCheck =
+      await this.householdService.canResendAccessCode(householdMemberId);
+    if (!resendCheck.canResend) {
+      if (resendCheck.reason === 'cooldown') {
+        throw new BadRequestException(
+          `Please wait ${resendCheck.cooldownMinutesRemaining} minute(s) before resending`,
+        );
+      }
+      throw new BadRequestException(
+        'Daily resend limit reached. Try again tomorrow.',
+      );
+    }
+
+    const { accessCode, expiresAt, isNew } =
+      await this.accessCodeService.resendOrCreateAccessCode(
+        applicationPackageId,
+        householdMemberId,
+      );
+
+    await this.householdService.incrementResendTracking(householdMemberId);
+
+    this.logger.info(
+      `Re-sent access code for household member ${householdMemberId} (isNew=${isNew})`,
+    );
+
+    return {
+      accessCode,
+      expiresAt,
+      isNew,
+      resendsRemainingToday: resendCheck.resendsRemainingToday - 1,
+    };
   }
 
   @Delete(':householdMemberId')
