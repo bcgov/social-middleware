@@ -18,6 +18,7 @@ import {
   ApplicationPackage,
   ApplicationPackageDocument,
 } from '../../application-package/schema/application-package.schema';
+import { ApplicationPackageStatus } from '../../application-package/enums/application-package-status.enum';
 import { GenderTypes } from '../enums/gender-types.enum';
 
 @Injectable()
@@ -697,5 +698,109 @@ export class HouseholdService {
       );
     }
     return user;
+  }
+
+  // a household member can only be edited if the application has not been submitted yet.
+  async verifyPackageEditable(applicationPackageId: string): Promise<boolean> {
+    const pkg = await this.applicationPackageModel
+      .findOne({ applicationPackageId })
+      .lean()
+      .exec();
+    if (!pkg) return false;
+    return (
+      pkg.status === ApplicationPackageStatus.APPLICATION ||
+      pkg.status === ApplicationPackageStatus.CONSENT
+    );
+  }
+
+  // there are rules to prevent the resending of access code,
+  // primarily to limit mis-use
+  async canResendAccessCode(householdMemberId: string): Promise<{
+    canResend: boolean;
+    reason?: string;
+    cooldownMinutesRemaining?: number;
+    resendsRemainingToday: number;
+  }> {
+    // check to see if the household member exists
+    const member = await this.householdMemberModel
+      .findOne({ householdMemberId })
+      .exec();
+    if (!member) throw new NotFoundException('Household member not found');
+
+    const now = new Date();
+    // wait at least 15 minutes before enabling a re-send
+    if (member.invitationLastSent) {
+      const minutesSince =
+        (now.getTime() - new Date(member.invitationLastSent).getTime()) / 60000;
+      if (minutesSince < 15) {
+        return {
+          canResend: false,
+          reason: 'cooldown',
+          cooldownMinutesRemaining: Math.ceil(15 - minutesSince),
+          resendsRemainingToday: 0,
+        };
+      }
+    }
+    // you can only re-send 3 times in a day.. that seems like plenty
+    const windowActive =
+      member.dailyResendWindowStart != null &&
+      now.getTime() - new Date(member.dailyResendWindowStart).getTime() <
+        24 * 60 * 60 * 1000;
+    const countToday = windowActive ? member.dailyResendCount : 0;
+
+    if (countToday >= 3) {
+      return {
+        canResend: false,
+        reason: 'limit_reached',
+        resendsRemainingToday: 0,
+      };
+    }
+
+    return {
+      canResend: true,
+      resendsRemainingToday: 3 - countToday,
+    };
+  }
+  // keep track of the number of times we re-send
+  async incrementResendTracking(householdMemberId: string): Promise<void> {
+    const member = await this.householdMemberModel
+      .findOne({ householdMemberId })
+      .exec();
+    if (!member) return;
+
+    const now = new Date();
+    // check to see if we have an active re-send window
+    const windowActive =
+      member.dailyResendWindowStart != null &&
+      now.getTime() - new Date(member.dailyResendWindowStart).getTime() <
+        24 * 60 * 60 * 1000;
+
+    // if we've re-sent already today
+    if (windowActive) {
+      await this.householdMemberModel
+        .findOneAndUpdate(
+          { householdMemberId },
+          {
+            $set: { invitationLastSent: now },
+            $inc: { numberOfInvitationsSent: 1, dailyResendCount: 1 },
+          },
+        )
+        .exec();
+    } else {
+      // start a re-send window and increment our counters
+      await this.householdMemberModel
+        .findOneAndUpdate(
+          { householdMemberId },
+          {
+            $set: {
+              invitationLastSent: now,
+              dailyResendCount: 1,
+              dailyResendWindowStart: now,
+            },
+            $inc: { numberOfInvitationsSent: 1 },
+          },
+        )
+        .exec();
+    }
   }
 }
