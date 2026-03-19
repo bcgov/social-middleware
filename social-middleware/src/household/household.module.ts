@@ -23,6 +23,8 @@ import {
   ApplicationPackage,
   ApplicationPackageSchema,
 } from '../application-package/schema/application-package.schema';
+import { NotificationModule } from '../notifications/notification.module';
+import { NotificationService } from '../notifications/services/notification.service';
 
 @Module({
   imports: [
@@ -33,10 +35,16 @@ import {
       { name: ApplicationPackage.name, schema: ApplicationPackageSchema },
     ]),
     AuthModule,
+    NotificationModule,
     forwardRef(() => ApplicationFormModule), // Add this back
   ],
   controllers: [HouseholdController, HouseholdAccessCodeController],
-  providers: [HouseholdService, AccessCodeService, SessionUtil],
+  providers: [
+    HouseholdService,
+    AccessCodeService,
+    SessionUtil,
+    NotificationService,
+  ],
   exports: [HouseholdService, AccessCodeService],
 })
 export class HouseholdModule {}
