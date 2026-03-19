@@ -23,6 +23,7 @@ import { SessionUtil } from '../common/utils/session.util';
 import { HouseholdService } from './services/household.service';
 import { AccessCodeService } from './services/access-code.service';
 import { ApplicationFormService } from '../application-form/services/application-form.service';
+import { NotificationService } from 'src/notifications/services/notification.service';
 import { CreateHouseholdMemberDto } from './dto/create-household-member.dto';
 import { GetApplicationFormDto } from '../application-form/dto/get-application-form.dto';
 import { UpdateHouseholdMemberDto } from './dto/update-household-member.dto';
@@ -48,6 +49,7 @@ export class HouseholdController {
     @Inject(forwardRef(() => ApplicationFormService))
     private readonly applicationFormService: ApplicationFormService,
     private readonly accessCodeService: AccessCodeService,
+    private readonly notificationService: NotificationService,
     private readonly sessionUtil: SessionUtil,
     private readonly logger: PinoLogger,
   ) {}
@@ -479,6 +481,23 @@ export class HouseholdController {
       );
 
     await this.householdService.incrementResendTracking(householdMemberId);
+    // send email notification to household member about access code.
+    if (member.email) {
+      const householdMemberName = member.firstName + ' ' + member.lastName;
+      const primaryApplicant =
+        await this.householdService.findPrimaryApplicant(applicationPackageId);
+      if (primaryApplicant) {
+        // there WILL be a primary applicant
+        const primaryApplicantName =
+          primaryApplicant.firstName + ' ' + primaryApplicant.lastName;
+        await this.notificationService.sendFCHAccessCode(
+          member.email,
+          primaryApplicantName,
+          householdMemberName,
+          accessCode,
+        );
+      }
+    }
 
     this.logger.info(
       `Re-sent access code for household member ${householdMemberId} (isNew=${isNew})`,
