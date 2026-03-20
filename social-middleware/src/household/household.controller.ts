@@ -23,7 +23,7 @@ import { SessionUtil } from '../common/utils/session.util';
 import { HouseholdService } from './services/household.service';
 import { AccessCodeService } from './services/access-code.service';
 import { ApplicationFormService } from '../application-form/services/application-form.service';
-import { NotificationService } from 'src/notifications/services/notification.service';
+import { NotificationService } from '../notifications/services/notification.service';
 import { CreateHouseholdMemberDto } from './dto/create-household-member.dto';
 import { GetApplicationFormDto } from '../application-form/dto/get-application-form.dto';
 import { UpdateHouseholdMemberDto } from './dto/update-household-member.dto';
