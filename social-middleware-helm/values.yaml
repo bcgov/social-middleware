@@ -43,6 +43,9 @@ mongodb:
         memory: 128Mi
     storage:
       size: 700Mi
+  test:
+    storage:
+      size: 1Gi
   prod:
     resources:
       limits:
