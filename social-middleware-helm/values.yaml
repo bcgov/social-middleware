@@ -43,6 +43,16 @@ mongodb:
         memory: 128Mi
     storage:
       size: 700Mi
+  test:
+    resources:
+      limits:
+        cpu: "500m"
+        memory: 1536Mi
+      requests:
+        cpu: "100m"
+        memory: 512Mi
+    storage:
+      size: 1Gi
   prod:
     resources:
       limits:

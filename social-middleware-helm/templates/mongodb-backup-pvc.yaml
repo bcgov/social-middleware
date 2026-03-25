@@ -13,5 +13,9 @@ spec:
   storageClassName: netapp-file-backup
   resources:
     requests:
+      {{- if hasSuffix "-prod" .Release.Namespace }}
       storage: 3Gi
+      {{- else }}
+      storage: 2Gi
+      {{- end }}
 {{- end }}

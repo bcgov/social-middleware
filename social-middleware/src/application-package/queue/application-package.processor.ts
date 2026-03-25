@@ -685,7 +685,25 @@ export class ApplicationPackageProcessor {
           applicationPackage.userId,
         );
 
-      // After successful submission:
+      if (!result.isComplete) {
+        // Package not ready yet (waiting on screening forms etc.) — leave as pending for retry
+        await this.applicationPackageModel.findOneAndUpdate(
+          { applicationPackageId },
+          {
+            submissionStatus: SubmissionStatus.PENDING,
+            updatedAt: new Date(),
+          },
+        );
+
+        this.logger.info(
+          { applicationPackageId },
+          'Package not yet complete — submission deferred, will retry',
+        );
+
+        return { success: false, serviceRequestId: result.serviceRequestId };
+      }
+
+      // Fully submitted
       await this.applicationPackageModel.findOneAndUpdate(
         { applicationPackageId },
         {
