@@ -1377,6 +1377,26 @@ export class ApplicationPackageService {
   ) {
     for (const member of nonSelfAdultMembers) {
       // create screening application form
+
+      // first see if forms already exist (maybe they are moving the workflow back a stage in ICM)
+
+      const existingForms =
+        await this.applicationFormService.getApplicationFormByHouseholdId(
+          member.householdMemberId,
+        );
+
+      const screeningAlreadyExists = existingForms.some(
+        (f) => f.type === ApplicationFormType.DISCLOSURECONSENT,
+      );
+
+      if (screeningAlreadyExists) {
+        this.logger.warn(
+          { householdMemberId: member.householdMemberId },
+          'Screening forms already exist for member -- skipping',
+        );
+        continue;
+      }
+
       await this.applicationFormService.createScreeningFormsAndAccessCode(
         applicationPackageId,
         member.householdMemberId,
