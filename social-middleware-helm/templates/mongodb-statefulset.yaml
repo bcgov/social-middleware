@@ -120,20 +120,26 @@ spec:
             - name: mongodb-init-script
               mountPath: /scripts
               readOnly: true
-          resources:
-            {{- if or (hasSuffix "-prod" .Release.Namespace) (hasSuffix "-test" .Release.Namespace) }}
-            limits:
-              memory: {{ .Values.mongodb.prod.resources.limits.memory }}
-            requests:
-              cpu: {{ .Values.mongodb.prod.resources.requests.cpu | quote }}
-              memory: {{ .Values.mongodb.prod.resources.requests.memory }}
-            {{- else }}
-            limits:
-              memory: {{ .Values.mongodb.dev.resources.limits.memory }}
-            requests:
-              cpu: {{ .Values.mongodb.dev.resources.requests.cpu | quote }}
-              memory: {{ .Values.mongodb.dev.resources.requests.memory }}
-            {{- end }}
+          resources:                                                                                     
+              {{- if hasSuffix "-prod" .Release.Namespace }}
+              limits:                                                                                      
+                memory: {{ .Values.mongodb.prod.resources.limits.memory }}                               
+              requests:                                                   
+                cpu: {{ .Values.mongodb.prod.resources.requests.cpu | quote }}
+                memory: {{ .Values.mongodb.prod.resources.requests.memory }}  
+              {{- else if hasSuffix "-test" .Release.Namespace }}                                          
+              limits:                                            
+                memory: {{ .Values.mongodb.test.resources.limits.memory }}                                 
+              requests:                                                                                  
+                cpu: {{ .Values.mongodb.test.resources.requests.cpu | quote }}                             
+                memory: {{ .Values.mongodb.test.resources.requests.memory }}  
+              {{- else }}                                                                                  
+              limits:                                                                                    
+                memory: {{ .Values.mongodb.dev.resources.limits.memory }}
+              requests:                                                                                    
+                cpu: {{ .Values.mongodb.dev.resources.requests.cpu | quote }}
+                memory: {{ .Values.mongodb.dev.resources.requests.memory }}                                
+              {{- end }} 
       restartPolicy: Always
       volumes:
         - name: mongodb-tls
@@ -163,8 +169,10 @@ spec:
         accessModes: ["ReadWriteOnce"]
         resources:
           requests:
-            {{- if or (hasSuffix "-prod" .Release.Namespace) (hasSuffix "-test" .Release.Namespace) }}
+            {{- if hasSuffix "-prod" .Release.Namespace }}
             storage: {{ .Values.mongodb.prod.storage.size }}
+            {{- else if hasSuffix "-test" .Release.Namespace }}
+            storage: {{ .Values.mongodb.test.storage.size }}                                             
             {{- else }}
-            storage: {{ .Values.mongodb.dev.storage.size }}
-            {{- end }}
+            storage: {{ .Values.mongodb.dev.storage.size }}                                              
+            {{- end }}  
