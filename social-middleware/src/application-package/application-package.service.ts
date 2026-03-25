@@ -739,7 +739,7 @@ export class ApplicationPackageService {
   async submitApplicationPackage(
     applicationPackageId: string,
     userId: string,
-  ): Promise<{ serviceRequestId: string }> {
+  ): Promise<{ serviceRequestId: string; isComplete: boolean }> {
     try {
       this.logger.info(
         { applicationPackageId, userId },
@@ -808,6 +808,7 @@ export class ApplicationPackageService {
         // we probably have more screening forms to collect
         return {
           serviceRequestId: serviceRequestId,
+          isComplete: false,
         };
       }
 
@@ -1250,6 +1251,7 @@ export class ApplicationPackageService {
 
       return {
         serviceRequestId: serviceRequestId,
+        isComplete: true,
       };
     } catch (error) {
       this.logger.error(
@@ -1449,9 +1451,9 @@ export class ApplicationPackageService {
       );
     }
 
-    this.logger.info(
-      'Skipping form completion check until feature completely implemented',
-    );
+    //this.logger.info(
+    //  'Skipping form completion check until feature completely implemented',
+    //);
 
     if (
       !allApplicationForms ||
