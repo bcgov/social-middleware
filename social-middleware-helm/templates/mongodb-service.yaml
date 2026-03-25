@@ -3,8 +3,6 @@ kind: Service
 metadata:
   name: {{ .Values.mongodb.podlabel }}
   namespace: {{ .Release.Namespace }}
-  annotations:
-    service.beta.openshift.io/serving-cert-secret-name: mongodb-tls
   labels:
     app: {{ .Values.mongodb.podlabel }}
 spec:
@@ -15,7 +13,7 @@ spec:
       protocol: TCP
       port: {{ .Values.mongodb.port }}
       targetPort: {{ .Values.mongodb.targetport }}
-  {{- if hasSuffix "-prod" .Release.Namespace }}
+  {{- if or (hasSuffix "-prod" .Release.Namespace) (hasSuffix "-test" .Release.Namespace) }}
   clusterIP: None
   {{- else }}
   type: ClusterIP

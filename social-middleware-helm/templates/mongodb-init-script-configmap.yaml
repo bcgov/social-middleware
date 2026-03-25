@@ -12,13 +12,13 @@ data:
 
     echo "=== MongoDB Startup with User Initialization ==="
 
-    # Detect if running in prod (replica set mode) or dev (standalone)
+    # Detect if replica set mode is enabled (set REPLICA_SET_NAME env var to enable)
     IS_PROD=false
-    if echo "$NAMESPACE" | grep -q -- "-prod$"; then
+    if [ -n "$REPLICA_SET_NAME" ]; then
       IS_PROD=true
-      echo "Running in PRODUCTION mode - Replica Set enabled"
+      echo "Running in REPLICA SET mode - Replica Set enabled (${REPLICA_SET_NAME})"
     else
-      echo "Running in DEVELOPMENT mode - Standalone"
+      echo "Running in STANDALONE mode"
     fi
 
     # Check if initialization has already been done
@@ -267,8 +267,8 @@ data:
         sleep 20
 
         echo "Adding members with FQDNs to match TLS certificates:"
-        echo "  - mongodb-1.mongodb.f6e00d-prod.svc.cluster.local:27017"
-        echo "  - mongodb-2.mongodb.f6e00d-prod.svc.cluster.local:27017"
+        echo "  - mongodb-1.mongodb.${NAMESPACE}.svc.cluster.local:27017"
+        echo "  - mongodb-2.mongodb.${NAMESPACE}.svc.cluster.local:27017"
 
         mongosh "mongodb://$MONGODB_ADMIN_USER:$MONGODB_ADMIN_PASSWORD@127.0.0.1:27017/admin?tls=true&tlsAllowInvalidCertificates=true" \
           --quiet \
@@ -282,15 +282,15 @@ data:
 
             if (currentMembers === 1) {
               // Add mongodb-1 with FQDN (required for TLS certificate matching)
-              print('Adding mongodb-1 with FQDN: mongodb-1.mongodb.f6e00d-prod.svc.cluster.local:27017');
-              rs.add({ _id: 1, host: 'mongodb-1.mongodb.f6e00d-prod.svc.cluster.local:27017', priority: 1 });
+              print('Adding mongodb-1 with FQDN: mongodb-1.mongodb.${NAMESPACE}.svc.cluster.local:27017');
+              rs.add({ _id: 1, host: 'mongodb-1.mongodb.${NAMESPACE}.svc.cluster.local:27017', priority: 1 });
               print('Added mongodb-1 to replica set');
 
               sleep(5000);
 
               // Add mongodb-2 with FQDN (required for TLS certificate matching)
-              print('Adding mongodb-2 with FQDN: mongodb-2.mongodb.f6e00d-prod.svc.cluster.local:27017');
-              rs.add({ _id: 2, host: 'mongodb-2.mongodb.f6e00d-prod.svc.cluster.local:27017', priority: 1 });
+              print('Adding mongodb-2 with FQDN: mongodb-2.mongodb.${NAMESPACE}.svc.cluster.local:27017');
+              rs.add({ _id: 2, host: 'mongodb-2.mongodb.${NAMESPACE}.svc.cluster.local:27017', priority: 1 });
               print('Added mongodb-2 to replica set');
 
               sleep(5000);

@@ -739,7 +739,7 @@ export class ApplicationPackageService {
   async submitApplicationPackage(
     applicationPackageId: string,
     userId: string,
-  ): Promise<{ serviceRequestId: string }> {
+  ): Promise<{ serviceRequestId: string; isComplete: boolean }> {
     try {
       this.logger.info(
         { applicationPackageId, userId },
@@ -808,6 +808,7 @@ export class ApplicationPackageService {
         // we probably have more screening forms to collect
         return {
           serviceRequestId: serviceRequestId,
+          isComplete: false,
         };
       }
 
@@ -1250,6 +1251,7 @@ export class ApplicationPackageService {
 
       return {
         serviceRequestId: serviceRequestId,
+        isComplete: true,
       };
     } catch (error) {
       this.logger.error(
@@ -1377,6 +1379,26 @@ export class ApplicationPackageService {
   ) {
     for (const member of nonSelfAdultMembers) {
       // create screening application form
+
+      // first see if forms already exist (maybe they are moving the workflow back a stage in ICM)
+
+      const existingForms =
+        await this.applicationFormService.getApplicationFormByHouseholdId(
+          member.householdMemberId,
+        );
+
+      const screeningAlreadyExists = existingForms.some(
+        (f) => f.type === ApplicationFormType.DISCLOSURECONSENT,
+      );
+
+      if (screeningAlreadyExists) {
+        this.logger.warn(
+          { householdMemberId: member.householdMemberId },
+          'Screening forms already exist for member -- skipping',
+        );
+        continue;
+      }
+
       await this.applicationFormService.createScreeningFormsAndAccessCode(
         applicationPackageId,
         member.householdMemberId,
@@ -1429,9 +1451,9 @@ export class ApplicationPackageService {
       );
     }
 
-    this.logger.info(
-      'Skipping form completion check until feature completely implemented',
-    );
+    //this.logger.info(
+    //  'Skipping form completion check until feature completely implemented',
+    //);
 
     if (
       !allApplicationForms ||
