@@ -68,7 +68,11 @@ export class ApplicationPackageQueueService {
       {
         applicationPackageId,
       },
-      { jobId: `submission-${applicationPackageId}` },
+      {
+        jobId: `submission-${applicationPackageId}`,
+        removeOnComplete: true,
+        removeOnFail: false,
+      },
     );
 
     this.logger.info(
