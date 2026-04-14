@@ -168,6 +168,9 @@ export class ApplicationFormService {
             householdMemberName,
             accessCode,
           );
+          await this.householdService.incrementResendTracking(
+            householdMemberId,
+          );
         }
       }
 
