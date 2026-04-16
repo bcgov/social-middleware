@@ -62,7 +62,7 @@ export abstract class BaseAuthStrategy {
     const requiredFields = [
       'sub',
       'email',
-      'given_names',
+      //'given_names',
       'family_name',
       'birthdate',
     ];
@@ -154,7 +154,10 @@ export abstract class BaseAuthStrategy {
         sub: userInfo.sub,
         email: userInfo.email,
         name:
-          userInfo.name || `${userInfo.given_names} ${userInfo.family_name}`,
+          userInfo.name ||
+          [userInfo.given_names, userInfo.family_name]
+            .filter(Boolean)
+            .join(' '),
         userId: user.id.toString(),
         jti: uuidv4(),
         iat: Math.floor(Date.now() / 1000),
