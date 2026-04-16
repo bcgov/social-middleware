@@ -55,7 +55,6 @@ export class SiebelApiService {
       'X-ICM-TrustedUsername': this.trustedUsername,
       'Content-Type': 'application/json',
       Accept: 'application/json',
-      'Accept-Encoding': 'identity',
     };
   }
 
@@ -258,7 +257,6 @@ export class SiebelApiService {
     const endpoint = '/Attachment/Attachment';
     const payload = {
       'SR Id': serviceRequestId,
-      Id: 'NULL',
       'Memo Id': 'NULL',
       'Memo Number': '',
       Categorie: 'Attachment',
@@ -419,12 +417,6 @@ export class SiebelApiService {
     return await this.put(endpoint, payload);
   }
 */
-
-  private toTitleCase(str: string): string {
-    if (!str) return str;
-    return str.toLowerCase().replace(/\b\w/g, (char) => char.toUpperCase());
-  }
-
   async createProspect(prospectData: {
     ServiceRequestId: string;
     IcmBcscDid: string;
@@ -443,16 +435,12 @@ export class SiebelApiService {
     ApplicantFlag: string;
   }) {
     const endpoint = '/Prospects/SRProspects/';
-    const nameParts = prospectData.FirstName.trim().split(/\s+/); // BCSC provides the given name, which may include multiple names
-    const firstName = nameParts[0]; // separate the first name
-    const middleName = nameParts.slice(1).join(' ') || ''; // split off the middlenames if they exist
     const payload = {
       Id: 'NULL',
       'Service Request Id': prospectData.ServiceRequestId,
       'ICM BCSC DID': prospectData.IcmBcscDid,
-      'First Name': this.toTitleCase(firstName),
-      'Middle Name': this.toTitleCase(middleName),
-      'Last Name': this.toTitleCase(prospectData.LastName),
+      'First Name': prospectData.FirstName,
+      'Last Name': prospectData.LastName,
       'Birth Date': prospectData.DateofBirth,
       'Street Address': prospectData.StreetAddress,
       City: prospectData.City,
@@ -497,10 +485,7 @@ export class SiebelApiService {
             data,
             params,
             status: error.response?.status,
-            statusText: error.response?.statusText,
             errorData,
-            errorMessage: error.message,
-            errorStack: error.stack,
           },
           'PUT request failed',
         );

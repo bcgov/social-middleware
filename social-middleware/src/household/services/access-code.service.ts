@@ -106,7 +106,7 @@ export class AccessCodeService {
         accessCode,
         isUsed: false,
         expiresAt: { $gt: new Date() },
-        attemptCount: { $lt: 5 },
+        attemptCount: { $lt: 10 },
       });
 
       // if we didn't find a valid one return
@@ -271,35 +271,6 @@ export class AccessCodeService {
       );
       throw new InternalServerErrorException('Failed to fetch access code');
     }
-  }
-
-  // get the latest access code if it is valid, otherwise create a new one.
-  async resendOrCreateAccessCode(
-    applicationPackageId: string,
-    householdMemberId: string,
-  ): Promise<{ accessCode: string; expiresAt: Date; isNew: boolean }> {
-    // check to see if we have an access code for this householdMember
-    const existing = await this.getLatestAccessCode(householdMemberId);
-    // if it exists and is valid
-    if (
-      existing &&
-      !existing.isUsed &&
-      existing.expiresAt > new Date() &&
-      existing.attemptCount < 5
-    ) {
-      // return it
-      return {
-        accessCode: existing.accessCode,
-        expiresAt: existing.expiresAt,
-        isNew: false,
-      };
-    }
-    //otherwise create a new one
-    const created = await this.createAccessCode(
-      applicationPackageId,
-      householdMemberId,
-    );
-    return { ...created, isNew: true };
   }
 
   // helper method to compare BCSC DOB to ISO DOB (which ICM prefers)

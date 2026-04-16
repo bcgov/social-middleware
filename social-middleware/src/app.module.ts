@@ -16,7 +16,6 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { AttachmentsModule } from './attachments/attachments.module';
 import { NotificationModule } from './notifications/notification.module';
 import { EventEmitterModule } from '@nestjs/event-emitter';
-import pino from 'pino';
 
 @Module({})
 export class AppModule {
@@ -38,10 +37,6 @@ export class AppModule {
           useFactory: (config: ConfigService) => ({
             pinoHttp: {
               level: config.get('NODE_ENV') === 'production' ? 'info' : 'debug',
-              serializers: {
-                err: pino.stdSerializers.err,
-                error: pino.stdSerializers.err,
-              },
               autoLogging: {
                 ignore: (req) => req.url === '/health',
               },
