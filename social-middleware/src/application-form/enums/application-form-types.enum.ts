@@ -52,7 +52,7 @@ export function getScreeningFormRecipe(
       ];
     default:
       return [
-        //ApplicationFormType.ABOUTHOUSEHOLD,
+        ApplicationFormType.ABOUTHOUSEHOLD,
         ApplicationFormType.DISCLOSURECONSENT,
         ApplicationFormType.PCCCONSENT,
       ];

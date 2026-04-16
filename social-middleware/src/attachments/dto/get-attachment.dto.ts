@@ -1,5 +1,4 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsOptional } from 'class-validator';
 import { AttachmentType } from '../enums/attachment-types.enum';
 
 export class GetAttachmentDto {
@@ -10,18 +9,15 @@ export class GetAttachmentDto {
   applicationPackageId!: string;
 
   @ApiProperty({ required: false })
-  @IsOptional()
   householdMemberId?: string | null;
 
   @ApiProperty({ required: false })
-  @IsOptional()
   applicationFormId?: string | null;
 
   @ApiProperty({ enum: AttachmentType })
   attachmentType!: AttachmentType;
 
   @ApiProperty({ required: false })
-  @IsOptional()
   icmAttachmentId?: string | null;
 
   @ApiProperty()
@@ -34,7 +30,6 @@ export class GetAttachmentDto {
   fileSize!: number;
 
   @ApiProperty({ required: false })
-  @IsOptional()
   description?: string;
 
   @ApiProperty()
