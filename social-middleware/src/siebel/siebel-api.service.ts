@@ -301,134 +301,11 @@ export class SiebelApiService {
     return await this.put(endpoint, payload);
   }
 
-  /*
-  async createForm(attachmentData, formData: string) {
-    const endpoint = '/ICM REST Forms Upsert/DT Form Instance Orbeon Revise/';
-    const payload = {};
-
-    const decodedFormData = JSON.parse(
-      Buffer.from(formData, 'base64').toString('utf-8'),
-    ) as {
-      data: Record<string, unknown>;
-      form_definition: {
-        data: {
-          items?: unknown[];
-        };
-        elements?: unknown[];
-      };
-    };
-*/
-  /**
-   * Apply Kiln Version
-   * Kiln V1 uses data: { items: []}
-   * Kiln V2 uses dataSources []
-   */
-  /*
-    const kilnVersion = Object.keys(
-      decodedFormData.form_definition.data,
-    ).includes('items')
-      ? 1
-      : 2;
-
-    const formDefinitionItems =
-      kilnVersion === 1
-        ? decodedFormData.form_definition.data.items
-        : decodedFormData.form_definition.elements; // This is the field info for form items
-
-    // dateItemsId : This will contain all of the IDs of the date fields
-    // checkboxItemsId : This will contain all of the IDs of the checkbox fields
-    const { dateItemsId, checkboxItemsId, textInfoFields } = this.getFormIds(
-      formDefinitionItems || [],
-    );
-
-    // note: skipped form exceptions for now..
-
-    // Transform the data for XML
-    const simplifiedData = this.fixJSONValuesForXML(
-      decodedFormData.data,
-      dateItemsId,
-      checkboxItemsId,
-      textInfoFields,
-      kilnVersion,
-    );
-
-    // Generate XML Hierarchy
-    const builder = new Builder({
-      xmldec: { version: '1.0' },
-      renderOpts: { pretty: false },
-      rootName: 'root',
-    });
-
-    const xmlHierarchy = builder.buildObject(simplifiedData);
-    if (isFormException) {
-      // If any forms with the correct version (TODO) have been listed as exceptions, then proceed with their form exceptions
-      // If the root needs a differernt name, apply it here. Otherwise use the default "root"
-      if (
-        propertyExists(dictionary, formId, 'rootName') &&
-        propertyNotEmpty(dictionary, formId, 'rootName')
-      ) {
-        builder = new xml2js.Builder({
-          xmldec: { version: '1.0' },
-          renderOpts: { pretty: false },
-          rootName: dictionary[formId]['rootName'],
-        });
-      } else {
-        builder = new xml2js.Builder({
-          xmldec: { version: '1.0' },
-          renderOpts: { pretty: false },
-        });
-      }
-
-      let wrapperJson = truncatedKeysSaveData;
-      // If subRoots exist, wrap the sub-roots around the JSON where the last array object will be closest to JSON and first array object will be closest to root/rootName
-      if (
-        propertyExists(dictionary, formId, 'subRoots') &&
-        propertyNotEmpty(dictionary, formId, 'subRoots')
-      ) {
-        wrapperJson = {};
-        let tempJson = {};
-        const subRootLength = dictionary[formId]['subRoots'].length;
-        for (i = subRootLength; i > 0; i = i - 1) {
-          if (i === subRootLength) {
-            tempJson[dictionary[formId]['subRoots'][i - 1]] =
-              truncatedKeysSaveData;
-          } else {
-            wrapperJson[dictionary[formId]['subRoots'][i - 1]] = tempJson;
-            tempJson = wrapperJson;
-            wrapperJson = {};
-          }
-        }
-        wrapperJson = tempJson;
-      }
-      saveJson['XML Hierarchy'] = builder.buildObject(wrapperJson);
-    } else {
-      builder = new xml2js.Builder({
-        xmldec: { version: '1.0' },
-        renderOpts: { pretty: false },
-      });
-      saveJson['XML Hierarchy'] = builder.buildObject(truncatedKeysSaveData);
-    }
-    //let url = buildUrlWithParams('SIEBEL_ICM_API_HOST', 'fwd/v1.0/data/DT Form Instance Thin/DT Form Instance Thin/' + attachment_id + '/', '');
-    const xml = saveJson['XML Hierarchy'];
-    const xmlSize = Buffer.byteLength(xml, 'utf8'); // size in bytes
-
-    console.log('XML Hierarchy:', xml);
-    console.log('XML Hierarchy length (chars):', xml.length);
-    console.log('XML Hierarchy size (bytes):', xmlSize);
-
-    return await this.put(endpoint, payload);
-  }
-*/
-
-  private toTitleCase(str: string): string {
-    if (!str) return str;
-    return str.toLowerCase().replace(/\b\w/g, (char) => char.toUpperCase());
-  }
-
   async createProspect(prospectData: {
     ServiceRequestId: string;
     IcmBcscDid: string;
     FirstName: string;
+    MiddleName: string;
     LastName: string;
     DateofBirth: string;
     StreetAddress: string;
@@ -443,16 +320,16 @@ export class SiebelApiService {
     ApplicantFlag: string;
   }) {
     const endpoint = '/Prospects/SRProspects/';
-    const nameParts = prospectData.FirstName.trim().split(/\s+/); // BCSC provides the given name, which may include multiple names
-    const firstName = nameParts[0]; // separate the first name
-    const middleName = nameParts.slice(1).join(' ') || ''; // split off the middlenames if they exist
     const payload = {
       Id: 'NULL',
       'Service Request Id': prospectData.ServiceRequestId,
       'ICM BCSC DID': prospectData.IcmBcscDid,
-      'First Name': this.toTitleCase(firstName),
-      'Middle Name': this.toTitleCase(middleName),
-      'Last Name': this.toTitleCase(prospectData.LastName),
+      'First Name': prospectData.FirstName,
+      'Middle Name': prospectData.MiddleName,
+      'Last Name': prospectData.LastName,
+      //'First Name': this.toTitleCase(firstName),
+      //'Middle Name': this.toTitleCase(middleName),
+      //'Last Name': this.toTitleCase(prospectData.LastName),
       'Birth Date': prospectData.DateofBirth,
       'Street Address': prospectData.StreetAddress,
       City: prospectData.City,
