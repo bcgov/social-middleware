@@ -1026,11 +1026,13 @@ export class ApplicationPackageService {
                 form.type === ApplicationFormType.PCCCONSENT) &&
               form.userId
             ) {
-              const householdMember = allHouseholdMembers.find(
-                (member) => member.userId === form.userId,
-              );
-              if (householdMember) {
-                fileName = `${householdMember.firstName}_${householdMember.lastName}-${form.type}`;
+              const memberUser = await this.userService.findOne(form.userId);
+
+              if (memberUser) {
+                const { firstName } = this.userUtil.firstAndMiddleName(
+                  memberUser.first_name,
+                );
+                fileName = `${firstName}_${this.userUtil.toTitleCase(memberUser.last_name)}-${form.type}`;
               } else {
                 this.logger.warn(
                   {
