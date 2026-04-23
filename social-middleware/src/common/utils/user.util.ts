@@ -21,6 +21,23 @@ export class UserUtil {
     }
   }
 
+  toTitleCase(str: string): string {
+    if (!str) return str;
+    return str.toLowerCase().replace(/\b\w/g, (char) => char.toUpperCase());
+  }
+
+  // convert a BCSC Given Name into first and middle names (if they exist)
+  firstAndMiddleName(str: string): {
+    firstName: string;
+    middleName: string;
+  } {
+    const nameParts = str.trim().split(/\s+/);
+    return {
+      firstName: this.toTitleCase(nameParts[0]),
+      middleName: this.toTitleCase(nameParts.slice(1).join(' ')), // split off the middlenames if they exist
+    };
+  }
+
   icmDateFormat(bcscDate: string): string {
     if (!bcscDate) return '';
 
