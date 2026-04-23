@@ -5,27 +5,24 @@ export class UpdateApplicationPackageDto {
   @ApiProperty({
     description: 'Whether the applicant has a partner/spouse',
     example: 'true',
-    required: false,
   })
   @IsOptional()
   @IsBoolean()
-  hasPartner?: boolean;
+  hasPartner!: boolean;
 
   @ApiProperty({
     description: 'Whether the applicant has a household',
     example: 'true',
-    required: false,
   })
   @IsOptional()
   @IsBoolean()
-  hasHousehold?: boolean;
+  hasHousehold!: boolean;
 
   @ApiProperty({
     description: 'Whether the applicant has a support network',
     example: 'true',
-    required: false,
   })
   @IsOptional()
   @IsBoolean()
-  hasSupportNetwork?: boolean;
+  hasSupportNetwork!: boolean;
 }

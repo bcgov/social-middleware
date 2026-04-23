@@ -62,7 +62,7 @@ mongodb:
         cpu: "100m"
         memory: 512Mi
     storage:
-      size: 3Gi
+      size: 1Gi
 
 redis:
   replicas: 3

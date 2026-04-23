@@ -21,11 +21,10 @@ export class NewTokenDto {
   @ApiProperty({
     description: 'The ID of the form to associate',
     example: 'CF0001',
-    required: false,
   })
   @IsOptional()
   @IsString()
-  formId?: string;
+  formId!: string;
 
   @ApiProperty({
     description: 'Form parameters to configure form. It can be empty initially',
@@ -36,6 +35,17 @@ export class NewTokenDto {
     required: false,
   })
   @IsObject()
-  @IsOptional()
-  formParameters?: Record<string, unknown>;
+  formParameters!: Record<string, unknown>;
+
+  /*
+  formP
+// always new for new form parameters
+      formId: dto.formId,
+      formAccessToken,
+      formParameters: {
+        formId: dto.formId,
+        language: 'en',
+      },
+    });
+*/
 }

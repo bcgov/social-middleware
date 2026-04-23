@@ -28,7 +28,6 @@ export class CreateApplicationFormDto {
   @ApiProperty({
     description: 'The id of the user initiating the  form',
     example: '37fbe045-4be7-4226-b2e6-a0018f797b11',
-    required: false,
   })
   @IsOptional()
   @IsObject()
@@ -38,7 +37,6 @@ export class CreateApplicationFormDto {
   @ApiProperty({
     description: 'Who this form is about',
     example: '37fbe045-4be7-4226-b2e6-a0018f797b11',
-    required: false,
   })
   @IsObject()
   @IsNotEmpty()
@@ -52,7 +50,7 @@ export class CreateApplicationFormDto {
   })
   @IsOptional()
   @IsEnum(ApplicationFormType)
-  type?: ApplicationFormType;
+  type!: ApplicationFormType;
 
   @ApiProperty({
     description: 'Form parameters to configure form. It can be empty initially',
@@ -62,9 +60,8 @@ export class CreateApplicationFormDto {
     },
     required: false,
   })
-  @IsOptional()
   @IsObject()
-  formParameters?: Record<string, unknown>;
+  formParameters!: Record<string, unknown>;
 
   @ApiProperty({
     description: 'Optional initial form data',
