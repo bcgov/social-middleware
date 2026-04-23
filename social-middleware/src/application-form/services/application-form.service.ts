@@ -1,4 +1,3 @@
-/* eslint-disable prettier/prettier */
 import {
   ForbiddenException,
   HttpException,
@@ -115,25 +114,24 @@ export class ApplicationFormService {
     applicationPackageId: string,
     householdMemberId: string,
   ): Promise<{
-    accessCode?: string; 
-    expiresAt?: Date; 
+    accessCode?: string;
+    expiresAt?: Date;
   }> {
     try {
-
       this.logger.info('Creating Screening Forms and Access Code');
 
-      const householdMember = await this.householdService.findById(householdMemberId);
+      const householdMember =
+        await this.householdService.findById(householdMemberId);
 
-      if(!householdMember) {
-        throw new InternalServerErrorException(
-          'Household member not found',
-        );
+      if (!householdMember) {
+        throw new InternalServerErrorException('Household member not found');
       }
 
-      const formsToCreate = getScreeningFormRecipe(householdMember.relationshipToPrimary)
+      const formsToCreate = getScreeningFormRecipe(
+        householdMember.relationshipToPrimary,
+      );
 
-      for(const formType of formsToCreate) {
-
+      for (const formType of formsToCreate) {
         const formDto = {
           applicationPackageId: applicationPackageId,
           formId: getFormIdForFormType(formType),
@@ -143,7 +141,6 @@ export class ApplicationFormService {
         };
 
         await this.createApplicationForm(formDto);
-
       }
 
       // generate an access code
@@ -154,13 +151,27 @@ export class ApplicationFormService {
         );
 
       // send email notification to household member about access code.
-      if(householdMember.email) {
-        const householdMemberName = householdMember.firstName + " " + householdMember.lastName;
-        const primaryApplicant = await this.householdService.findPrimaryApplicant(applicationPackageId);
-        if( primaryApplicant) { // there WILL be a primary applicant
-          const primaryApplicantName = primaryApplicant.firstName + " " + primaryApplicant.lastName;
-          await this.notificationService.sendFCHAccessCode(householdMember.email, primaryApplicantName, householdMemberName, accessCode);
-        }       
+      if (householdMember.email) {
+        const householdMemberName =
+          householdMember.firstName + ' ' + householdMember.lastName;
+        const primaryApplicant =
+          await this.householdService.findPrimaryApplicant(
+            applicationPackageId,
+          );
+        if (primaryApplicant) {
+          // there WILL be a primary applicant
+          const primaryApplicantName =
+            primaryApplicant.firstName + ' ' + primaryApplicant.lastName;
+          await this.notificationService.sendFCHAccessCode(
+            householdMember.email,
+            primaryApplicantName,
+            householdMemberName,
+            accessCode,
+          );
+          await this.householdService.incrementResendTracking(
+            householdMemberId,
+          );
+        }
       }
 
       return {
@@ -242,57 +253,62 @@ export class ApplicationFormService {
     userId: string,
   ): Promise<boolean> {
     try {
+      // check direct ownership
+      const directOwnership = await this.applicationFormModel
+        .findOne({ applicationFormId: { $eq: applicationFormId }, userId })
+        .lean()
+        .exec();
 
+      if (directOwnership) {
+        this.logger.info({ applicationFormId, userId }, 'Form owned by user');
+        return true;
+      }
 
-    // check direct ownership
-    const directOwnership = await this.applicationFormModel
-      .findOne({ applicationFormId: { $eq: applicationFormId }, userId })
-      .lean()
-      .exec();
+      // check via householdmembership
+      const householdMembers = await this.householdService.findByUserId(userId);
 
-    if (directOwnership) {
+      if (!householdMembers || householdMembers.length === 0) {
+        this.logger.info(
+          { applicationFormId, userId },
+          'No household memberships found for user; no form ownership possible',
+        );
+        return false;
+      }
+      // there may be multiple memberships for the user
+      for (const member of householdMembers) {
+        const householdForm = await this.applicationFormModel
+          .findOne({
+            applicationFormId: { $eq: applicationFormId },
+            householdMemberId: member.householdMemberId,
+          })
+          .lean()
+          .exec();
+
+        if (householdForm) {
+          this.logger.info(
+            {
+              applicationFormId,
+              userId,
+              householdMemberId: member.householdMemberId,
+            },
+            'Form owned via household member association',
+          );
+          return true;
+        }
+      }
+
       this.logger.info(
-        {applicationFormId, userId},
-        'Form owned by user',
+        { applicationFormId, userId },
+        'Form not found for user or their household memberships',
       );
-      return true;
-    }
-
-    // check via householdmembership
-    const householdMembers = await this.householdService.findByUserId(userId);
-
-    if (!householdMembers || householdMembers.length === 0) {
-      this.logger.info(
-        {applicationFormId, userId},
-        'No household memberships found for user; no form ownership possible',
+      return false;
+    } catch (error) {
+      this.logger.error(
+        { error, applicationFormId, userId },
+        'Error confirming form ownership',
       );
       return false;
     }
-    // there may be multiple memberships for the user
-    for (const member of householdMembers) {
-      const householdForm = await this.applicationFormModel.findOne({applicationFormId: {$eq: applicationFormId}, householdMemberId: member.householdMemberId,}).lean().exec();
-
-      if (householdForm) {
-        this.logger.info(
-          { applicationFormId, userId, householdMemberId: member.householdMemberId },
-          'Form owned via household member association',
-        );
-        return true;
-      }
-    }
-
-    this.logger.info (
-      { applicationFormId, userId},
-      'Form not found for user or their household memberships',
-    );
-    return false;
-  } catch (error) {
-    this.logger.error(
-      { error, applicationFormId, userId },
-      'Error confirming form ownership',
-    );
-    return false;
-  }
   }
 
   async getApplicationFormsByUser(
@@ -479,7 +495,7 @@ export class ApplicationFormService {
 
       if (!form) {
         this.logger.info(
-          { applicationFormId},
+          { applicationFormId },
           'Application form not found or access denied',
         );
         return null;
@@ -508,14 +524,14 @@ export class ApplicationFormService {
       };
 
       this.logger.info(
-        { applicationFormId},
+        { applicationFormId },
         'Application form fetched successfully',
       );
 
       return result;
     } catch (error) {
       this.logger.error(
-        { error, applicationFormId},
+        { error, applicationFormId },
         'Failed to fetch application form by ID',
       );
       throw new InternalServerErrorException(
@@ -523,9 +539,11 @@ export class ApplicationFormService {
       );
     }
   }
-  
-  async getApplicationFormsForUser(userId: string): Promise<GetApplicationFormDto[][]>{
-    // returns applicationForms grouped by householdMemberId; 
+
+  async getApplicationFormsForUser(
+    userId: string,
+  ): Promise<GetApplicationFormDto[][]> {
+    // returns applicationForms grouped by householdMemberId;
     // used to access household screenings
     // it's possible (but perhaps unusual) that an user is part of multiple household definitions
     // so it needs to be an array
@@ -533,22 +551,30 @@ export class ApplicationFormService {
       // get all households the user belongs to
       const householdMembers = await this.householdService.findByUserId(userId);
       // ignore the ones they are the primary applicant on; they will be accessed through the applicationPackage
-      const nonPrimaryMembers = householdMembers.filter(member=> member.relationshipToPrimary != RelationshipToPrimary.Self);
+      const nonPrimaryMembers = householdMembers.filter(
+        (member) => member.relationshipToPrimary != RelationshipToPrimary.Self,
+      );
       // get all forms related to those household memberships
       const allForms = await Promise.all(
         // for each household
         nonPrimaryMembers.map(async (member) => {
           // get the application forms that belong to that household membership
-          const forms = this.getApplicationFormByHouseholdId(member.householdMemberId);
+          const forms = this.getApplicationFormByHouseholdId(
+            member.householdMemberId,
+          );
           // filter to the forms that are allowed for screenings; this depends on the relationship they have
           // e.g. spouses get a different screening form than a non-spouse household member
-          const allowedFormTypes = getScreeningFormRecipe(member.relationshipToPrimary);
-          return (await forms).filter(form => allowedFormTypes.includes(form.type));
-        })
+          const allowedFormTypes = getScreeningFormRecipe(
+            member.relationshipToPrimary,
+          );
+          return (await forms).filter((form) =>
+            allowedFormTypes.includes(form.type),
+          );
+        }),
       );
       // only return array values for households that include forms (e.g. not primary applicant forms)
-      return allForms.filter(formArray => formArray.length > 0);
-    } catch(error) {
+      return allForms.filter((formArray) => formArray.length > 0);
+    } catch (error) {
       this.logger.error(
         { error, userId },
         'No household records found for user',
@@ -563,7 +589,7 @@ export class ApplicationFormService {
   ): Promise<GetApplicationFormDto[]> {
     try {
       this.logger.info(
-        { householdMemberId},
+        { householdMemberId },
         'Fetching application form by household memberID',
       );
 
@@ -571,7 +597,7 @@ export class ApplicationFormService {
       const forms = await this.applicationFormModel
         .find(
           {
-            householdMemberId: { $eq: householdMemberId},
+            householdMemberId: { $eq: householdMemberId },
           },
           { formData: 0 },
         )
@@ -580,7 +606,7 @@ export class ApplicationFormService {
 
       if (!forms) {
         this.logger.info(
-          { householdMemberId},
+          { householdMemberId },
           'No application forms found for household member',
         );
         return [];
@@ -610,7 +636,7 @@ export class ApplicationFormService {
             submittedAt: form.submittedAt ?? null,
             updatedAt: form.updatedAt,
           };
-        })
+        }),
       );
 
       this.logger.info(
@@ -619,8 +645,6 @@ export class ApplicationFormService {
       );
 
       return results;
-
-
     } catch (error) {
       this.logger.error(
         { error, householdMemberId },
@@ -637,7 +661,8 @@ export class ApplicationFormService {
     userId: string,
   ): Promise<boolean> {
     try {
-      const householdMember = await this.householdService.findById(householdMemberId);
+      const householdMember =
+        await this.householdService.findById(householdMemberId);
 
       if (!householdMember) {
         this.logger.warn(
@@ -650,7 +675,11 @@ export class ApplicationFormService {
       // Check if the household member is associated with this user
       if (householdMember.userId !== userId) {
         this.logger.warn(
-          { householdMemberId, requestUserId: userId, householdUserId: householdMember.userId },
+          {
+            householdMemberId,
+            requestUserId: userId,
+            householdUserId: householdMember.userId,
+          },
           'User does not have access to this household member',
         );
         return false;
@@ -667,67 +696,112 @@ export class ApplicationFormService {
   }
 
   /**
-   * Convert json form data to XML for ICM 
+   * Convert json form data to XML for ICM
    * @param applicationFormId
    * @returns XML string form data
    */
 
   async convertFormDataToXml(applicationFormId: string): Promise<string> {
     try {
-      this.logger.info({applicationFormId}, 'Generating form XML');
+      this.logger.info({ applicationFormId }, 'Generating form XML');
 
       // find the application form
-      const form = await this.applicationFormModel.findOne({applicationFormId}).lean().exec();
+      const form = await this.applicationFormModel
+        .findOne({ applicationFormId })
+        .lean()
+        .exec();
 
-      if(!form) {
+      if (!form) {
         throw new NotFoundException(
           `Application form ${applicationFormId} not found`,
         );
       }
 
-      if(!form.formData) {
+      if (!form.formData) {
         throw new Error('Form data is empty');
       }
 
       // decode base64
-      const decodedJson = Buffer.from(form.formData, 'base64').toString('utf-8');
+      const decodedJson = Buffer.from(form.formData, 'base64').toString(
+        'utf-8',
+      );
 
       // parse JSON
-      const parsedJson = JSON.parse(decodedJson);
-
-      // Extract only the data field if it exists (nested structure), otherwise use the entire object (flat structure)
-      // This ensures we only include form field values, not form_definition or metadata
+      const parsedJson = JSON.parse(decodedJson) as Record<string, unknown>;
       const formDataObject = parsedJson.data ? parsedJson.data : parsedJson;
-      
-      // generate XML structure
-      // xml2js expects { root: { fieldName: value }}
-      const xmlObject = {
-        root: formDataObject
+
+      // RECURSIVELY STRIP ALL VALUES FROM XML -- There is a bug in Siebel that causes the REST API PUT to silently fail
+      // if some indeterminate characters are present in the XML Hierarchy; the workaround for this is to strip the values from the hierarchy
+      // and provide only the template for binding; the downside to this is that none of the values can be read by ICM
+      // this is currently not a requirement for Caregiver, but in the future if it becomes one, we will need to understand what exactly
+      // needs to be sanitized. See #9915 for ticket.
+
+      const stripValues = (obj: unknown): unknown => {
+        if (Array.isArray(obj)) {
+          return obj.map((item) => stripValues(item));
+        }
+        if (obj !== null && typeof obj === 'object') {
+          return Object.fromEntries(
+            Object.entries(obj as Record<string, unknown>).map(([k, v]) => [
+              k,
+              stripValues(v),
+            ]),
+          );
+        }
+        return null;
       };
 
+      const strippedFormData = stripValues(formDataObject) as Record<
+        string,
+        unknown
+      >;
+
+      const xmlObject = {
+        root: strippedFormData,
+      };
+
+      /*
+          // Extract only the data field if it exists (nested structure), otherwise use the entire object (flat structure)
+          // This ensures we only include form field values, not form_definition or metadata
+
+
+          // generate XML structure
+          // xml2js expects { root: { fieldName: value }}
+          const xmlObject = {
+            root: formDataObject,
+          };
+      */
+
       // build XML
-       
+
       const builder = new Builder({
         xmldec: { version: '1.0' },
         renderOpts: { pretty: false }, // returns single line
         headless: false, // include <?xml version="1.0"?>
       });
 
-       
       const xml = builder.buildObject(xmlObject);
 
-      this.logger.info({applicationFormId}, 'successfully generated XML for form data')
+      this.logger.info(
+        { applicationFormId },
+        'successfully generated XML for form data',
+      );
 
       return xml;
     } catch (error) {
-      this.logger.error({ error, applicationFormId }, 'Failed to convert form data to XML',);
-      throw new InternalServerErrorException('Failed to generate form data XML');
+      this.logger.error(
+        { error, applicationFormId },
+        'Failed to convert form data to XML',
+      );
+      throw new InternalServerErrorException(
+        'Failed to generate form data XML',
+      );
     }
   }
 
   async submitApplicationForm(
     dto: SubmitApplicationFormDto,
-    status: ApplicationFormStatus
+    status: ApplicationFormStatus,
   ): Promise<void> {
     try {
       this.logger.info('Saving application', dto.token);
@@ -779,33 +853,38 @@ export class ApplicationFormService {
   ): Promise<void> {
     try {
       this.logger.info(
-        {householdMemberId, userId},
+        { householdMemberId, userId },
         'Marking application form as user attached',
-      )
+      );
 
       await this.applicationFormModel
-        .updateMany( 
-          { householdMemberId: { $eq: householdMemberId} }, 
-          //{ $set: {userAttachedForm: true, status: ApplicationFormStatus.COMPLETE} }, 
+        .updateMany(
+          { householdMemberId: { $eq: householdMemberId } },
+          //{ $set: {userAttachedForm: true, status: ApplicationFormStatus.COMPLETE} },
           //{ new: true},
           {
             $set: {
               userAttachedForm: true,
               status: ApplicationFormStatus.COMPLETE,
-            }
-          }
+            },
+          },
         )
         .exec();
-      
-      this.logger.info({
-        householdMemberId,
-      }, 'Successfully marked form as user attached',);
 
+      this.logger.info(
+        {
+          householdMemberId,
+        },
+        'Successfully marked form as user attached',
+      );
     } catch (error) {
       if (error instanceof NotFoundException) {
-        throw error
+        throw error;
       }
-      this.logger.error({ error, householdMemberId }, 'Failed to mark form as user attached');
+      this.logger.error(
+        { error, householdMemberId },
+        'Failed to mark form as user attached',
+      );
       throw new InternalServerErrorException(
         'Failed to update application form',
       );
