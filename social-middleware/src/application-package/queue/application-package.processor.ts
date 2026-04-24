@@ -484,11 +484,16 @@ export class ApplicationPackageProcessor {
         'Step 2: Creating prospect in Siebel for primary applicant',
       );
 
+      const { firstName, middleName } = this.userUtil.firstAndMiddleName(
+        primaryUser.first_name,
+      );
+
       const primaryUserProspectPayload = {
         ServiceRequestId: srId,
         IcmBcscDid: primaryUser.bc_services_card_id,
-        FirstName: primaryUser.first_name,
-        LastName: primaryUser.last_name,
+        FirstName: firstName,
+        MiddleName: middleName,
+        LastName: this.userUtil.toTitleCase(primaryUser.last_name),
         DateofBirth: formatDateForSiebel(primaryUser.dateOfBirth),
         StreetAddress: primaryUser.street_address,
         City: primaryUser.city,
@@ -576,18 +581,18 @@ export class ApplicationPackageProcessor {
           template: formId,
           xmlHierarchy: xmlHierarchy,
           fileContent: indigenousForm.formData,
-        })) as { Id: string };
+        })) as { items: { Id: string } };
 
       await this.applicationFormService.saveSiebelAttachmentId(
         indigenousForm.applicationFormId,
-        attachmentResult.Id,
+        attachmentResult.items.Id,
       );
 
       this.logger.info(
         {
           applicationPackageId,
           srId,
-          attachmentId: attachmentResult.Id,
+          attachmentId: attachmentResult.items.Id,
         },
         'Indigenous form attached to Siebel SR',
       );

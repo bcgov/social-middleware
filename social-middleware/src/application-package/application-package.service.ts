@@ -851,11 +851,17 @@ export class ApplicationPackageService {
             const memberUser = await this.userService.findOne(
               householdMember.userId,
             );
+
+            const { firstName, middleName } = this.userUtil.firstAndMiddleName(
+              memberUser.first_name,
+            );
+
             prospectPayload = {
               ServiceRequestId: serviceRequestId,
               IcmBcscDid: memberUser.bc_services_card_id,
-              FirstName: memberUser.first_name,
-              LastName: memberUser.last_name,
+              FirstName: firstName,
+              MiddleName: middleName,
+              LastName: this.userUtil.toTitleCase(memberUser.last_name),
               DateofBirth: formatDateForSiebel(memberUser.dateOfBirth),
               StreetAddress: memberUser.street_address,
               City: memberUser.city,
@@ -872,11 +878,17 @@ export class ApplicationPackageService {
             };
           } else {
             // household member without user account (typically minors)
+
+            const { firstName, middleName } = this.userUtil.firstAndMiddleName(
+              householdMember.firstName,
+            );
+
             prospectPayload = {
               ServiceRequestId: serviceRequestId,
               IcmBcscDid: '',
-              FirstName: householdMember.firstName,
-              LastName: householdMember.lastName,
+              FirstName: firstName,
+              MiddleName: middleName,
+              LastName: this.userUtil.toTitleCase(householdMember.lastName),
               DateofBirth: formatDateForSiebel(householdMember.dateOfBirth),
               StreetAddress: primaryApplicant.street_address,
               City: primaryApplicant.city,
@@ -1004,17 +1016,23 @@ export class ApplicationPackageService {
             });
             continue;
           }
-
+          // form has not already been uploaded, and has some form data which indicates it is a valid form.
           if (form.formData) {
             let fileName = form.type as string;
 
             // files need to have unique names, so for screening forms, add the household member's name
-            if (form.type === ApplicationFormType.SCREENING && form.userId) {
-              const householdMember = allHouseholdMembers.find(
-                (member) => member.userId === form.userId,
-              );
-              if (householdMember) {
-                fileName = `${householdMember.firstName}_${householdMember.lastName}-SCREENING`;
+            if (
+              (form.type === ApplicationFormType.DISCLOSURECONSENT ||
+                form.type === ApplicationFormType.PCCCONSENT) &&
+              form.userId
+            ) {
+              const memberUser = await this.userService.findOne(form.userId);
+
+              if (memberUser) {
+                const { firstName } = this.userUtil.firstAndMiddleName(
+                  memberUser.first_name,
+                );
+                fileName = `${firstName}_${this.userUtil.toTitleCase(memberUser.last_name)}-${form.type}`;
               } else {
                 this.logger.warn(
                   {
@@ -1042,15 +1060,15 @@ export class ApplicationPackageService {
                   xmlHierarchy: xmlHierarchy,
                   fileContent: fileContent,
                 },
-              )) as { Id: string };
+              )) as { items: { Id: string } };
             await this.applicationFormService.saveSiebelAttachmentId(
               form.applicationFormId,
-              attachmentResult.Id,
+              attachmentResult.items?.Id,
             );
 
             attachmentResults.push({
               applicationFormId: form.applicationFormId,
-              attachmentId: attachmentResult.Id,
+              attachmentId: attachmentResult.items?.Id,
             });
 
             this.logger.info(
@@ -1141,16 +1159,16 @@ export class ApplicationPackageService {
                       fullAttachment.description ||
                       `Attachment for household member`,
                   },
-                )) as { Id: string };
+                )) as { items: { Id: string } };
 
               await this.attachmentsService.saveIcmAttachmentId(
                 fullAttachment.attachmentId,
-                attachmentResult.Id,
+                attachmentResult.items.Id,
               );
 
               attachmentResults.push({
                 attachmentId: fullAttachment.attachmentId,
-                siebelAttachmentId: attachmentResult.Id,
+                siebelAttachmentId: attachmentResult.items.Id,
               });
 
               this.logger.info(
