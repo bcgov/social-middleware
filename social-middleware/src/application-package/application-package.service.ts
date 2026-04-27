@@ -1060,15 +1060,15 @@ export class ApplicationPackageService {
                   xmlHierarchy: xmlHierarchy,
                   fileContent: fileContent,
                 },
-              )) as { items: { Id: string } };
+              )) as { Id: string };
             await this.applicationFormService.saveSiebelAttachmentId(
               form.applicationFormId,
-              attachmentResult.items?.Id,
+              attachmentResult.Id,
             );
 
             attachmentResults.push({
               applicationFormId: form.applicationFormId,
-              attachmentId: attachmentResult.items?.Id,
+              attachmentId: attachmentResult.Id,
             });
 
             this.logger.info(
@@ -1159,16 +1159,16 @@ export class ApplicationPackageService {
                       fullAttachment.description ||
                       `Attachment for household member`,
                   },
-                )) as { items: { Id: string } };
+                )) as { Id: string };
 
               await this.attachmentsService.saveIcmAttachmentId(
                 fullAttachment.attachmentId,
-                attachmentResult.items.Id,
+                attachmentResult.Id,
               );
 
               attachmentResults.push({
                 attachmentId: fullAttachment.attachmentId,
-                siebelAttachmentId: attachmentResult.items.Id,
+                siebelAttachmentId: attachmentResult.Id,
               });
 
               this.logger.info(

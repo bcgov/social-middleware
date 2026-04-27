@@ -55,7 +55,6 @@ export class SiebelApiService {
       'X-ICM-TrustedUsername': this.trustedUsername,
       'Content-Type': 'application/json',
       Accept: 'application/json',
-      'Accept-Encoding': 'identity',
     };
   }
 
@@ -258,7 +257,6 @@ export class SiebelApiService {
     const endpoint = '/Attachment/Attachment';
     const payload = {
       'SR Id': serviceRequestId,
-      Id: 'NULL',
       'Memo Id': 'NULL',
       'Memo Number': '',
       Categorie: 'Attachment',
@@ -327,9 +325,6 @@ export class SiebelApiService {
       'First Name': prospectData.FirstName,
       'Middle Name': prospectData.MiddleName,
       'Last Name': prospectData.LastName,
-      //'First Name': this.toTitleCase(firstName),
-      //'Middle Name': this.toTitleCase(middleName),
-      //'Last Name': this.toTitleCase(prospectData.LastName),
       'Birth Date': prospectData.DateofBirth,
       'Street Address': prospectData.StreetAddress,
       City: prospectData.City,
@@ -374,10 +369,7 @@ export class SiebelApiService {
             data,
             params,
             status: error.response?.status,
-            statusText: error.response?.statusText,
             errorData,
-            errorMessage: error.message,
-            errorStack: error.stack,
           },
           'PUT request failed',
         );

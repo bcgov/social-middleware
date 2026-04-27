@@ -581,18 +581,18 @@ export class ApplicationPackageProcessor {
           template: formId,
           xmlHierarchy: xmlHierarchy,
           fileContent: indigenousForm.formData,
-        })) as { items: { Id: string } };
+        })) as { Id: string };
 
       await this.applicationFormService.saveSiebelAttachmentId(
         indigenousForm.applicationFormId,
-        attachmentResult.items.Id,
+        attachmentResult.Id,
       );
 
       this.logger.info(
         {
           applicationPackageId,
           srId,
-          attachmentId: attachmentResult.items.Id,
+          attachmentId: attachmentResult.Id,
         },
         'Indigenous form attached to Siebel SR',
       );

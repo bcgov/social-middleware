@@ -23,7 +23,6 @@ import {
   ApplicationPackage,
   ApplicationPackageSchema,
 } from '../application-package/schema/application-package.schema';
-import { NotificationModule } from '../notifications/notification.module';
 
 @Module({
   imports: [
@@ -34,7 +33,6 @@ import { NotificationModule } from '../notifications/notification.module';
       { name: ApplicationPackage.name, schema: ApplicationPackageSchema },
     ]),
     AuthModule,
-    NotificationModule,
     forwardRef(() => ApplicationFormModule), // Add this back
   ],
   controllers: [HouseholdController, HouseholdAccessCodeController],
