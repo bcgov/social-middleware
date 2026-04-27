@@ -92,8 +92,8 @@ export class HouseholdService {
 
       const age = this.calculateAge(dto.dateOfBirth);
       this.logger.log(`Age is ${age}`);
-      // everyone over 19 requires a screening
-      const requireScreening = age >= 19;
+      // everyone over 18 requires a screening
+      const requireScreening = age >= 18;
       this.logger.log(`requiresScreening is: ${requireScreening}`);
       let memberType = null;
 
