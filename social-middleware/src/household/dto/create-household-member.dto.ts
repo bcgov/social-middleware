@@ -18,7 +18,10 @@ export class CreateHouseholdMemberDto {
   @IsUUID()
   applicationPackageId!: string;
 
-  @ApiProperty({ example: 'f47ac10b-58cc-4372-a567-0e02b2c3d479' })
+  @ApiProperty({
+    example: 'f47ac10b-58cc-4372-a567-0e02b2c3d479',
+    required: false,
+  })
   @IsOptional() // will be auto-generated if not provided
   @IsUUID()
   householdMemberId?: string; // Unique ID for the household member (UUID)
@@ -47,14 +50,15 @@ export class CreateHouseholdMemberDto {
   )
   @IsEmail({}, { message: 'Please enter a valid email address' })
   @MaxLength(255, { message: 'Email cannot exceed 255 characters' })
+  @IsOptional()
   email?: string;
 
   @ApiProperty({ enum: RelationshipToPrimary })
   @IsEnum(RelationshipToPrimary)
   relationshipToPrimary!: RelationshipToPrimary;
 
-  @ApiProperty({ enum: GenderTypes })
+  @ApiProperty({ enum: GenderTypes, required: false })
   @IsEnum(GenderTypes)
   @IsOptional()
-  genderType!: GenderTypes;
+  genderType?: GenderTypes;
 }

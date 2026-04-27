@@ -70,6 +70,12 @@ export class HouseholdMembers {
   @Prop({ type: Number, default: 0 })
   numberOfInvitationsSent!: number;
 
+  @Prop({ type: Number, default: 0 })
+  dailyResendCount!: number;
+
+  @Prop({ required: false, type: Date, default: null })
+  dailyResendWindowStart!: Date;
+
   @Prop({ required: false, type: String })
   prospectId?: string;
 
