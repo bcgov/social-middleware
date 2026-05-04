@@ -82,7 +82,11 @@ export class AuthListener implements OnModuleInit {
         return;
       }
 
-      const result = await this.siebelApiService.getServiceRequestsByBcscId(
+      this.logger.info(
+        { userId: userData.userId },
+        'contact_id not set — attempting ICM contact lookup',
+      );
+      const result = await this.siebelApiService.getContactByBcscId(
         userData.bc_services_card_id,
       );
 
