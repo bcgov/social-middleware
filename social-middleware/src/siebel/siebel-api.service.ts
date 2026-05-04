@@ -89,16 +89,27 @@ export class SiebelApiService {
       const result = await this.get<SiebelContactResponse>(endpoint, params);
 
       // Check if contact exists
-      if (
-        result &&
-        (Array.isArray(result) ? result.length > 0 : result.items)
-      ) {
-        this.logger.info({ bcscId }, 'Contact found for BCSC ID');
-        return result;
-      } else {
+      if (!result || !result.items) {
         this.logger.info({ bcscId }, 'No contact found for BCSC ID');
         return null;
       }
+
+      const items = Array.isArray(result.items) ? result.items : [result.items];
+
+      if (items.length === 0) {
+        this.logger.info({ bcscId }, 'No contact found for BCSC ID');
+      }
+
+      if (items.length > 1) {
+        this.logger.error(
+          { bcscId, count: items.length },
+          'Multiple contacts found for BCSC ID - ICM BCSC DID should be unique',
+        );
+        throw new Error(`Duplicate ICM contacts for BCSC ID: ${bcscId}`);
+      }
+
+      this.logger.info({ bcscId }, 'Contact found for BCSC ID');
+      return result;
     } catch (error) {
       this.logger.error(
         { error, bcscId },
@@ -185,7 +196,7 @@ export class SiebelApiService {
 
         // Axios error structure
         if ('response' in error) {
-          const axiosError = error as any;
+          const axiosError = error as AxiosError;
           this.logger.error('Axios response:', axiosError.response);
           this.logger.error('Axios status:', axiosError.response?.status);
           this.logger.error('Axios data:', axiosError.response?.data);
@@ -447,9 +458,7 @@ export class SiebelApiService {
     ApplicantFlag: string;
   }) {
     const endpoint = '/Prospects/SRProspects/';
-    const nameParts = prospectData.FirstName.trim().split(/\s+/); // BCSC provides the given name, which may include multiple names
-    const firstName = nameParts[0]; // separate the first name
-    const middleName = nameParts.slice(1).join(' ') || ''; // split off the middlenames if they exist
+
     const payload = {
       Id: 'NULL',
       'Service Request Id': prospectData.ServiceRequestId,
