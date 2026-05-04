@@ -7,7 +7,6 @@ import {
 import { SiebelApiService } from '../../siebel/siebel-api.service';
 import { ApplicationPackageService } from '../application-package.service';
 import { UserService } from '../../auth/user.service';
-import { PinoLogger } from 'nestjs-pino';
 
 const mockLogger = {
   setContext: jest.fn(),
@@ -66,7 +65,7 @@ describe('AuthListener.syncContactId', () => {
           useValue: { getApplicationPackages: jest.fn().mockResolvedValue([]) },
         },
         { provide: UserService, useValue: userService },
-        { provide: PinoLogger, useValue: mockLogger },
+        { provide: 'PinoLogger:AuthListener', useValue: mockLogger },
       ],
     }).compile();
 
