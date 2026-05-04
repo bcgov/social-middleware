@@ -8,11 +8,9 @@ import { PinoLogger } from 'nestjs-pino';
 //import { Builder } from 'xml2js';
 
 interface SiebelContactResponse {
-  items?: {
-    Id?: string;
-    'ICM BCSC DID'?: string;
-    [key: string]: unknown;
-  };
+  Id?: string;
+  Link?: unknown[];
+  items?: unknown[];
   [key: string]: unknown;
 }
 
@@ -78,34 +76,29 @@ export class SiebelApiService {
     const endpoint = '/ICMContact/ICMContact';
 
     const params = {
-      searchspec: `[ICM BCSC DID]='${bcscId}'`,
-      //ViewMode: 'Organization',
+      SearchSpec: `([ICM BCSC DID] = '${bcscId}' )`,
       fields: 'Id',
       ChildLinks: 'None',
     };
-    this.logger.debug(`Searching for contact with BCSC ID: ${bcscId}`);
+    this.logger.debug({ bcscId }, 'Searching for contact with BCSC ID');
 
     try {
       const result = await this.get<SiebelContactResponse>(endpoint, params);
 
-      // Check if contact exists
-      if (!result || !result.items) {
-        this.logger.info({ bcscId }, 'No contact found for BCSC ID');
-        return null;
-      }
-
-      const items = Array.isArray(result.items) ? result.items : [result.items];
-
-      if (items.length === 0) {
-        this.logger.info({ bcscId }, 'No contact found for BCSC ID');
-      }
-
-      if (items.length > 1) {
+      if (result.items) {
+        const items = Array.isArray(result.items)
+          ? result.items
+          : [result.items];
         this.logger.error(
           { bcscId, count: items.length },
           'Multiple contacts found for BCSC ID - ICM BCSC DID should be unique',
         );
         throw new Error(`Duplicate ICM contacts for BCSC ID: ${bcscId}`);
+      }
+
+      if (!result.Id) {
+        this.logger.info({ bcscId }, 'No contact found for BCSC ID');
+        return null;
       }
 
       this.logger.info({ bcscId }, 'Contact found for BCSC ID');
@@ -125,7 +118,9 @@ export class SiebelApiService {
 
     const params = {
       searchspec: `[ICM BCSC DID]='${bcscId}' AND [SR Type]='Caregiver Application'`,
+      fields: 'Id, ICM Stage',
       ViewMode: 'Organization',
+      ChildLinks: 'None',
       PageSize: 100,
       //'ICM BCSC DID': bcscId,
       //'SR Type': 'Caregiver Application',

@@ -7,6 +7,7 @@ import {
 import { SiebelApiService } from '../../siebel/siebel-api.service';
 import { ApplicationPackageService } from '../application-package.service';
 import { UserService } from '../../auth/user.service';
+import { User } from 'src/auth/schemas';
 
 const mockLogger = {
   setContext: jest.fn(),
@@ -24,6 +25,24 @@ const mockUserEvent: UserLoggedInEvent = {
   lastName: 'Doe',
   email: 'jane@example.com',
 };
+
+const mockUser = (overrides: Partial<User> = {}): User => ({
+  id: 'user-001',
+  bc_services_card_id: 'did-123',
+  first_name: 'Jane',
+  last_name: 'Doe',
+  email: 'jane@example.com',
+  dateOfBirth: '1990-01-01',
+  street_address: '123 Main St',
+  city: 'Victoria',
+  country: 'Canada',
+  region: 'BC',
+  postal_code: 'V8V 1A1',
+  contact_id: '',
+  last_login: new Date(),
+  status: 'active',
+  ...overrides,
+});
 
 describe('AuthListener.syncContactId', () => {
   let listener: AuthListener;
@@ -92,7 +111,9 @@ describe('AuthListener.syncContactId', () => {
   }
 
   it('skips ICM lookup when contact_id is already set', async () => {
-    userService.findOne.mockResolvedValue({ contact_id: 'existing-id' } as any);
+    userService.findOne.mockResolvedValue(
+      mockUser({ contact_id: 'existing-id' }),
+    );
 
     await triggerLogin(mockUserEvent);
 
@@ -101,10 +122,7 @@ describe('AuthListener.syncContactId', () => {
   });
 
   it('persists contact_id when ICM returns a match', async () => {
-    userService.findOne.mockResolvedValue({ contact_id: undefined } as any);
-    siebelApiService.getContactByBcscId.mockResolvedValue({
-      items: [{ Id: 'contact-abc', 'ICM BCSC DID': 'did-123' }],
-    } as any);
+    userService.findOne.mockResolvedValue(mockUser({ contact_id: '' }));
 
     await triggerLogin(mockUserEvent);
 
@@ -118,7 +136,7 @@ describe('AuthListener.syncContactId', () => {
   });
 
   it('does not update user when ICM returns no match', async () => {
-    userService.findOne.mockResolvedValue({ contact_id: undefined } as any);
+    userService.findOne.mockResolvedValue(mockUser({ contact_id: '' }));
     siebelApiService.getContactByBcscId.mockResolvedValue(null);
 
     await triggerLogin(mockUserEvent);
@@ -131,7 +149,7 @@ describe('AuthListener.syncContactId', () => {
   });
 
   it('logs the error and does not block login when ICM call throws', async () => {
-    userService.findOne.mockResolvedValue({ contact_id: undefined } as any);
+    userService.findOne.mockResolvedValue(mockUser({ contact_id: '' }));
     siebelApiService.getContactByBcscId.mockRejectedValue(
       new Error('Siebel unavailable'),
     );

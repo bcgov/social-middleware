@@ -86,11 +86,12 @@ export class AuthListener implements OnModuleInit {
         { userId: userData.userId },
         'contact_id not set — attempting ICM contact lookup',
       );
+
       const result = await this.siebelApiService.getContactByBcscId(
         userData.bc_services_card_id,
       );
 
-      if (!result?.items) {
+      if (!result?.Id) {
         this.logger.info(
           { userId: userData.userId },
           'No ICM contact found - contact_id not set',
@@ -98,24 +99,11 @@ export class AuthListener implements OnModuleInit {
         return;
       }
 
-      const items = Array.isArray(result.items) ? result.items : [result.items];
-      const contactId = items[0]?.Id;
-      if (!contactId) {
-        this.logger.warn(
-          { userId: userData.userId },
-          'ICM contact returned but Id field is missing',
-        );
-        return;
-      }
-
       await this.userService.updateUser(userData.userId, {
-        contact_id: contactId,
+        contact_id: result.Id,
       });
       this.logger.info(
-        {
-          userId: userData.userId,
-          contactId,
-        },
+        { userId: userData.userId, contactId: result.Id },
         'ICM contact_id persisted to user record',
       );
     } catch (error) {
