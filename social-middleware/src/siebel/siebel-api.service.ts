@@ -78,7 +78,10 @@ export class SiebelApiService {
     const endpoint = '/ICMContact/ICMContact';
 
     const params = {
-      'ICM BCSC DID': bcscId,
+      searchspec: `[ICM BCSC DID]='${bcscId}'`,
+      //ViewMode: 'Organization',
+      fields: 'Id',
+      ChildLinks: 'None',
     };
     this.logger.debug(`Searching for contact with BCSC ID: ${bcscId}`);
 
