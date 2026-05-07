@@ -237,6 +237,9 @@ export class SiebelApiService {
     fields: Record<string, any>,
   ): Promise<SiebelSRResponse> {
     const endpoint = `/ServiceRequest/ServiceRequest/${serviceRequestId}`;
+    const params = {
+      ViewMode: 'Organization',
+    };
 
     this.logger.debug(
       { serviceRequestId, fields },
@@ -244,7 +247,8 @@ export class SiebelApiService {
     );
 
     try {
-      return await this.put(endpoint, fields);
+      return await this.put(endpoint, fields, params);
+      //return await this.put(endpoint, fields);
     } catch (error) {
       this.logger.error(
         { error, serviceRequestId, fields },
@@ -428,11 +432,6 @@ export class SiebelApiService {
     return await this.put(endpoint, payload);
   }
 */
-
-  private toTitleCase(str: string): string {
-    if (!str) return str;
-    return str.toLowerCase().replace(/\b\w/g, (char) => char.toUpperCase());
-  }
 
   async createProspect(prospectData: {
     ServiceRequestId: string;
