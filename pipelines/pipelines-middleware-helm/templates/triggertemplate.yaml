@@ -29,7 +29,7 @@ spec:
       name: pathToContext
     - default: 'quay.io/buildah/stable:v1.39.3'
       name: buildahImage
-    - default: 'docker.io/lachlanevenson/k8s-helm:v3.7.0'
+    - default: 'docker.io/lachlanevenson/k8s-helm:v3.10.2'
       name: helmImage
     - default: '{{ .Values.general.deploymentname }}'
       name: deploymentName
