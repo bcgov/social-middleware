@@ -80,10 +80,10 @@ spec:
             - containerPort: {{ .Values.mongodb.port }}
               protocol: TCP
           env:
-          {{- if or (hasSuffix "-prod" .Release.Namespace) (hasSuffix "-test" .Release.Namespace) }}             
-            - name: REPLICA_SET_NAME                                                                               
-              value: "rs0"                                                                                         
-          {{- end }} 
+            {{- if or (hasSuffix "-prod" .Release.Namespace) (hasSuffix "-test" .Release.Namespace) }}
+            - name: REPLICA_SET_NAME
+              value: "rs0"
+            {{- end }}
             - name: NAMESPACE
               valueFrom:
                 fieldRef:

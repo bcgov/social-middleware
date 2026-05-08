@@ -1336,7 +1336,7 @@ export class ApplicationPackageService {
         }
         // calculate age to determine if they're an adult
         const age = calculateAge(member.dateOfBirth);
-        return age >= 19; // adults require screening
+        return age >= 18; // adults require screening
       });
 
       const requiresHouseholdScreening =

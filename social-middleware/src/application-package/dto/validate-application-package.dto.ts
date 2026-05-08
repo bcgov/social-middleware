@@ -10,13 +10,6 @@ export class ValidateHouseholdCompletionDto {
   @ApiProperty({
     description: 'Summary of validation results',
     type: Object,
-    properties: {
-      partnersRequired: { type: 'number' },
-      partnersFound: { type: 'number' },
-      householdMembersRequired: { type: 'boolean' },
-      householdMembersFound: { type: 'number' },
-      incompleteRecords: { type: 'array', items: { type: 'string' } },
-    },
   })
   summary!: {
     partnersRequired: number;

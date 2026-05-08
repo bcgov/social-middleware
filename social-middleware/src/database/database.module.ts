@@ -17,7 +17,8 @@ import type { Connection } from 'mongoose';
         const host = configService.get<string>('MONGO_HOST', 'mongodb');
         const port = configService.get<string>('MONGO_PORT', '27017');
         const db = configService.get<string>('MONGO_DB');
-        const useTls = configService.get<string>('MONGO_USE_TLS', 'false') === 'true';
+        const useTls =
+          configService.get<string>('MONGO_USE_TLS', 'false') === 'true';
         const tlsCAFile = configService.get<string>('MONGO_TLS_CA_FILE');
         const replicaSet = configService.get<string>('MONGO_REPLICA_SET');
 
@@ -31,15 +32,17 @@ import type { Connection } from 'mongoose';
         // Otherwise, append MONGO_PORT
         const hostsWithPorts = host.includes(':') ? host : `${host}:${port}`;
 
-        console.log('=== MongoDB Connection Debug ===');
-        console.log('MONGO_USER:', user);
-        console.log('MONGO_HOST:', host);
-        console.log('MONGO_PORT:', port);
-        console.log('MONGO_DB:', db);
-        console.log('MONGO_REPLICA_SET:', replicaSet);
-        console.log('MONGO_USE_TLS:', useTls);
-        console.log('MONGO_TLS_CA_FILE:', tlsCAFile);
-        console.log('hostsWithPorts:', hostsWithPorts);
+        if (configService.get<string>('NODE_ENV') !== 'production') {
+          console.log('=== MongoDB Connection Debug ===');
+          console.log('MONGO_USER:', user);
+          console.log('MONGO_HOST:', host);
+          console.log('MONGO_PORT:', port);
+          console.log('MONGO_DB:', db);
+          console.log('MONGO_REPLICA_SET:', replicaSet);
+          console.log('MONGO_USE_TLS:', useTls);
+          console.log('MONGO_TLS_CA_FILE:', tlsCAFile);
+          console.log('hostsWithPorts:', hostsWithPorts);
+        }
 
         if (user && pass) {
           uri = `mongodb://${user}:${pass}@${hostsWithPorts}/${db}?authSource=${db}`;
@@ -53,7 +56,10 @@ import type { Connection } from 'mongoose';
           uri += `replicaSet=${replicaSet}`;
         }
 
-        console.log('Final MongoDB URI (sanitized):', uri.replace(/:([^:@]+)@/, ':***@'));
+        console.log(
+          'Final MongoDB URI (sanitized):',
+          uri.replace(/:([^:@]+)@/, ':***@'),
+        );
 
         const connectionOptions: any = {
           uri,
@@ -71,13 +77,15 @@ import type { Connection } from 'mongoose';
           } else {
             // Allow connections without CA verification (development only)
             connectionOptions.tlsAllowInvalidCertificates = true;
-            console.warn('MongoDB TLS enabled but no CA file provided - using tlsAllowInvalidCertificates');
+            console.warn(
+              'MongoDB TLS enabled but no CA file provided - using tlsAllowInvalidCertificates',
+            );
           }
         }
 
         console.log('Connection options (sanitized):', {
           ...connectionOptions,
-          uri: connectionOptions.uri.replace(/:([^:@]+)@/, ':***@')
+          uri: connectionOptions.uri.replace(/:([^:@]+)@/, ':***@'),
         });
         console.log('================================');
         console.log('Attempting to connect to MongoDB...');
@@ -92,7 +100,7 @@ import type { Connection } from 'mongoose';
         console.log('Timeout settings:', {
           serverSelectionTimeoutMS: connectionOptions.serverSelectionTimeoutMS,
           connectTimeoutMS: connectionOptions.connectTimeoutMS,
-          socketTimeoutMS: connectionOptions.socketTimeoutMS
+          socketTimeoutMS: connectionOptions.socketTimeoutMS,
         });
 
         // Set up connection event handlers
@@ -136,8 +144,13 @@ import type { Connection } from 'mongoose';
           });
 
           // Log initial connection state
-          console.log('Initial MongoDB connection state:', connection.readyState);
-          console.log('0=disconnected, 1=connected, 2=connecting, 3=disconnecting');
+          console.log(
+            'Initial MongoDB connection state:',
+            connection.readyState,
+          );
+          console.log(
+            '0=disconnected, 1=connected, 2=connecting, 3=disconnecting',
+          );
 
           return connection;
         };
