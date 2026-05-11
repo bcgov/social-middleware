@@ -73,6 +73,8 @@ describe('ApplicationPackageService - updateApplicationPackageStage', () => {
     userId: 'user-001',
     srStage: ServiceRequestStage.REFERRAL,
     status: ApplicationPackageStatus.REFERRAL,
+    subtype: ApplicationPackageSubType.FCH,
+    subsubtype: ApplicationPackageSubSubType.FCH,
   };
 
   const mockUpdatedPackage = {
@@ -162,6 +164,69 @@ describe('ApplicationPackageService - updateApplicationPackageStage', () => {
           ApplicationFormType.PCCCONSENT,
         ]),
       );
+    });
+
+    it('creates 6 application forms for OOC subtype', async () => {
+      const oocPackage = {
+        ...mockApplicationPackage,
+        subtype: ApplicationPackageSubType.OOC,
+        subsubtype: ApplicationPackageSubSubType.EFP,
+      };
+      mockHouseholdService.findPrimaryApplicant.mockResolvedValue(
+        mockPrimaryApplicant,
+      );
+      mockApplicationFormService.getApplicationFormByHouseholdId.mockResolvedValue(
+        [],
+      );
+      mockApplicationFormService.createApplicationForm.mockResolvedValue({
+        applicationFormId: 'form-001',
+      });
+
+      await service.updateApplicationPackageStage(
+        oocPackage as ApplicationPackage,
+        ServiceRequestStage.APPLICATION,
+      );
+
+      expect(
+        mockApplicationFormService.createApplicationForm,
+      ).toHaveBeenCalledTimes(6);
+      const types =
+        mockApplicationFormService.createApplicationForm.mock.calls.map(
+          (call) => call[0].type,
+        );
+      expect(types).toEqual(
+        expect.arrayContaining([
+          ApplicationFormType.ABOUTME,
+          ApplicationFormType.INDIGENOUS,
+          ApplicationFormType.HOUSEHOLD,
+          ApplicationFormType.CHILDREN,
+          ApplicationFormType.DISCLOSURECONSENT,
+          ApplicationFormType.PCCCONSENT,
+        ]),
+      );
+    });
+
+    it('creates no forms for unknown subtype', async () => {
+      const unknownPackage = {
+        ...mockApplicationPackage,
+        subtype: 'UNKNOWN' as ApplicationPackageSubType,
+      };
+      mockHouseholdService.findPrimaryApplicant.mockResolvedValue(
+        mockPrimaryApplicant,
+      );
+      mockApplicationFormService.getApplicationFormByHouseholdId.mockResolvedValue(
+        [],
+      );
+
+      //await service.updateApplicationPackageStage(unknownPackage as ApplicationPackage,
+      await service.updateApplicationPackageStage(
+        unknownPackage as ApplicationPackage,
+        ServiceRequestStage.APPLICATION,
+      );
+
+      expect(
+        mockApplicationFormService.createApplicationForm,
+      ).not.toHaveBeenCalled();
     });
 
     it('creates all 7 application forms when transitioning from null srStage', async () => {
