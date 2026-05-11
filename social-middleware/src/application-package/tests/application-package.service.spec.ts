@@ -546,6 +546,28 @@ describe('ApplicationPackageService - createApplicationPackage', () => {
     ]);
   });
 
+  it('creates no forms for OOC subtype (no referral recipe)', async () => {
+    const oocDto = {
+      subtype: ApplicationPackageSubType.OOC,
+      subsubtype: ApplicationPackageSubSubType.EFP,
+    };
+    await service.createApplicationPackage(oocDto, 'user-001');
+    expect(
+      mockApplicationFormService.createApplicationForm,
+    ).not.toHaveBeenCalled();
+  });
+
+  it('creates no forms for unknown subtype', async () => {
+    const unknownDto = {
+      subtype: 'UNKNOWN' as ApplicationPackageSubType,
+      subsubtype: ApplicationPackageSubSubType.FCH,
+    };
+    await service.createApplicationPackage(unknownDto, 'user-001');
+    expect(
+      mockApplicationFormService.createApplicationForm,
+    ).not.toHaveBeenCalled();
+  });
+
   it('throws BadRequestException if userId is not provided', async () => {
     await expect(service.createApplicationPackage(dto, '')).rejects.toThrow(
       BadRequestException,
