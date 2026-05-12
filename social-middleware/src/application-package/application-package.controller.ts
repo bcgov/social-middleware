@@ -18,7 +18,7 @@ import {
   ApiResponse,
   ApiBearerAuth,
 } from '@nestjs/swagger';
-import { ApplicationPackageService } from './application-package.service';
+import { ApplicationPackageService } from './services/application-package.service';
 import { ApplicationPackageStatus } from './enums/application-package-status.enum';
 import { SubmitReferralRequestDto } from './dto/submit-referral-request.dto';
 import { CreateApplicationPackageDto } from './dto/create-application-package.dto';

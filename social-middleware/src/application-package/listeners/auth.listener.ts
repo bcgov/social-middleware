@@ -9,7 +9,7 @@ import {
   //SiebelSRResponse,
   SiebelSRsResponse,
 } from '../../siebel/siebel-api.service';
-import { ApplicationPackageService } from '../application-package.service';
+import { ApplicationPackageService } from '../services/application-package.service';
 import { ServiceRequestStage } from '../enums/application-package-status.enum';
 import { UserService } from 'src/auth/user.service';
 

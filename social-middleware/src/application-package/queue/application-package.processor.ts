@@ -12,7 +12,7 @@ import {
   ApplicationPackage,
   ApplicationPackageDocument,
 } from '../schema/application-package.schema';
-import { ApplicationPackageService } from '../application-package.service';
+import { ApplicationPackageService } from '../services/application-package.service';
 import { ApplicationPackageStatus } from '../enums/application-package-status.enum';
 import { formatDateForSiebel } from '../../common/utils/date.util';
 import { SubmissionStatus } from '../enums/submission-status.enum';

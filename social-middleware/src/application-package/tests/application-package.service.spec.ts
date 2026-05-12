@@ -5,7 +5,7 @@ import {
   NotFoundException,
   BadRequestException,
 } from '@nestjs/common';
-import { ApplicationPackageService } from '../application-package.service';
+import { ApplicationPackageService } from '../services/application-package.service';
 import { ApplicationPackage } from '../schema/application-package.schema';
 import {
   ApplicationPackageStatus,

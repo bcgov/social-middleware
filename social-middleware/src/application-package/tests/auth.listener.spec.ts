@@ -5,7 +5,7 @@ import {
   UserLoggedInEvent,
 } from '../../common/events/auth-events.service';
 import { SiebelApiService } from '../../siebel/siebel-api.service';
-import { ApplicationPackageService } from '../application-package.service';
+import { ApplicationPackageService } from '../services/application-package.service';
 import { UserService } from '../../auth/user.service';
 import { User } from 'src/auth/schemas';
 
