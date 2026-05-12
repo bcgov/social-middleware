@@ -1,10 +1,6 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document } from 'mongoose';
 import { AccessCodeType } from '../enums/access-code-type.enum';
-import {
-  ApplicationPackageSubType,
-  ApplicationPackageSubSubType,
-} from 'src/application-package/enums/application-package-subtypes.enum';
 
 export type ScreeningAccessCodeDocument = ScreeningAccessCode & Document;
 
@@ -22,12 +18,6 @@ export class ScreeningAccessCode {
 
   @Prop({ required: false })
   applicationPackageId?: string; // reference to parent caregiver application
-
-  @Prop({ required: false, enum: ApplicationPackageSubType })
-  subtype?: ApplicationPackageSubType;
-
-  @Prop({ required: false, enum: ApplicationPackageSubType })
-  subsubtype?: ApplicationPackageSubSubType;
 
   @Prop({ required: true })
   householdMemberId!: string; // reference to household member record
