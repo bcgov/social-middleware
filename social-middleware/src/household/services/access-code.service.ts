@@ -11,12 +11,23 @@ import {
 } from '../../application-form/schemas/application-form.schema';
 import { HouseholdService } from './household.service';
 import { PinoLogger } from 'nestjs-pino';
+import { AccessCodeType } from '../enums/access-code-type.enum';
+import {
+  ApplicationPackageSubSubType,
+  ApplicationPackageSubType,
+} from 'src/application-package/enums/application-package-subtypes.enum';
+import {
+  ApplicationPackage,
+  ApplicationPackageDocument,
+} from 'src/application-package/schema/application-package.schema';
 
 @Injectable()
 export class AccessCodeService {
   constructor(
     @InjectModel(ScreeningAccessCode.name)
     private readonly screeningAccessCodeModel: Model<ScreeningAccessCodeDocument>,
+    @InjectModel(ApplicationPackage.name)
+    private readonly applicationPackageModel: Model<ApplicationPackageDocument>,
     @InjectModel(ApplicationForm.name)
     private readonly applicationFormModel: Model<ApplicationFormDocument>,
     private readonly householdService: HouseholdService,
@@ -25,14 +36,24 @@ export class AccessCodeService {
 
   // service to create an access code record
   async createAccessCode(
-    applicationPackageId: string,
     householdMemberId: string,
+    applicationPackageId?: string,
+    type: AccessCodeType = AccessCodeType.SCREENING,
+    subtype?: ApplicationPackageSubType,
+    subsubtype?: ApplicationPackageSubSubType,
   ): Promise<{
     accessCode: string;
     expiresAt: Date;
   }> {
     const accessCode = this.generateAccessCode();
-    const expiresAt = new Date(Date.now() + 72 * 60 * 60 * 1000); // 72 hours
+
+    const EXPIRY_HOURS: Record<AccessCodeType, number> = {
+      [AccessCodeType.SCREENING]: 72,
+      [AccessCodeType.NEW_APPLICATION]: 336, // 14 days
+    };
+    const expiresAt = new Date(
+      Date.now() + EXPIRY_HOURS[type] * 60 * 60 * 1000,
+    );
 
     try {
       // create screening application record
@@ -41,6 +62,9 @@ export class AccessCodeService {
       const accessCodeRecord = new this.screeningAccessCodeModel({
         accessCode,
         applicationPackageId,
+        type,
+        subtype,
+        subsubtype,
         householdMemberId,
         isUsed: false,
         expiresAt,
@@ -65,14 +89,6 @@ export class AccessCodeService {
    * Generate a 6 digit secure access code
    */
   generateAccessCode(length = 6): string {
-    // Development override for testing
-    // if (
-    //   process.env.NODE_ENV === 'development' &&
-    //   process.env.STATIC_ACCESS_CODE === 'true'
-    // ) {
-    //   return 'FOSTER';
-    // }
-
     // note we remove ambiguous characters like I, 1, O, 0
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
     let result = '';
@@ -97,8 +113,10 @@ export class AccessCodeService {
     },
   ): Promise<{
     success: boolean;
+    type?: AccessCodeType;
     error?: string;
-    householdMemberId?: string | null;
+    householdMemberId?: string | null; //
+    applicationPackageId?: string; // returned for NEW_APPLICATION
   }> {
     try {
       // locate a valid access code record with the accessCode provided
@@ -109,7 +127,7 @@ export class AccessCodeService {
         attemptCount: { $lt: 5 },
       });
 
-      // if we didn't find a valid one return
+      // if we didn't find a valid one return an error
       if (!accessCodeRecord) {
         this.logger.warn(
           { accessCode },
@@ -123,7 +141,7 @@ export class AccessCodeService {
         accessCodeRecord.householdMemberId,
       );
 
-      // if we don't find one, that's an internal error somewhere
+      // if we don't find one, that's an error
       if (!householdMember) {
         this.logger.error(
           { householdMemberId: accessCodeRecord.householdMemberId },
@@ -132,7 +150,7 @@ export class AccessCodeService {
         return { success: false, error: 'No match' };
       }
 
-      // now let's see if the last name provided by the primary applicant matches the BC services Card Data
+      // now let's see if the last name on the household record matches the BC services Card Data
       const lastNameMatch =
         bcscUserData.lastName.toLowerCase().trim() ===
         householdMember.lastName.toLowerCase().trim();
@@ -142,7 +160,7 @@ export class AccessCodeService {
         householdMember.dateOfBirth,
       );
 
-      // if either don't match, then this isn't for them, or the primary applicant made a mistake
+      // if either don't match, then this access code isn't for them (or whoever generated it made a mistake)
       if (!lastNameMatch || !dobMatch) {
         await this.screeningAccessCodeModel.findByIdAndUpdate(
           accessCodeRecord._id,
@@ -170,7 +188,7 @@ export class AccessCodeService {
         };
       }
 
-      // we got this far, which means we found a match, so let's link the access code to the user
+      // we got this far, which means we found a match, so let's link the access code to the user record
       await this.screeningAccessCodeModel.findByIdAndUpdate(
         accessCodeRecord._id,
         {
@@ -184,9 +202,24 @@ export class AccessCodeService {
         accessCodeRecord.householdMemberId,
         userId,
       );
+
+      // if it's a new application, let's associate the application package with the userId
+      if (accessCodeRecord.type === AccessCodeType.NEW_APPLICATION) {
+        await this.applicationPackageModel.updateOne(
+          { applicationPackageId: accessCodeRecord.applicationPackageId },
+          { userId: userId },
+        );
+        return {
+          success: true,
+          type: AccessCodeType.NEW_APPLICATION,
+          applicationPackageId: accessCodeRecord.applicationPackageId,
+        };
+      }
+
+      // if we got this far, we're doing a SCREENING
       // and we can update the household record details with the bcsc data;
       // the first name from BCSC may be different from what the primary applicant provided
-      // also, we don't let the primary applicant specify the gender of any adult so we use the BCSC data for that too.
+
       await this.householdService.updateMemberWithUserData(
         accessCodeRecord.householdMemberId,
         {
@@ -275,8 +308,11 @@ export class AccessCodeService {
 
   // get the latest access code if it is valid, otherwise create a new one.
   async resendOrCreateAccessCode(
-    applicationPackageId: string,
     householdMemberId: string,
+    applicationPackageId?: string,
+    type: AccessCodeType = AccessCodeType.SCREENING,
+    subtype?: ApplicationPackageSubType,
+    subsubtype?: ApplicationPackageSubSubType,
   ): Promise<{ accessCode: string; expiresAt: Date; isNew: boolean }> {
     // check to see if we have an access code for this householdMember
     const existing = await this.getLatestAccessCode(householdMemberId);
@@ -296,8 +332,11 @@ export class AccessCodeService {
     }
     //otherwise create a new one
     const created = await this.createAccessCode(
-      applicationPackageId,
       householdMemberId,
+      applicationPackageId,
+      type,
+      subtype,
+      subsubtype,
     );
     return { ...created, isNew: true };
   }
