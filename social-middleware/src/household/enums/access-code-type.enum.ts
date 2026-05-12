@@ -1,4 +1,4 @@
 export enum AccessCodeType {
   SCREENING = 'SCREENING',
-  NEW_KINSHIP = 'NEW_KINSHIP',
+  NEW_APPLICATION = 'NEW_APPLICATION',
 }
