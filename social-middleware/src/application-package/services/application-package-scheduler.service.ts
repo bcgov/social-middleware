@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
-import { ApplicationPackageQueueService } from './queue/application-package-queue.service';
+import { ApplicationPackageQueueService } from '../queue/application-package-queue.service';
 import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
 
 @Injectable()

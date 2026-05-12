@@ -9,48 +9,48 @@ import {
 import { InjectModel } from '@nestjs/mongoose';
 import { v4 as uuidv4 } from 'uuid';
 import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
-import { ApplicationPackage } from './schema/application-package.schema';
+import { ApplicationPackage } from '../schema/application-package.schema';
 import {
   ApplicationPackageStatus,
   ServiceRequestStage,
-} from './enums/application-package-status.enum';
-import { ApplicationForm } from '../application-form/schemas/application-form.schema';
-import { ApplicationFormService } from '../application-form/services/application-form.service';
+} from '../enums/application-package-status.enum';
+import { ApplicationForm } from '../../application-form/schemas/application-form.schema';
+import { ApplicationFormService } from '../../application-form/services/application-form.service';
 import {
   ApplicationFormType,
   getFormIdForFormType,
   getReferralRecipe,
   getApplicationFormRecipe,
-} from '../application-form/enums/application-form-types.enum';
-import { ApplicationPackageQueueService } from './queue/application-package-queue.service';
-import { SubmitReferralRequestDto } from './dto/submit-referral-request.dto';
-import { CreateApplicationPackageDto } from './dto/create-application-package.dto';
-import { UpdateApplicationPackageDto } from './dto/update-application-package.dto';
-import { CancelApplicationPackageDto } from './dto/cancel-application-package.dto';
+} from '../../application-form/enums/application-form-types.enum';
+import { ApplicationPackageQueueService } from '../queue/application-package-queue.service';
+import { SubmitReferralRequestDto } from '../dto/submit-referral-request.dto';
+import { CreateApplicationPackageDto } from '../dto/create-application-package.dto';
+import { UpdateApplicationPackageDto } from '../dto/update-application-package.dto';
+import { CancelApplicationPackageDto } from '../dto/cancel-application-package.dto';
 
-import { HouseholdService } from '../household/services/household.service';
-import { AccessCodeService } from '../household/services/access-code.service';
-import { UserService } from '../auth/user.service';
+import { HouseholdService } from '../../household/services/household.service';
+import { AccessCodeService } from '../../household/services/access-code.service';
+import { UserService } from '../../auth/user.service';
 import { ConfigService } from '@nestjs/config';
-import { UserUtil } from '../common/utils/user.util';
-import { calculateAge } from '../common/utils/age.util';
-import { formatDateForSiebel } from '../common/utils/date.util';
+import { UserUtil } from '../../common/utils/user.util';
+import { calculateAge } from '../../common/utils/age.util';
+import { formatDateForSiebel } from '../../common/utils/date.util';
 import { Model } from 'mongoose';
 import {
   getApplicantFlag,
   RelationshipToPrimary,
-} from '../household/enums/relationship-to-primary.enum';
-import { SiebelApiService } from '../siebel/siebel-api.service';
+} from '../../household/enums/relationship-to-primary.enum';
+import { SiebelApiService } from '../../siebel/siebel-api.service';
 //import { ReferralState } from './enums/application-package-subtypes.enum';
-import { ValidateHouseholdCompletionDto } from './dto/validate-application-package.dto';
+import { ValidateHouseholdCompletionDto } from '../dto/validate-application-package.dto';
 //import { CreateApplicationFormDto } from '../application-form/dto/create-application-form.dto';
-import { HouseholdMembersDocument } from '../household/schemas/household-members.schema';
-import { ApplicationFormStatus } from '../application-form/enums/application-form-status.enum';
-import { AttachmentsService } from '../attachments/attachments.service';
-import { NotificationService } from '../notifications/services/notification.service';
+import { HouseholdMembersDocument } from '../../household/schemas/household-members.schema';
+import { ApplicationFormStatus } from '../../application-form/enums/application-form-status.enum';
+import { AttachmentsService } from '../../attachments/attachments.service';
+import { NotificationService } from '../../notifications/services/notification.service';
 
-import { AttachmentType } from '../attachments/enums/attachment-types.enum';
-import { GenderTypes } from '../household/enums/gender-types.enum';
+import { AttachmentType } from '../../attachments/enums/attachment-types.enum';
+import { GenderTypes } from '../../household/enums/gender-types.enum';
 import { UUID } from 'crypto';
 
 /*
@@ -727,7 +727,7 @@ export class ApplicationPackageService {
       const serviceRequestId = applicationPackage.srId?.trim();
 
       // if there is no service request id, we cannot continue
-      if (serviceRequestId.length == 0) {
+      if (!serviceRequestId || serviceRequestId.length == 0) {
         throw new BadRequestException('No service request ID, cannot continue');
       }
 

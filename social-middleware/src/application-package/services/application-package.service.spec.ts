@@ -6,27 +6,27 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { ApplicationPackageService } from './application-package.service';
-import { ApplicationPackage } from './schema/application-package.schema';
+import { ApplicationPackage } from '../schema/application-package.schema';
 import {
   ApplicationPackageStatus,
   ServiceRequestStage,
-} from './enums/application-package-status.enum';
-import { ApplicationFormType } from '../application-form/enums/application-form-types.enum';
-import { ApplicationFormService } from '../application-form/services/application-form.service';
-import { HouseholdService } from '../household/services/household.service';
-import { NotificationService } from '../notifications/services/notification.service';
-import { AccessCodeService } from '../household/services/access-code.service';
-import { UserService } from '../auth/user.service';
-import { UserUtil } from '../common/utils/user.util';
-import { ApplicationPackageQueueService } from './queue/application-package-queue.service';
+} from '../enums/application-package-status.enum';
+import { ApplicationFormType } from '../../application-form/enums/application-form-types.enum';
+import { ApplicationFormService } from '../../application-form/services/application-form.service';
+import { HouseholdService } from '../../household/services/household.service';
+import { NotificationService } from '../../notifications/services/notification.service';
+import { AccessCodeService } from '../../household/services/access-code.service';
+import { UserService } from '../../auth/user.service';
+import { UserUtil } from '../../common/utils/user.util';
+import { ApplicationPackageQueueService } from '../queue/application-package-queue.service';
 import {
   ApplicationPackageSubSubType,
   ApplicationPackageSubType,
-} from './enums/application-package-subtypes.enum';
-import { CreateApplicationPackageDto } from './dto/create-application-package.dto';
-import { RelationshipToPrimary } from '../household/enums/relationship-to-primary.enum';
-import { AttachmentsService } from '../attachments/attachments.service';
-import { SiebelApiService } from '../siebel/siebel-api.service';
+} from '../enums/application-package-subtypes.enum';
+import { CreateApplicationPackageDto } from '../dto/create-application-package.dto';
+import { RelationshipToPrimary } from '../../household/enums/relationship-to-primary.enum';
+import { AttachmentsService } from '../../attachments/attachments.service';
+import { SiebelApiService } from '../../siebel/siebel-api.service';
 import { ConfigService } from '@nestjs/config';
 
 describe('ApplicationPackageService - updateApplicationPackageStage', () => {
