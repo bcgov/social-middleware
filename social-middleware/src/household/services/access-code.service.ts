@@ -13,10 +13,6 @@ import { HouseholdService } from './household.service';
 import { PinoLogger } from 'nestjs-pino';
 import { AccessCodeType } from '../enums/access-code-type.enum';
 import {
-  ApplicationPackageSubSubType,
-  ApplicationPackageSubType,
-} from 'src/application-package/enums/application-package-subtypes.enum';
-import {
   ApplicationPackage,
   ApplicationPackageDocument,
 } from 'src/application-package/schema/application-package.schema';
@@ -39,8 +35,6 @@ export class AccessCodeService {
     householdMemberId: string,
     applicationPackageId?: string,
     type: AccessCodeType = AccessCodeType.SCREENING,
-    subtype?: ApplicationPackageSubType,
-    subsubtype?: ApplicationPackageSubSubType,
   ): Promise<{
     accessCode: string;
     expiresAt: Date;
@@ -63,8 +57,6 @@ export class AccessCodeService {
         accessCode,
         applicationPackageId,
         type,
-        subtype,
-        subsubtype,
         householdMemberId,
         isUsed: false,
         expiresAt,
@@ -311,8 +303,6 @@ export class AccessCodeService {
     householdMemberId: string,
     applicationPackageId?: string,
     type: AccessCodeType = AccessCodeType.SCREENING,
-    subtype?: ApplicationPackageSubType,
-    subsubtype?: ApplicationPackageSubSubType,
   ): Promise<{ accessCode: string; expiresAt: Date; isNew: boolean }> {
     // check to see if we have an access code for this householdMember
     const existing = await this.getLatestAccessCode(householdMemberId);
@@ -335,8 +325,6 @@ export class AccessCodeService {
       householdMemberId,
       applicationPackageId,
       type,
-      subtype,
-      subsubtype,
     );
     return { ...created, isNew: true };
   }
