@@ -101,10 +101,14 @@ export class SiebelApiService {
           );
           throw new Error(`Duplicate ICM contacts for BCSC ID: ${bcscId}`);
         }
+
         if (items.length === 0) {
           this.logger.info({ bcscId }, 'No contact found for BCSC DID');
           return null;
         }
+
+        this.logger.info({ bcscId }, 'Contact found for BCSC ID');
+        return result;
       }
 
       if (!result.Id) {
