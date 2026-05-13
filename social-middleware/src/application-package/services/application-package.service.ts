@@ -750,6 +750,12 @@ export class ApplicationPackageService {
         };
       }
 
+      if (!applicationPackage.userId) {
+        throw new InternalServerErrorException(
+          'Cannot submit application package: no user associated',
+        );
+      }
+
       const primaryApplicant = await this.userService.findOne(
         applicationPackage.userId,
       );
