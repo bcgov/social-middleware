@@ -83,6 +83,10 @@ describe('ApplicationPackageProcessor', () => {
   };
   const mockUserUtil = {
     sexToGenderType: jest.fn().mockReturnValue('M'),
+    firstAndMiddleName: jest
+      .fn()
+      .mockReturnValue({ firstName: 'Jane', middleName: '' }),
+    toTitleCase: jest.fn((s: string) => s),
   };
   const mockLogger = {
     info: jest.fn(),
@@ -551,6 +555,7 @@ describe('ApplicationPackageProcessor', () => {
       });
       mockApplicationPackageService.submitApplicationPackage.mockResolvedValue({
         serviceRequestId: 'sr-001',
+        isComplete: true,
       });
 
       const result = await processor.handleSubmission(

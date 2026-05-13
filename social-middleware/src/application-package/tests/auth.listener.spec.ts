@@ -123,6 +123,9 @@ describe('AuthListener.syncContactId', () => {
 
   it('persists contact_id when ICM returns a match', async () => {
     userService.findOne.mockResolvedValue(mockUser({ contact_id: '' }));
+    siebelApiService.getContactByBcscId.mockResolvedValue({
+      Id: 'contact-abc',
+    });
 
     await triggerLogin(mockUserEvent);
 

@@ -73,6 +73,8 @@ describe('ApplicationPackageService - updateApplicationPackageStage', () => {
     userId: 'user-001',
     srStage: ServiceRequestStage.REFERRAL,
     status: ApplicationPackageStatus.REFERRAL,
+    subtype: ApplicationPackageSubType.FCH,
+    subsubtype: ApplicationPackageSubSubType.FCH,
   };
 
   const mockUpdatedPackage = {
