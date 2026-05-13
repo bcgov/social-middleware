@@ -4,7 +4,7 @@ import {
   InternalServerErrorException,
   NotFoundException,
 } from '@nestjs/common';
-import { HouseholdService } from './household.service';
+import { HouseholdService } from '../services/household.service';
 import { HouseholdMembers } from '../schemas/household-members.schema';
 import { ApplicationPackage } from '../../application-package/schema/application-package.schema';
 import { MemberTypes } from '../enums/member-types.enum';
