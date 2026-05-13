@@ -49,7 +49,7 @@ export class User {
   sex?: string;
 
   @Prop({ required: false })
-  contactId!: string; // row ID from ICM
+  contact_id!: string; // row ID from ICM
 
   @Prop({ default: Date.now })
   last_login!: Date;

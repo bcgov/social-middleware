@@ -11,6 +11,7 @@ import {
 } from '../../siebel/siebel-api.service';
 import { ApplicationPackageService } from '../application-package.service';
 import { ServiceRequestStage } from '../enums/application-package-status.enum';
+import { UserService } from 'src/auth/user.service';
 
 @Injectable()
 export class AuthListener implements OnModuleInit {
@@ -18,6 +19,7 @@ export class AuthListener implements OnModuleInit {
     private readonly authEventsService: AuthEventsService,
     private readonly siebelApiService: SiebelApiService,
     private readonly applicationPackageService: ApplicationPackageService,
+    private readonly userService: UserService,
     @InjectPinoLogger(AuthListener.name)
     private readonly logger: PinoLogger,
   ) {}
@@ -40,19 +42,15 @@ export class AuthListener implements OnModuleInit {
     try {
       this.logger.info(`Handling user login for userId: ${userData.userId}`);
 
-      // get service requests from Siebel
+      // sync the ICM Contact ID (if available)
+      await this.syncContactId(userData);
 
-      //    const serviceRequestsResponse: SiebelSRsResponse =
-      //      await this.siebelApiService.getServiceRequestsByBcscId(
-      //        userData.bc_services_card_id,
-      //      );
+      // get service requests from Siebel
 
       const serviceRequests: SiebelSRsResponse =
         await this.siebelApiService.getServiceRequestsByBcscId(
           userData.bc_services_card_id,
         );
-
-      //      serviceRequestsResponse?.items ?? [];
 
       this.logger.debug(`Service Requests: ${JSON.stringify(serviceRequests)}`);
 
@@ -74,6 +72,45 @@ export class AuthListener implements OnModuleInit {
         'Error handling user login event',
       );
       this.authEventsService.completeUserSync(userData.userId);
+    }
+  }
+
+  private async syncContactId(userData: UserLoggedInEvent): Promise<void> {
+    try {
+      const user = await this.userService.findOne(userData.userId);
+      if (user.contact_id) {
+        return;
+      }
+
+      this.logger.info(
+        { userId: userData.userId },
+        'contact_id not set — attempting ICM contact lookup',
+      );
+
+      const result = await this.siebelApiService.getContactByBcscId(
+        userData.bc_services_card_id,
+      );
+
+      if (!result?.Id) {
+        this.logger.info(
+          { userId: userData.userId },
+          'No ICM contact found - contact_id not set',
+        );
+        return;
+      }
+
+      await this.userService.updateUser(userData.userId, {
+        contact_id: result.Id,
+      });
+      this.logger.info(
+        { userId: userData.userId, contactId: result.Id },
+        'ICM contact_id persisted to user record',
+      );
+    } catch (error) {
+      this.logger.error(
+        { error, userId: userData.userId },
+        'Failed to sync ICM contact_id - login not blocked',
+      );
     }
   }
 

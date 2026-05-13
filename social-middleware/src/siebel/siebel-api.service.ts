@@ -8,11 +8,9 @@ import { PinoLogger } from 'nestjs-pino';
 //import { Builder } from 'xml2js';
 
 interface SiebelContactResponse {
-  items?: {
-    Id?: string;
-    'ICM BCSC DID'?: string;
-    [key: string]: unknown;
-  };
+  Id?: string;
+  Link?: unknown[];
+  items?: unknown[];
   [key: string]: unknown;
 }
 
@@ -78,24 +76,33 @@ export class SiebelApiService {
     const endpoint = '/ICMContact/ICMContact';
 
     const params = {
-      'ICM BCSC DID': bcscId,
+      SearchSpec: `([ICM BCSC DID] = '${bcscId}' )`,
+      fields: 'Id',
+      ChildLinks: 'None',
     };
-    this.logger.debug(`Searching for contact with BCSC ID: ${bcscId}`);
+    this.logger.debug({ bcscId }, 'Searching for contact with BCSC ID');
 
     try {
       const result = await this.get<SiebelContactResponse>(endpoint, params);
 
-      // Check if contact exists
-      if (
-        result &&
-        (Array.isArray(result) ? result.length > 0 : result.items)
-      ) {
-        this.logger.info({ bcscId }, 'Contact found for BCSC ID');
-        return result;
-      } else {
+      if (result.items) {
+        const items = Array.isArray(result.items)
+          ? result.items
+          : [result.items];
+        this.logger.error(
+          { bcscId, count: items.length },
+          'Multiple contacts found for BCSC ID - ICM BCSC DID should be unique',
+        );
+        throw new Error(`Duplicate ICM contacts for BCSC ID: ${bcscId}`);
+      }
+
+      if (!result.Id) {
         this.logger.info({ bcscId }, 'No contact found for BCSC ID');
         return null;
       }
+
+      this.logger.info({ bcscId }, 'Contact found for BCSC ID');
+      return result;
     } catch (error) {
       this.logger.error(
         { error, bcscId },
@@ -111,7 +118,9 @@ export class SiebelApiService {
 
     const params = {
       searchspec: `[ICM BCSC DID]='${bcscId}' AND [SR Type]='Caregiver Application'`,
+      fields: 'Id, ICM Stage',
       ViewMode: 'Organization',
+      ChildLinks: 'None',
       PageSize: 100,
       //'ICM BCSC DID': bcscId,
       //'SR Type': 'Caregiver Application',
@@ -182,7 +191,7 @@ export class SiebelApiService {
 
         // Axios error structure
         if ('response' in error) {
-          const axiosError = error as any;
+          const axiosError = error as AxiosError;
           this.logger.error('Axios response:', axiosError.response);
           this.logger.error('Axios status:', axiosError.response?.status);
           this.logger.error('Axios data:', axiosError.response?.data);
@@ -228,6 +237,9 @@ export class SiebelApiService {
     fields: Record<string, any>,
   ): Promise<SiebelSRResponse> {
     const endpoint = `/ServiceRequest/ServiceRequest/${serviceRequestId}`;
+    const params = {
+      ViewMode: 'Organization',
+    };
 
     this.logger.debug(
       { serviceRequestId, fields },
@@ -235,7 +247,8 @@ export class SiebelApiService {
     );
 
     try {
-      return await this.put(endpoint, fields);
+      return await this.put(endpoint, fields, params);
+      //return await this.put(endpoint, fields);
     } catch (error) {
       this.logger.error(
         { error, serviceRequestId, fields },
@@ -420,11 +433,6 @@ export class SiebelApiService {
   }
 */
 
-  private toTitleCase(str: string): string {
-    if (!str) return str;
-    return str.toLowerCase().replace(/\b\w/g, (char) => char.toUpperCase());
-  }
-
   async createProspect(prospectData: {
     ServiceRequestId: string;
     IcmBcscDid: string;
@@ -444,9 +452,7 @@ export class SiebelApiService {
     ApplicantFlag: string;
   }) {
     const endpoint = '/Prospects/SRProspects/';
-    const nameParts = prospectData.FirstName.trim().split(/\s+/); // BCSC provides the given name, which may include multiple names
-    const firstName = nameParts[0]; // separate the first name
-    const middleName = nameParts.slice(1).join(' ') || ''; // split off the middlenames if they exist
+
     const payload = {
       Id: 'NULL',
       'Service Request Id': prospectData.ServiceRequestId,
