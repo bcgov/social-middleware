@@ -93,11 +93,18 @@ export class SiebelApiService {
         const items = Array.isArray(result.items)
           ? result.items
           : [result.items];
-        this.logger.error(
-          { bcscId, count: items.length },
-          'Multiple contacts found for BCSC ID - ICM BCSC DID should be unique',
-        );
-        throw new Error(`Duplicate ICM contacts for BCSC ID: ${bcscId}`);
+
+        if (items.length > 1) {
+          this.logger.error(
+            { bcscId, count: items.length },
+            'Multiple contacts found for BCSC ID - ICM BCSC DID should be unique',
+          );
+          throw new Error(`Duplicate ICM contacts for BCSC ID: ${bcscId}`);
+        }
+        if (items.length === 0) {
+          this.logger.info({ bcscId }, 'No contact found for BCSC DID');
+          return null;
+        }
       }
 
       if (!result.Id) {
