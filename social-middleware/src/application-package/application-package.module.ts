@@ -19,6 +19,7 @@ import { NotificationModule } from '../notifications/notification.module';
 import { IcmStageProcessor } from './queue/icm-stage.processor';
 import { IcmStageQueueModule } from './queue/icm-stage-queue.module';
 import { IcmStageSchedulerService } from './services/icm-stage-scheduler.service';
+import { CaregiverInvitationService } from './services/caregiver-invitation.service';
 
 @Module({
   imports: [
@@ -40,6 +41,7 @@ import { IcmStageSchedulerService } from './services/icm-stage-scheduler.service
     ApplicationPackageService,
     AuthListener,
     ApplicationPackageSchedulerService,
+    CaregiverInvitationService,
     IcmStageSchedulerService,
     IcmStageProcessor,
   ],
