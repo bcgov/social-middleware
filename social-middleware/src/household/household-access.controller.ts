@@ -18,6 +18,7 @@ import { AssociateAccessCodeDto } from './dto/associate-access-code.dto';
 import { PinoLogger } from 'nestjs-pino';
 import { HouseholdService } from './services/household.service';
 import { MemberTypes } from './enums/member-types.enum';
+import { AccessCodeType } from './enums/access-code-type.enum';
 
 @ApiTags('Household Access Codes')
 @Controller('household')
@@ -49,7 +50,9 @@ export class HouseholdAccessCodeController {
     @Req() request: Request,
   ): Promise<{
     success: boolean;
+    type?: AccessCodeType;
     householdMemberId?: string;
+    applicationPackageId?: string;
     message: string;
   }> {
     try {
@@ -79,7 +82,9 @@ export class HouseholdAccessCodeController {
       if (result.success) {
         return {
           success: true,
+          type: result.type,
           householdMemberId: result.householdMemberId ?? undefined,
+          applicationPackageId: result.applicationPackageId ?? undefined,
           message: 'Access code associated successfully',
         };
       } else {
