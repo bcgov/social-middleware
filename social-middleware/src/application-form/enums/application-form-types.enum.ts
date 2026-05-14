@@ -1,4 +1,8 @@
 import { RelationshipToPrimary } from '../../household/enums/relationship-to-primary.enum';
+import {
+  ApplicationPackageSubSubType,
+  ApplicationPackageSubType,
+} from '../../application-package/enums/application-package-subtypes.enum';
 
 // the types of form supported in the system; the string is the label that will appear on the page and in the tables of contents
 export enum ApplicationFormType {
@@ -35,6 +39,49 @@ export const FormId: Record<ApplicationFormType, string> = {
 // helper to return formID by formType
 export function getFormIdForFormType(FormType: ApplicationFormType): string {
   return FormId[FormType];
+}
+
+export function getReferralRecipe(
+  SubType: ApplicationPackageSubType,
+  SubSubType: ApplicationPackageSubSubType,
+): ApplicationFormType[] {
+  // SubSubType doesn't change much yet
+  switch (SubType) {
+    case ApplicationPackageSubType.FCH:
+      return [ApplicationFormType.REFERRAL, ApplicationFormType.INDIGENOUS];
+    default:
+      return [];
+  }
+}
+
+export function getApplicationFormRecipe(
+  SubType: ApplicationPackageSubType,
+  SubSubType: ApplicationPackageSubSubType,
+): ApplicationFormType[] {
+  // SubSubType doesn't change much yet
+  switch (SubType) {
+    case ApplicationPackageSubType.FCH:
+      return [
+        ApplicationFormType.ABOUTME,
+        ApplicationFormType.HOUSEHOLD,
+        ApplicationFormType.CHILDREN,
+        ApplicationFormType.PLACEMENT,
+        ApplicationFormType.REFERENCES,
+        ApplicationFormType.DISCLOSURECONSENT,
+        ApplicationFormType.PCCCONSENT,
+      ];
+    case ApplicationPackageSubType.OOC:
+      return [
+        ApplicationFormType.ABOUTME,
+        ApplicationFormType.INDIGENOUS,
+        ApplicationFormType.HOUSEHOLD,
+        ApplicationFormType.CHILDREN,
+        ApplicationFormType.DISCLOSURECONSENT,
+        ApplicationFormType.PCCCONSENT,
+      ];
+    default:
+      return [];
+  }
 }
 
 // helper to generate the forms for various household member types

@@ -9,46 +9,49 @@ import {
 import { InjectModel } from '@nestjs/mongoose';
 import { v4 as uuidv4 } from 'uuid';
 import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
-import { ApplicationPackage } from './schema/application-package.schema';
+import { ApplicationPackage } from '../schema/application-package.schema';
 import {
   ApplicationPackageStatus,
   ServiceRequestStage,
-} from './enums/application-package-status.enum';
-import { ApplicationForm } from '../application-form/schemas/application-form.schema';
-import { ApplicationFormService } from '../application-form/services/application-form.service';
+} from '../enums/application-package-status.enum';
+import { ApplicationForm } from '../../application-form/schemas/application-form.schema';
+import { ApplicationFormService } from '../../application-form/services/application-form.service';
 import {
   ApplicationFormType,
   getFormIdForFormType,
-} from '../application-form/enums/application-form-types.enum';
-import { ApplicationPackageQueueService } from './queue/application-package-queue.service';
-import { SubmitReferralRequestDto } from './dto/submit-referral-request.dto';
-import { CreateApplicationPackageDto } from './dto/create-application-package.dto';
-import { UpdateApplicationPackageDto } from './dto/update-application-package.dto';
-import { CancelApplicationPackageDto } from './dto/cancel-application-package.dto';
+  getReferralRecipe,
+  getApplicationFormRecipe,
+} from '../../application-form/enums/application-form-types.enum';
+import { ApplicationPackageQueueService } from '../queue/application-package-queue.service';
+import { SubmitReferralRequestDto } from '../dto/submit-referral-request.dto';
+import { CreateApplicationPackageDto } from '../dto/create-application-package.dto';
+import { UpdateApplicationPackageDto } from '../dto/update-application-package.dto';
+import { CancelApplicationPackageDto } from '../dto/cancel-application-package.dto';
 
-import { HouseholdService } from '../household/services/household.service';
-import { AccessCodeService } from '../household/services/access-code.service';
-import { UserService } from '../auth/user.service';
+import { HouseholdService } from '../../household/services/household.service';
+import { AccessCodeService } from '../../household/services/access-code.service';
+import { UserService } from '../../auth/user.service';
 import { ConfigService } from '@nestjs/config';
-import { UserUtil } from '../common/utils/user.util';
-import { calculateAge } from '../common/utils/age.util';
-import { formatDateForSiebel } from '../common/utils/date.util';
+import { UserUtil } from '../../common/utils/user.util';
+import { calculateAge } from '../../common/utils/age.util';
+import { formatDateForSiebel } from '../../common/utils/date.util';
 import { Model } from 'mongoose';
 import {
   getApplicantFlag,
   RelationshipToPrimary,
-} from '../household/enums/relationship-to-primary.enum';
-import { SiebelApiService } from '../siebel/siebel-api.service';
+} from '../../household/enums/relationship-to-primary.enum';
+import { SiebelApiService } from '../../siebel/siebel-api.service';
 //import { ReferralState } from './enums/application-package-subtypes.enum';
-import { ValidateHouseholdCompletionDto } from './dto/validate-application-package.dto';
+import { ValidateHouseholdCompletionDto } from '../dto/validate-application-package.dto';
 //import { CreateApplicationFormDto } from '../application-form/dto/create-application-form.dto';
-import { HouseholdMembersDocument } from '../household/schemas/household-members.schema';
-import { ApplicationFormStatus } from '../application-form/enums/application-form-status.enum';
-import { AttachmentsService } from '../attachments/attachments.service';
-import { NotificationService } from '../notifications/services/notification.service';
+import { HouseholdMembersDocument } from '../../household/schemas/household-members.schema';
+import { ApplicationFormStatus } from '../../application-form/enums/application-form-status.enum';
+import { AttachmentsService } from '../../attachments/attachments.service';
+import { NotificationService } from '../../notifications/services/notification.service';
 
-import { AttachmentType } from '../attachments/enums/attachment-types.enum';
-import { GenderTypes } from '../household/enums/gender-types.enum';
+import { AttachmentType } from '../../attachments/enums/attachment-types.enum';
+import { GenderTypes } from '../../household/enums/gender-types.enum';
+import { UUID } from 'crypto';
 
 /*
 interface SiebelServiceRequestResponse {
@@ -97,6 +100,7 @@ export class ApplicationPackageService {
       throw new BadRequestException(`userId is not provided`);
     }
 
+    // create the initial package model
     const initialPackage = new this.applicationPackageModel({
       applicationPackageId: uuidv4(),
       userId: userId,
@@ -107,7 +111,7 @@ export class ApplicationPackageService {
 
     const appPackage = await initialPackage.save();
 
-    // the primary applicant is the first household member
+    // the primary applicant is the first household member that we need to also create
     const user = await this.userService.findOne(userId);
 
     const primaryHouseholdMemberDto = {
@@ -125,48 +129,46 @@ export class ApplicationPackageService {
       primaryHouseholdMemberDto,
     );
 
-    // create referral as the first application Form
-    const referralDto = {
-      applicationPackageId: appPackage.applicationPackageId,
-      formId: getFormIdForFormType(ApplicationFormType.REFERRAL),
-      userId: userId,
-      householdMemberId: primaryHouseholdMember.householdMemberId,
-      type: ApplicationFormType.REFERRAL,
-      formParameters: {},
-    };
+    // create any referral forms that should be created to get moving
+    const referralForms = getReferralRecipe(dto.subtype, dto.subsubtype);
 
-    const referral =
-      await this.applicationFormService.createApplicationForm(referralDto);
-
-    this.logger.info(
-      {
-        applicationPackageId: appPackage.applicationPackageId,
-        referralApplicationFormId: referral.applicationFormId,
-      },
-      'Created referral form for application package',
-    );
-
-    // create indigenous as the 2nd application Form; part of the referral package
-    const indigenousDto = {
-      applicationPackageId: appPackage.applicationPackageId,
-      formId: getFormIdForFormType(ApplicationFormType.INDIGENOUS),
-      userId: userId,
-      householdMemberId: primaryHouseholdMember.householdMemberId,
-      type: ApplicationFormType.INDIGENOUS,
-      formParameters: {},
-    };
-
-    const indigenous =
-      await this.applicationFormService.createApplicationForm(indigenousDto);
-
-    this.logger.info(
-      {
-        applicationPackageId: appPackage.applicationPackageId,
-        referralApplicationFormId: indigenous.applicationFormId,
-      },
-      'Created indigenous form for application package',
-    );
+    for (const formType of referralForms) {
+      await this.createApplicationPackageForm(
+        appPackage.applicationPackageId as UUID,
+        userId as UUID,
+        primaryHouseholdMember.householdMemberId as UUID,
+        formType,
+      );
+    }
     return appPackage;
+  }
+
+  async createApplicationPackageForm(
+    applicationPackageId: UUID,
+    userId: UUID,
+    householdMemberId: UUID,
+    applicationFormType: ApplicationFormType,
+  ): Promise<void> {
+    const formDto = {
+      applicationPackageId: applicationPackageId,
+      formId: getFormIdForFormType(applicationFormType),
+      userId: userId,
+      householdMemberId: householdMemberId,
+      type: applicationFormType,
+      formParameters: {},
+    };
+
+    const form =
+      await this.applicationFormService.createApplicationForm(formDto);
+
+    this.logger.info(
+      {
+        applicationPackageId: applicationPackageId,
+        type: applicationFormType,
+        formApplicationFormId: form.applicationFormId,
+      },
+      `Created ${applicationFormType} form for application package`,
+    );
   }
 
   // cancel an application package, which includes deleting all associated forms,
@@ -359,13 +361,19 @@ export class ApplicationPackageService {
         (applicationPackage.srStage === ServiceRequestStage.REFERRAL ||
           applicationPackage.srStage == null)
       ) {
+        const applicationFormRecipe = getApplicationFormRecipe(
+          applicationPackage.subtype,
+          applicationPackage.subsubtype,
+        );
+
         // Idempotency check: if ABOUTME already exists, forms were already created
         const existingForms =
           await this.applicationFormService.getApplicationFormByHouseholdId(
             primaryApplicantMember.householdMemberId,
           );
+
         const formsAlreadyCreated = existingForms.some(
-          (f) => f.type === ApplicationFormType.ABOUTME,
+          (f) => f.type === applicationFormRecipe[0],
         );
 
         if (formsAlreadyCreated) {
@@ -375,91 +383,21 @@ export class ApplicationPackageService {
           );
         } else {
           // create aboutme as the first application Form
-          const aboutMeDto = {
-            applicationPackageId: applicationPackage.applicationPackageId,
-            formId: getFormIdForFormType(ApplicationFormType.ABOUTME),
-            userId: applicationPackage.userId,
-            householdMemberId: primaryApplicantMember.householdMemberId,
-            type: ApplicationFormType.ABOUTME,
-            formParameters: {},
-          };
-          await this.applicationFormService.createApplicationForm(aboutMeDto);
 
-          // note, household is handled differently from the other forms;
-          // we use the applicationForm table to track the status of the household data,
-          // but there is no actual form to fill out; the data is collected
-          // via the household API endpoints
+          const applicationPackageId =
+            applicationPackage.applicationPackageId as UUID;
+          const userId = applicationPackage.userId as UUID;
+          const householdMemberId =
+            primaryApplicantMember.householdMemberId as UUID;
 
-          const householdDto = {
-            applicationPackageId: applicationPackage.applicationPackageId,
-            formId: getFormIdForFormType(ApplicationFormType.HOUSEHOLD),
-            userId: applicationPackage.userId,
-            householdMemberId: primaryApplicantMember.householdMemberId,
-            type: ApplicationFormType.HOUSEHOLD,
-            formParameters: {},
-          };
-          await this.applicationFormService.createApplicationForm(householdDto);
-
-          const childrenDto = {
-            applicationPackageId: applicationPackage.applicationPackageId,
-            formId: getFormIdForFormType(ApplicationFormType.CHILDREN),
-            userId: applicationPackage.userId,
-            householdMemberId: primaryApplicantMember.householdMemberId,
-            type: ApplicationFormType.CHILDREN,
-            formParameters: {},
-          };
-          await this.applicationFormService.createApplicationForm(childrenDto);
-
-          const placementDto = {
-            applicationPackageId: applicationPackage.applicationPackageId,
-            formId: getFormIdForFormType(ApplicationFormType.PLACEMENT),
-            userId: applicationPackage.userId,
-            householdMemberId: primaryApplicantMember.householdMemberId,
-            type: ApplicationFormType.PLACEMENT,
-            formParameters: {},
-          };
-
-          await this.applicationFormService.createApplicationForm(placementDto);
-
-          // references is the fourth form
-          const referencesDto = {
-            applicationPackageId: applicationPackage.applicationPackageId,
-            formId: getFormIdForFormType(ApplicationFormType.REFERENCES),
-            userId: applicationPackage.userId,
-            householdMemberId: primaryApplicantMember.householdMemberId,
-            type: ApplicationFormType.REFERENCES,
-            formParameters: {},
-          };
-
-          await this.applicationFormService.createApplicationForm(
-            referencesDto,
-          );
-
-          // consent is the final form
-          const disclosureConsentDto = {
-            applicationPackageId: applicationPackage.applicationPackageId,
-            formId: getFormIdForFormType(ApplicationFormType.DISCLOSURECONSENT),
-            userId: applicationPackage.userId,
-            householdMemberId: primaryApplicantMember.householdMemberId,
-            type: ApplicationFormType.DISCLOSURECONSENT,
-            formParameters: {},
-          };
-          await this.applicationFormService.createApplicationForm(
-            disclosureConsentDto,
-          );
-
-          // consent is the final form
-          const pccConsentDto = {
-            applicationPackageId: applicationPackage.applicationPackageId,
-            formId: getFormIdForFormType(ApplicationFormType.PCCCONSENT),
-            userId: applicationPackage.userId,
-            householdMemberId: primaryApplicantMember.householdMemberId,
-            type: ApplicationFormType.PCCCONSENT,
-            formParameters: {},
-          };
-          await this.applicationFormService.createApplicationForm(
-            pccConsentDto,
-          );
+          for (const applicationFormType of applicationFormRecipe) {
+            await this.createApplicationPackageForm(
+              applicationPackageId,
+              userId,
+              householdMemberId,
+              applicationFormType,
+            );
+          }
 
           // send notification that the application can be accessed
           if (primaryApplicantMember.email) {
@@ -717,7 +655,7 @@ export class ApplicationPackageService {
     // Enqueue the submission - fire and forget so we don't block the response
     await this.applicationPackageQueueService
       .enqueueReferralSubmission(applicationPackageId, userId, dto)
-      .catch((error) =>
+      .catch((error: unknown) =>
         this.logger.error(
           { error, applicationPackageId },
           'Failed to enqueue referral submission - will be picked up by scheduler',
@@ -789,7 +727,7 @@ export class ApplicationPackageService {
       const serviceRequestId = applicationPackage.srId?.trim();
 
       // if there is no service request id, we cannot continue
-      if (serviceRequestId.length == 0) {
+      if (!serviceRequestId || serviceRequestId.length == 0) {
         throw new BadRequestException('No service request ID, cannot continue');
       }
 
@@ -810,6 +748,12 @@ export class ApplicationPackageService {
           serviceRequestId: serviceRequestId,
           isComplete: false,
         };
+      }
+
+      if (!applicationPackage.userId) {
+        throw new InternalServerErrorException(
+          'Cannot submit application package: no user associated',
+        );
       }
 
       const primaryApplicant = await this.userService.findOne(

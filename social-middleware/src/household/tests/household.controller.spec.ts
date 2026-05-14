@@ -1,12 +1,12 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { PinoLogger } from 'nestjs-pino';
-import { HouseholdController } from 'src/household/household.controller';
-import { HouseholdService } from 'src/household/services/household.service';
-import { AccessCodeService } from 'src/household/services/access-code.service';
-import { ApplicationFormService } from '../application-form/services/application-form.service';
-import { NotificationService } from '../notifications/services/notification.service';
-import { SessionUtil } from '../common/utils/session.util';
-import { SessionAuthGuard } from '../auth/session-auth.guard';
+import { HouseholdController } from '../household.controller';
+import { HouseholdService } from '../services/household.service';
+import { AccessCodeService } from '../services/access-code.service';
+import { ApplicationFormService } from '../../application-form/services/application-form.service';
+import { NotificationService } from '../../notifications/services/notification.service';
+import { SessionUtil } from '../../common/utils/session.util';
+import { SessionAuthGuard } from '../../auth/session-auth.guard';
 
 describe('HouseholdController', () => {
   let controller: HouseholdController;

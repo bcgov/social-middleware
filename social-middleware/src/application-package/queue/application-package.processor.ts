@@ -12,7 +12,7 @@ import {
   ApplicationPackage,
   ApplicationPackageDocument,
 } from '../schema/application-package.schema';
-import { ApplicationPackageService } from '../application-package.service';
+import { ApplicationPackageService } from '../services/application-package.service';
 import { ApplicationPackageStatus } from '../enums/application-package-status.enum';
 import { formatDateForSiebel } from '../../common/utils/date.util';
 import { SubmissionStatus } from '../enums/submission-status.enum';
@@ -577,7 +577,7 @@ export class ApplicationPackageProcessor {
 
       const attachmentResult =
         (await this.siebelApiService.createFormAttachment(srId, {
-          fileName: indigenousForm.type as string,
+          fileName: indigenousForm.type,
           template: formId,
           xmlHierarchy: xmlHierarchy,
           fileContent: indigenousForm.formData,
@@ -681,6 +681,14 @@ export class ApplicationPackageProcessor {
           submissionStatus: SubmissionStatus.PENDING,
         },
       );
+
+      if (!applicationPackage.userId) {
+        this.logger.warn(
+          { applicationPackageId },
+          'Package has no userId, this is required for submission',
+        );
+        return { success: false };
+      }
 
       // Call the existing submission logic
 

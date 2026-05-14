@@ -39,6 +39,7 @@ import { SubmitApplicationFormDto } from '../dto/submit-application-form.dto';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { RelationshipToPrimary } from '../../household/enums/relationship-to-primary.enum';
 import { Builder } from 'xml2js';
+import { AccessCodeType } from 'src/household/enums/access-code-type.enum';
 
 @Injectable()
 export class ApplicationFormService {
@@ -146,8 +147,9 @@ export class ApplicationFormService {
       // generate an access code
       const { accessCode, expiresAt } =
         await this.accessCodeService.createAccessCode(
-          applicationPackageId,
           householdMemberId,
+          applicationPackageId,
+          AccessCodeType.SCREENING,
         );
 
       // send email notification to household member about access code.

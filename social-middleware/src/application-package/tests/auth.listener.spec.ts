@@ -5,7 +5,7 @@ import {
   UserLoggedInEvent,
 } from '../../common/events/auth-events.service';
 import { SiebelApiService } from '../../siebel/siebel-api.service';
-import { ApplicationPackageService } from '../application-package.service';
+import { ApplicationPackageService } from '../services/application-package.service';
 import { UserService } from '../../auth/user.service';
 import { User } from 'src/auth/schemas';
 
@@ -123,6 +123,9 @@ describe('AuthListener.syncContactId', () => {
 
   it('persists contact_id when ICM returns a match', async () => {
     userService.findOne.mockResolvedValue(mockUser({ contact_id: '' }));
+    siebelApiService.getContactByBcscId.mockResolvedValue({
+      Id: 'contact-abc',
+    });
 
     await triggerLogin(mockUserEvent);
 

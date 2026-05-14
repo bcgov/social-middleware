@@ -1,0 +1,4 @@
+export enum AccessCodeType {
+  SCREENING = 'SCREENING',
+  NEW_APPLICATION = 'NEW_APPLICATION',
+}

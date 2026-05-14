@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { ApplicationPackageProcessor } from './application-package.processor';
 import { ApplicationPackage } from '../schema/application-package.schema';
-import { ApplicationPackageService } from '../application-package.service';
+import { ApplicationPackageService } from '../services/application-package.service';
 import { ApplicationPackageStatus } from '../enums/application-package-status.enum';
 import { SubmissionStatus } from '../enums/submission-status.enum';
 import { ApplicationFormService } from '../../application-form/services/application-form.service';
@@ -83,6 +83,10 @@ describe('ApplicationPackageProcessor', () => {
   };
   const mockUserUtil = {
     sexToGenderType: jest.fn().mockReturnValue('M'),
+    firstAndMiddleName: jest
+      .fn()
+      .mockReturnValue({ firstName: 'Jane', middleName: '' }),
+    toTitleCase: jest.fn((s: string) => s),
   };
   const mockLogger = {
     info: jest.fn(),
@@ -551,6 +555,7 @@ describe('ApplicationPackageProcessor', () => {
       });
       mockApplicationPackageService.submitApplicationPackage.mockResolvedValue({
         serviceRequestId: 'sr-001',
+        isComplete: true,
       });
 
       const result = await processor.handleSubmission(
