@@ -17,6 +17,7 @@ import { AttachmentsModule } from './attachments/attachments.module';
 import { NotificationModule } from './notifications/notification.module';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import pino from 'pino';
+import { DataRetentionModule } from './data-retention/data-retention.module';
 
 @Module({})
 export class AppModule {
@@ -31,6 +32,7 @@ export class AppModule {
         }),
         HttpModule,
         AuthModule,
+        DataRetentionModule,
         ScheduleModule.forRoot(),
         LoggerModule.forRootAsync({
           imports: [ConfigModule],
