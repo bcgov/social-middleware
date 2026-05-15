@@ -15,4 +15,5 @@ export enum ServiceRequestStage {
   APPLICATION = 'Application',
   SCREENING = 'Screening',
   ASSESSMENT = 'Assessment',
+  COMPLETED = 'Completed',
 }
