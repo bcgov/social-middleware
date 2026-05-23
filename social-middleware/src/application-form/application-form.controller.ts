@@ -1,12 +1,13 @@
-/* eslint-disable prettier/prettier */
 import {
   Controller,
   Query,
   Req,
   Get,
   Param,
+  Delete,
   UseGuards,
   Body,
+  HttpCode,
   ValidationPipe,
   NotFoundException,
   UnauthorizedException,
@@ -87,7 +88,8 @@ export class ApplicationFormsController {
       );
     }
 
-    const formAccessToken = await this.applicationFormsService.newFormAccessToken(dto);
+    const formAccessToken =
+      await this.applicationFormsService.newFormAccessToken(dto);
     return { formAccessToken };
   }
 
@@ -134,9 +136,10 @@ export class ApplicationFormsController {
     }
 
     // If ownership confirmed, fetch and return the form
-    const applicationForm = await this.applicationFormsService.getApplicationFormById(
-      applicationFormId
-    );
+    const applicationForm =
+      await this.applicationFormsService.getApplicationFormById(
+        applicationFormId,
+      );
 
     if (!applicationForm) {
       throw new NotFoundException('Application form not found');
@@ -164,7 +167,7 @@ export class ApplicationFormsController {
   ) {
     return await this.applicationFormsService.submitApplicationForm(
       dto,
-      ApplicationFormStatus.COMPLETE
+      ApplicationFormStatus.COMPLETE,
     );
   }
 
@@ -185,7 +188,9 @@ export class ApplicationFormsController {
     const userId = this.sessionUtil.extractUserIdFromRequest(request);
 
     //TODO
-    return await this.applicationFormsService.getApplicationFormsForUser(userId);
+    return await this.applicationFormsService.getApplicationFormsForUser(
+      userId,
+    );
   }
 
   @Get('household/:householdMemberId')
@@ -250,6 +255,95 @@ export class ApplicationFormsController {
     return forms;
   }
 
+  @Post(':applicationFormId/clone')
+  @UseGuards(SessionAuthGuard)
+  @ApiOperation({
+    summary: 'Clone an existing form to produce a new version for resubmission',
+  })
+  @ApiParam({ name: 'applicationFormId', required: true })
+  @ApiResponse({ status: 201, description: 'Cloned form created successfully' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 404, description: 'Source form not found' })
+  async cloneApplicationForm(
+    @Param('applicationFormId', new ParseUUIDPipe()) applicationFormId: string,
+    @Req() request: Request,
+  ): Promise<{ applicationFormId: string }> {
+    const userId = this.sessionUtil.extractUserIdFromRequest(request);
+
+    const ownsForm = await this.applicationFormsService.confirmOwnership(
+      applicationFormId,
+      userId,
+    );
+    if (!ownsForm) {
+      throw new UnauthorizedException(
+        'Invalid applicationForm or unauthorized access',
+      );
+    }
+
+    return this.applicationFormsService.cloneApplicationForm(applicationFormId);
+  }
+
+  @Post(':applicationFormId/submit-to-icm')
+  @UseGuards(SessionAuthGuard)
+  @ApiOperation({
+    summary: 'Mark a completed form as submitted and queue it for ICM',
+  })
+  @ApiParam({ name: 'applicationFormId', required: true })
+  @ApiResponse({ status: 200, description: 'Form queued for ICM submission' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 404, description: 'Form not found' })
+  async submitFormToICM(
+    @Param('applicationFormId', new ParseUUIDPipe()) applicationFormId: string,
+    @Req() request: Request,
+  ): Promise<{ success: boolean }> {
+    const userId = this.sessionUtil.extractUserIdFromRequest(request);
+
+    const ownsForm = await this.applicationFormsService.confirmOwnership(
+      applicationFormId,
+      userId,
+    );
+    if (!ownsForm) {
+      throw new UnauthorizedException(
+        'Invalid applicationForm or unauthorized access',
+      );
+    }
+
+    await this.applicationFormsService.markFormForResubmission(
+      applicationFormId,
+    );
+
+    return { success: true };
+  }
+
+  @Delete(':applicationFormId')
+  @UseGuards(SessionAuthGuard)
+  @HttpCode(204)
+  @ApiOperation({ summary: 'Delete a cloned application form' })
+  @ApiParam({ name: 'applicationFormId', required: true })
+  @ApiResponse({ status: 204, description: 'Form deleted successfully' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 404, description: 'Form not found' })
+  async deleteApplicationForm(
+    @Param('applicationFormId', new ParseUUIDPipe()) applicationFormId: string,
+    @Req() request: Request,
+  ): Promise<void> {
+    const userId = this.sessionUtil.extractUserIdFromRequest(request);
+
+    const ownsForm = await this.applicationFormsService.confirmOwnership(
+      applicationFormId,
+      userId,
+    );
+    if (!ownsForm) {
+      throw new UnauthorizedException(
+        'Invalid applicationForm or unauthorized access',
+      );
+    }
+
+    await this.applicationFormsService.cancelApplicationForm({
+      applicationFormId,
+    });
+  }
+
   @Post('saveDraft')
   @ApiOperation({ summary: 'Update application form data with Draft status' })
   @ApiResponse({
@@ -267,7 +361,7 @@ export class ApplicationFormsController {
   ) {
     return await this.applicationFormsService.submitApplicationForm(
       dto,
-      ApplicationFormStatus.DRAFT
+      ApplicationFormStatus.DRAFT,
     );
   }
 }
