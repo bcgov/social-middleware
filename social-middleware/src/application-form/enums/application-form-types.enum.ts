@@ -12,7 +12,7 @@ export enum ApplicationFormType {
   HOUSEHOLD = 'Adults in household',
   CHILDREN = 'Children in household',
   REFERENCES = 'References',
-  PLACEMENT = 'Type of placement',
+  PLACEMENT = 'Caregiver Considerations',
   DISCLOSURECONSENT = 'Consent for Disclosure of Criminal Record Information',
   PCCCONSENT = 'Consent for Prior Contact Check',
   SCREENING = 'Screening',
