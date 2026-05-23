@@ -40,6 +40,8 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { RelationshipToPrimary } from '../../household/enums/relationship-to-primary.enum';
 import { Builder } from 'xml2js';
 import { AccessCodeType } from 'src/household/enums/access-code-type.enum';
+import { InjectQueue } from '@nestjs/bull';
+import { Queue } from 'bull';
 
 @Injectable()
 export class ApplicationFormService {
@@ -56,6 +58,8 @@ export class ApplicationFormService {
     private readonly accessCodeService: AccessCodeService,
     private readonly householdService: HouseholdService,
     private readonly notificationService: NotificationService,
+    @InjectQueue('applicationPackageQueue')
+    private readonly applicationPackageQueue: Queue,
   ) {}
 
   async createApplicationForm(
@@ -109,6 +113,113 @@ export class ApplicationFormService {
       this.logger.error({ error }, 'Failed to create application');
       throw new InternalServerErrorException('Application creation failed.');
     }
+  }
+
+  async cloneApplicationForm(
+    sourceFormId: string,
+  ): Promise<{ applicationFormId: string }> {
+    const source = await this.applicationFormModel
+      .findOne({
+        applicationFormId: { $eq: sourceFormId },
+      })
+      .lean()
+      .exec();
+
+    if (!source) {
+      throw new NotFoundException(`Application form ${sourceFormId} not found`);
+    }
+
+    const sourceParams = await this.formParametersModel
+      .findOne({ applicationFormId: { $eq: sourceFormId } })
+      .sort({ createdAt: -1 })
+      .lean()
+      .exec();
+
+    if (!sourceParams) {
+      throw new NotFoundException(
+        `Form parameters for ${sourceFormId} not found`,
+      );
+    }
+
+    const applicationFormId = uuidv4();
+    const formAccessToken = uuidv4();
+
+    const clonedForm = new this.applicationFormModel({
+      applicationFormId,
+      applicationPackageId: source.applicationPackageId,
+      userId: source.userId,
+      householdMemberId: source.householdMemberId,
+      type: source.type,
+      formData: source.formData,
+      status: ApplicationFormStatus.DRAFT,
+      isClone: true,
+      userAttachedForm: false,
+      siebelAttachmentId: null,
+      submittedAt: null,
+    });
+
+    await clonedForm.save();
+
+    const clonedParams = new this.formParametersModel({
+      applicationFormId,
+      type: sourceParams.type,
+      formId: sourceParams.formId,
+      formAccessToken,
+      formParameters: sourceParams.formParameters,
+    });
+
+    await clonedParams.save();
+
+    this.logger.info(
+      { sourceFormId, applicationFormId },
+      'Application form cloned successfully',
+    );
+
+    return { applicationFormId };
+  }
+
+  /**
+   * Used to mark a re-submitted form to ICM
+   * @param applicationFormId
+   */
+
+  async markFormForResubmission(applicationFormId: string): Promise<void> {
+    const updated = await this.applicationFormModel
+      .findOneAndUpdate(
+        { applicationFormId: { $eq: applicationFormId } },
+        {
+          $set: {
+            status: ApplicationFormStatus.SUBMITTED,
+            submittedAt: new Date(),
+          },
+        },
+        { new: true },
+      )
+      .lean()
+      .exec();
+
+    if (!updated) {
+      throw new NotFoundException(
+        `Application form ${applicationFormId} not found`,
+      );
+    }
+
+    await this.applicationPackageQueue.add(
+      'resubmit-form',
+      { applicationFormId },
+      {
+        jobId: `resubmit-form-${applicationFormId}`,
+        attempts: 12,
+        backoff: { type: 'exponential', delay: 30000 },
+        removeOnComplete: 100,
+        removeOnFail: false,
+      },
+    );
+
+    this.logger.info(
+      { applicationFormId },
+      'Form marked SUBMITTED and queued for ICM resubmission',
+    );
   }
 
   async createScreeningFormsAndAccessCode(
@@ -910,6 +1021,10 @@ export class ApplicationFormService {
       throw new NotFoundException(`Application ${applicationFormId} not found`);
     }
 
+    if (!application.isClone) {
+      throw new ForbiddenException('Only cloned forms can be deleted this way');
+    }
+
     // Delete form parameters
     await this.formParametersModel.deleteMany({ applicationFormId }).exec();
 
@@ -920,6 +1035,13 @@ export class ApplicationFormService {
       { applicationFormId },
       'ApplicationForm cancelled successfully',
     );
+  }
+
+  async findOneById(applicationFormId: string) {
+    return this.applicationFormModel
+      .findOne({ applicationFormId: { $eq: applicationFormId } })
+      .lean()
+      .exec();
   }
 
   async findByIdAndUser(
