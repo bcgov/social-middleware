@@ -452,33 +452,7 @@ export class ApplicationFormService {
         return [];
       }
 
-      // Fetch corresponding formIds from FormParameters
-      const applicationFormIds = forms.map((form) => form.applicationFormId);
-      const formParameters = await this.formParametersModel
-        .find(
-          { applicationFormId: { $in: applicationFormIds } },
-          { applicationFormId: 1, formId: 1 },
-        )
-        .lean();
-
-      // Map applicationId -> formId
-      const formIdMap = new Map(
-        formParameters.map((fp) => [fp.applicationFormId, fp.formId]),
-      );
-
-      // Build final DTO array
-      const results: GetApplicationFormDto[] = forms.map((form) => ({
-        applicationFormId: form.applicationFormId,
-        applicationPackageId: form.applicationPackageId,
-        formId: formIdMap.get(form.applicationFormId) ?? '',
-        userId: form.userId,
-        householdMemberId: form.householdMemberId,
-        userAttachedForm: form.userAttachedForm,
-        type: form.type,
-        status: form.status,
-        submittedAt: form.submittedAt ?? null,
-        updatedAt: form.updatedAt,
-      }));
+      const results = await this.mapFormsToDto(forms);
 
       this.logger.info(
         { userId, count: results.length },
@@ -490,86 +464,6 @@ export class ApplicationFormService {
       this.logger.error({ error, userId }, 'Failed to fetch application forms');
       throw new InternalServerErrorException(
         'Failed to fetch application forms for user',
-      );
-    }
-  }
-
-  async getApplicationFormsByPackageId(
-    applicationPackageId: string,
-    userId: string,
-  ): Promise<GetApplicationFormDto[]> {
-    try {
-      // Validate package ownership
-      const appPackage = await this.applicationPackageModel
-        .findOne({ applicationPackageId })
-        .lean();
-
-      if (!appPackage) {
-        throw new NotFoundException(
-          `Application package ${applicationPackageId} not found`,
-        );
-      }
-
-      if (appPackage.userId !== userId) {
-        throw new ForbiddenException(
-          `User does not have access to this package`,
-        );
-      }
-      this.logger.info(
-        { applicationPackageId },
-        'Fetching application forms for package',
-      );
-
-      const forms = await this.applicationFormModel
-        .find({ applicationPackageId })
-        .lean();
-
-      if (!forms.length) {
-        this.logger.info(
-          { applicationPackageId },
-          'No application forms found for package',
-        );
-        return [];
-      }
-
-      // Fetch corresponding formIds from FormParameters
-      const applicationFormIds = forms.map((form) => form.applicationFormId);
-      const formParameters = await this.formParametersModel
-        .find(
-          { applicationFormId: { $in: applicationFormIds } },
-          { applicationFormId: 1, formId: 1 },
-        )
-        .lean();
-
-      const formIdMap = new Map(
-        formParameters.map((fp) => [fp.applicationFormId, fp.formId]),
-      );
-
-      const results: GetApplicationFormDto[] = forms.map((form) => ({
-        applicationFormId: form.applicationFormId,
-        applicationPackageId: form.applicationPackageId,
-        formId: formIdMap.get(form.applicationFormId) ?? '',
-        userId: form.userId,
-        householdMemberId: form.householdMemberId,
-        userAttachedForm: form.userAttachedForm,
-        type: form.type,
-        status: form.status,
-        updatedAt: form.updatedAt,
-        submittedAt: form.submittedAt ?? null,
-      }));
-
-      this.logger.info(
-        { applicationPackageId, count: results.length },
-        'Application forms fetched successfully',
-      );
-      return results;
-    } catch (error) {
-      this.logger.error(
-        { error, applicationPackageId },
-        'Failed to fetch application forms for package',
-      );
-      throw new InternalServerErrorException(
-        'Failed to fetch application forms for package',
       );
     }
   }
@@ -725,33 +619,7 @@ export class ApplicationFormService {
         return [];
       }
 
-      // Map each form to the DTO
-      const results: GetApplicationFormDto[] = await Promise.all(
-        forms.map(async (form) => {
-          // Get the corresponding formId from FormParameters
-          const formParameters = await this.formParametersModel
-            .findOne(
-              { applicationFormId: form.applicationFormId },
-              { formId: 1 },
-            )
-            .lean()
-            .exec();
-
-          return {
-            applicationFormId: form.applicationFormId,
-            applicationPackageId: form.applicationPackageId,
-            formId: formParameters?.formId ?? '',
-            userId: form.userId,
-            householdMemberId: form.householdMemberId,
-            type: form.type,
-            status: form.status,
-            userAttachedForm: form.userAttachedForm,
-            submittedAt: form.submittedAt ?? null,
-            updatedAt: form.updatedAt,
-          };
-        }),
-      );
-
+      const results = await this.mapFormsToDto(forms);
       this.logger.info(
         { householdMemberId, count: results.length },
         'Successfully fetched application forms for household member',
@@ -1107,5 +975,34 @@ export class ApplicationFormService {
     await this.applicationFormModel
       .deleteMany({ applicationPackageId: applicationPackageId })
       .exec();
+  }
+
+  private async mapFormsToDto(
+    forms: ApplicationForm[],
+  ): Promise<GetApplicationFormDto[]> {
+    const ids = forms.map((f) => f.applicationFormId);
+    const params = await this.formParametersModel
+      .find(
+        { applicationFormId: { $in: ids } },
+        { applicationFormId: 1, formId: 1 },
+      )
+      .lean();
+
+    const formIdMap = new Map(
+      params.map((p) => [p.applicationFormId, p.formId]),
+    );
+
+    return forms.map((form) => ({
+      applicationFormId: form.applicationFormId,
+      applicationPackageId: form.applicationPackageId,
+      formId: formIdMap.get(form.applicationFormId) ?? '',
+      userId: form.userId,
+      householdMemberId: form.householdMemberId,
+      userAttachedForm: form.userAttachedForm,
+      type: form.type,
+      status: form.status,
+      submittedAt: form.submittedAt ?? null,
+      updatedAt: form.updatedAt,
+    }));
   }
 }
