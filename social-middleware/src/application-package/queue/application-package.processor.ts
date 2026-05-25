@@ -359,6 +359,82 @@ export class ApplicationPackageProcessor {
   }
 
   /**
+   * Process submit individual form to attachment on SR
+   * Idempotent - can be safely retried
+   */
+
+  @Process('resubmit-form')
+  async handleFormResubmission(
+    job: Job<{ applicationFormId: string }>,
+  ): Promise<{ success: boolean }> {
+    const { applicationFormId } = job.data;
+
+    this.logger.info(
+      { jobId: job.id, applicationFormId },
+      'Processing form resubmission to Siebel',
+    );
+
+    const form =
+      await this.applicationFormService.findOneById(applicationFormId);
+    if (!form) {
+      this.logger.warn(
+        { applicationFormId },
+        'Form not found for resubmission - removing stale job',
+      );
+      return { success: false };
+    }
+
+    if (!form.formData) {
+      this.logger.warn(
+        { applicationFormId },
+        'Form has no data - skipping ICM attachment',
+      );
+      return { success: false };
+    }
+
+    const applicationPackage = await this.applicationPackageModel
+      .findOne({ applicationPackageId: form.applicationPackageId })
+      .lean()
+      .exec();
+
+    if (!applicationPackage?.srId) {
+      throw new InternalServerErrorException(
+        `No Siebel SR ID found for package ${form.applicationPackageId}`,
+      );
+    }
+
+    const formId = getFormIdForFormType(form.type as ApplicationFormType);
+    const xmlHierarchy =
+      await this.applicationFormService.convertFormDataToXml(applicationFormId);
+
+    const attachmentResult = (await this.siebelApiService.createFormAttachment(
+      applicationPackage.srId,
+      {
+        fileName: form.type as string,
+        template: formId,
+        xmlHierarchy,
+        fileContent: form.formData,
+      },
+    )) as { items: { Id: string } };
+
+    await this.applicationFormService.saveSiebelAttachmentId(
+      applicationFormId,
+      attachmentResult.items?.Id,
+    );
+
+    this.logger.info(
+      {
+        applicationFormId,
+        srId: applicationPackage.srId,
+        attachmentId: attachmentResult.items?.Id,
+      },
+      'Form resubmission to Siebel complete',
+    );
+
+    return { success: true };
+  }
+
+  /**
    * Process referral submission to Siebel
    * Idempotent - can be safely retried
    */

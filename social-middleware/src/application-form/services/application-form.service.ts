@@ -40,6 +40,8 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { RelationshipToPrimary } from '../../household/enums/relationship-to-primary.enum';
 import { Builder } from 'xml2js';
 import { AccessCodeType } from 'src/household/enums/access-code-type.enum';
+import { InjectQueue } from '@nestjs/bull';
+import { Queue } from 'bull';
 
 @Injectable()
 export class ApplicationFormService {
@@ -56,6 +58,8 @@ export class ApplicationFormService {
     private readonly accessCodeService: AccessCodeService,
     private readonly householdService: HouseholdService,
     private readonly notificationService: NotificationService,
+    @InjectQueue('applicationPackageQueue')
+    private readonly applicationPackageQueue: Queue,
   ) {}
 
   async createApplicationForm(
@@ -109,6 +113,113 @@ export class ApplicationFormService {
       this.logger.error({ error }, 'Failed to create application');
       throw new InternalServerErrorException('Application creation failed.');
     }
+  }
+
+  async cloneApplicationForm(
+    sourceFormId: string,
+  ): Promise<{ applicationFormId: string }> {
+    const source = await this.applicationFormModel
+      .findOne({
+        applicationFormId: { $eq: sourceFormId },
+      })
+      .lean()
+      .exec();
+
+    if (!source) {
+      throw new NotFoundException(`Application form ${sourceFormId} not found`);
+    }
+
+    const sourceParams = await this.formParametersModel
+      .findOne({ applicationFormId: { $eq: sourceFormId } })
+      .sort({ createdAt: -1 })
+      .lean()
+      .exec();
+
+    if (!sourceParams) {
+      throw new NotFoundException(
+        `Form parameters for ${sourceFormId} not found`,
+      );
+    }
+
+    const applicationFormId = uuidv4();
+    const formAccessToken = uuidv4();
+
+    const clonedForm = new this.applicationFormModel({
+      applicationFormId,
+      applicationPackageId: source.applicationPackageId,
+      userId: source.userId,
+      householdMemberId: source.householdMemberId,
+      type: source.type,
+      formData: source.formData,
+      status: ApplicationFormStatus.DRAFT,
+      isClone: true,
+      userAttachedForm: false,
+      siebelAttachmentId: null,
+      submittedAt: null,
+    });
+
+    await clonedForm.save();
+
+    const clonedParams = new this.formParametersModel({
+      applicationFormId,
+      type: sourceParams.type,
+      formId: sourceParams.formId,
+      formAccessToken,
+      formParameters: sourceParams.formParameters,
+    });
+
+    await clonedParams.save();
+
+    this.logger.info(
+      { sourceFormId, applicationFormId },
+      'Application form cloned successfully',
+    );
+
+    return { applicationFormId };
+  }
+
+  /**
+   * Used to mark a re-submitted form to ICM
+   * @param applicationFormId
+   */
+
+  async markFormForResubmission(applicationFormId: string): Promise<void> {
+    const updated = await this.applicationFormModel
+      .findOneAndUpdate(
+        { applicationFormId: { $eq: applicationFormId } },
+        {
+          $set: {
+            status: ApplicationFormStatus.SUBMITTED,
+            submittedAt: new Date(),
+          },
+        },
+        { new: true },
+      )
+      .lean()
+      .exec();
+
+    if (!updated) {
+      throw new NotFoundException(
+        `Application form ${applicationFormId} not found`,
+      );
+    }
+
+    await this.applicationPackageQueue.add(
+      'resubmit-form',
+      { applicationFormId },
+      {
+        jobId: `resubmit-form-${applicationFormId}`,
+        attempts: 12,
+        backoff: { type: 'exponential', delay: 30000 },
+        removeOnComplete: 100,
+        removeOnFail: false,
+      },
+    );
+
+    this.logger.info(
+      { applicationFormId },
+      'Form marked SUBMITTED and queued for ICM resubmission',
+    );
   }
 
   async createScreeningFormsAndAccessCode(
@@ -341,33 +452,7 @@ export class ApplicationFormService {
         return [];
       }
 
-      // Fetch corresponding formIds from FormParameters
-      const applicationFormIds = forms.map((form) => form.applicationFormId);
-      const formParameters = await this.formParametersModel
-        .find(
-          { applicationFormId: { $in: applicationFormIds } },
-          { applicationFormId: 1, formId: 1 },
-        )
-        .lean();
-
-      // Map applicationId -> formId
-      const formIdMap = new Map(
-        formParameters.map((fp) => [fp.applicationFormId, fp.formId]),
-      );
-
-      // Build final DTO array
-      const results: GetApplicationFormDto[] = forms.map((form) => ({
-        applicationFormId: form.applicationFormId,
-        applicationPackageId: form.applicationPackageId,
-        formId: formIdMap.get(form.applicationFormId) ?? '',
-        userId: form.userId,
-        householdMemberId: form.householdMemberId,
-        userAttachedForm: form.userAttachedForm,
-        type: form.type,
-        status: form.status,
-        submittedAt: form.submittedAt ?? null,
-        updatedAt: form.updatedAt,
-      }));
+      const results = await this.mapFormsToDto(forms);
 
       this.logger.info(
         { userId, count: results.length },
@@ -379,86 +464,6 @@ export class ApplicationFormService {
       this.logger.error({ error, userId }, 'Failed to fetch application forms');
       throw new InternalServerErrorException(
         'Failed to fetch application forms for user',
-      );
-    }
-  }
-
-  async getApplicationFormsByPackageId(
-    applicationPackageId: string,
-    userId: string,
-  ): Promise<GetApplicationFormDto[]> {
-    try {
-      // Validate package ownership
-      const appPackage = await this.applicationPackageModel
-        .findOne({ applicationPackageId })
-        .lean();
-
-      if (!appPackage) {
-        throw new NotFoundException(
-          `Application package ${applicationPackageId} not found`,
-        );
-      }
-
-      if (appPackage.userId !== userId) {
-        throw new ForbiddenException(
-          `User does not have access to this package`,
-        );
-      }
-      this.logger.info(
-        { applicationPackageId },
-        'Fetching application forms for package',
-      );
-
-      const forms = await this.applicationFormModel
-        .find({ applicationPackageId })
-        .lean();
-
-      if (!forms.length) {
-        this.logger.info(
-          { applicationPackageId },
-          'No application forms found for package',
-        );
-        return [];
-      }
-
-      // Fetch corresponding formIds from FormParameters
-      const applicationFormIds = forms.map((form) => form.applicationFormId);
-      const formParameters = await this.formParametersModel
-        .find(
-          { applicationFormId: { $in: applicationFormIds } },
-          { applicationFormId: 1, formId: 1 },
-        )
-        .lean();
-
-      const formIdMap = new Map(
-        formParameters.map((fp) => [fp.applicationFormId, fp.formId]),
-      );
-
-      const results: GetApplicationFormDto[] = forms.map((form) => ({
-        applicationFormId: form.applicationFormId,
-        applicationPackageId: form.applicationPackageId,
-        formId: formIdMap.get(form.applicationFormId) ?? '',
-        userId: form.userId,
-        householdMemberId: form.householdMemberId,
-        userAttachedForm: form.userAttachedForm,
-        type: form.type,
-        status: form.status,
-        updatedAt: form.updatedAt,
-        submittedAt: form.submittedAt ?? null,
-      }));
-
-      this.logger.info(
-        { applicationPackageId, count: results.length },
-        'Application forms fetched successfully',
-      );
-      return results;
-    } catch (error) {
-      this.logger.error(
-        { error, applicationPackageId },
-        'Failed to fetch application forms for package',
-      );
-      throw new InternalServerErrorException(
-        'Failed to fetch application forms for package',
       );
     }
   }
@@ -614,33 +619,7 @@ export class ApplicationFormService {
         return [];
       }
 
-      // Map each form to the DTO
-      const results: GetApplicationFormDto[] = await Promise.all(
-        forms.map(async (form) => {
-          // Get the corresponding formId from FormParameters
-          const formParameters = await this.formParametersModel
-            .findOne(
-              { applicationFormId: form.applicationFormId },
-              { formId: 1 },
-            )
-            .lean()
-            .exec();
-
-          return {
-            applicationFormId: form.applicationFormId,
-            applicationPackageId: form.applicationPackageId,
-            formId: formParameters?.formId ?? '',
-            userId: form.userId,
-            householdMemberId: form.householdMemberId,
-            type: form.type,
-            status: form.status,
-            userAttachedForm: form.userAttachedForm,
-            submittedAt: form.submittedAt ?? null,
-            updatedAt: form.updatedAt,
-          };
-        }),
-      );
-
+      const results = await this.mapFormsToDto(forms);
       this.logger.info(
         { householdMemberId, count: results.length },
         'Successfully fetched application forms for household member',
@@ -910,6 +889,10 @@ export class ApplicationFormService {
       throw new NotFoundException(`Application ${applicationFormId} not found`);
     }
 
+    if (!application.isClone) {
+      throw new ForbiddenException('Only cloned forms can be deleted this way');
+    }
+
     // Delete form parameters
     await this.formParametersModel.deleteMany({ applicationFormId }).exec();
 
@@ -920,6 +903,13 @@ export class ApplicationFormService {
       { applicationFormId },
       'ApplicationForm cancelled successfully',
     );
+  }
+
+  async findOneById(applicationFormId: string) {
+    return this.applicationFormModel
+      .findOne({ applicationFormId: { $eq: applicationFormId } })
+      .lean()
+      .exec();
   }
 
   async findByIdAndUser(
@@ -985,5 +975,34 @@ export class ApplicationFormService {
     await this.applicationFormModel
       .deleteMany({ applicationPackageId: applicationPackageId })
       .exec();
+  }
+
+  private async mapFormsToDto(
+    forms: ApplicationForm[],
+  ): Promise<GetApplicationFormDto[]> {
+    const ids = forms.map((f) => f.applicationFormId);
+    const params = await this.formParametersModel
+      .find(
+        { applicationFormId: { $in: ids } },
+        { applicationFormId: 1, formId: 1 },
+      )
+      .lean();
+
+    const formIdMap = new Map(
+      params.map((p) => [p.applicationFormId, p.formId]),
+    );
+
+    return forms.map((form) => ({
+      applicationFormId: form.applicationFormId,
+      applicationPackageId: form.applicationPackageId,
+      formId: formIdMap.get(form.applicationFormId) ?? '',
+      userId: form.userId,
+      householdMemberId: form.householdMemberId,
+      userAttachedForm: form.userAttachedForm,
+      type: form.type,
+      status: form.status,
+      submittedAt: form.submittedAt ?? null,
+      updatedAt: form.updatedAt,
+    }));
   }
 }
