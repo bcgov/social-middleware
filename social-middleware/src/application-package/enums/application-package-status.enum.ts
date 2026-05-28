@@ -11,6 +11,7 @@ export enum ApplicationPackageStatus {
 }
 
 export enum ServiceRequestStage {
+  NEW = '',
   REFERRAL = 'Referral',
   APPLICATION = 'Application',
   SCREENING = 'Screening',
