@@ -26,7 +26,7 @@ export function getDefaultSrStage(
 ): ServiceRequestStage {
   switch (subtype) {
     case ApplicationPackageSubType.FCH:
-      return ServiceRequestStage.NEW;
+      return ServiceRequestStage.REFERRAL;
     case ApplicationPackageSubType.OOC:
       return ServiceRequestStage.APPLICATION;
     default:
