@@ -1,3 +1,5 @@
+import { ServiceRequestStage } from './application-package-status.enum';
+
 export enum ApplicationPackageSubType {
   FCH = 'FCH',
   OOC = 'OOC',
@@ -17,4 +19,17 @@ export enum ReferralState {
   NEW = 'New',
   REQUESTED = 'Requested',
   COMPLETE = 'COMPLETE',
+}
+
+export function getDefaultSrStage(
+  subtype: ApplicationPackageSubType,
+): ServiceRequestStage {
+  switch (subtype) {
+    case ApplicationPackageSubType.FCH:
+      return ServiceRequestStage.REFERRAL;
+    case ApplicationPackageSubType.OOC:
+      return ServiceRequestStage.APPLICATION;
+    default:
+      return ServiceRequestStage.NEW;
+  }
 }

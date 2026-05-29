@@ -52,6 +52,7 @@ import { NotificationService } from '../../notifications/services/notification.s
 import { AttachmentType } from '../../attachments/enums/attachment-types.enum';
 import { GenderTypes } from '../../household/enums/gender-types.enum';
 import { UUID } from 'crypto';
+import { ApplicationPackageSubType } from '../enums/application-package-subtypes.enum';
 
 /*
 interface SiebelServiceRequestResponse {
@@ -63,6 +64,7 @@ interface SiebelServiceRequestResponse {
 */
 @Injectable()
 export class ApplicationPackageService {
+  private readonly TEST_KINSHIP: boolean;
   constructor(
     @InjectModel(ApplicationPackage.name)
     private applicationPackageModel: Model<ApplicationPackage>,
@@ -78,7 +80,10 @@ export class ApplicationPackageService {
     private readonly attachmentsService: AttachmentsService,
     @InjectPinoLogger(ApplicationFormService.name)
     private readonly logger: PinoLogger,
-  ) {}
+  ) {
+    this.TEST_KINSHIP =
+      (this.configService.get<string>('TEST_KINSHIP') || 'false') === 'true';
+  }
 
   // create a new application package, which includes creating the initial referral form
   // and the primary household member
@@ -140,6 +145,15 @@ export class ApplicationPackageService {
         formType,
       );
     }
+
+    if (this.TEST_KINSHIP && dto.subtype === ApplicationPackageSubType.OOC) {
+      await this.submitReferralRequest(
+        appPackage.applicationPackageId,
+        userId,
+        {},
+      );
+    }
+
     return appPackage;
   }
 
@@ -608,20 +622,27 @@ export class ApplicationPackageService {
       throw new BadRequestException('Referral already submitted');
     }
 
-    // verify all non-referral forms are complete before submitting
-    const forms = await this.applicationFormService.findByPackageAndUser(
-      applicationPackageId,
-      userId,
+    const referralRecipe = getReferralRecipe(
+      applicationPackage.subtype,
+      applicationPackage.subsubtype,
     );
-    const incompleteForms = forms.filter(
-      (f) =>
-        f.type !== ApplicationFormType.REFERRAL &&
-        f.status !== ApplicationFormStatus.COMPLETE,
-    );
-    if (incompleteForms.length > 0) {
-      throw new BadRequestException(
-        `Cannot submit referral - ${incompleteForms.length} form(s) are incomplete`,
+    if (referralRecipe.length > 0) {
+      // verify all referral forms are complete before submitting
+      const forms = await this.applicationFormService.findByPackageAndUser(
+        applicationPackageId,
+        userId,
       );
+
+      const incompleteForms = forms.filter(
+        (f) =>
+          f.type !== ApplicationFormType.REFERRAL &&
+          f.status !== ApplicationFormStatus.COMPLETE,
+      );
+      if (incompleteForms.length > 0) {
+        throw new BadRequestException(
+          `Cannot submit referral - ${incompleteForms.length} form(s) are incomplete`,
+        );
+      }
     }
 
     // Update status immediately so frontend knows it's been requested
@@ -882,30 +903,6 @@ export class ApplicationPackageService {
         }
       }
 
-      /*
-      try {
-        // update the service request stage to Screening
-        this.logger.info(
-          { applicationPackageId, serviceRequestId },
-          'Updating service request stage to Screening',
-        );
-
-        //await this.siebelApiService.updateServiceRequestStage(
-        //  serviceRequestId,
-        //  'Screening',
-        //);
-      } catch (error) {
-        this.logger.error(
-          {
-            error,
-            applicationPackageId,
-            serviceRequestId,
-          },
-          'Failed to update service request stage to Screening',
-        );
-      }
-      */
-
       // Subsequent submission: get ALL forms for the package (all users)
       const allApplicationForms =
         await this.applicationFormService.findAllByApplicationPackageId(
@@ -915,7 +912,10 @@ export class ApplicationPackageService {
         // already submitted these forms
         (form) =>
           form.type !== ApplicationFormType.REFERRAL &&
-          form.type !== ApplicationFormType.INDIGENOUS,
+          !(
+            form.type === ApplicationFormType.INDIGENOUS &&
+            form.siebelAttachmentId
+          ),
       );
       this.logger.info(
         {

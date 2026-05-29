@@ -12,6 +12,11 @@ import {
   ApplicationPackage,
   ApplicationPackageDocument,
 } from '../schema/application-package.schema';
+import {
+  //ApplicationPackageSubType,
+  //ApplicationPackageSubSubType,
+  getDefaultSrStage,
+} from '../enums/application-package-subtypes.enum';
 import { ApplicationPackageService } from '../services/application-package.service';
 import { ApplicationPackageStatus } from '../enums/application-package-status.enum';
 import { formatDateForSiebel } from '../../common/utils/date.util';
@@ -403,14 +408,35 @@ export class ApplicationPackageProcessor {
       );
     }
 
-    const formId = getFormIdForFormType(form.type as ApplicationFormType);
+    const formId = getFormIdForFormType(form.type);
     const xmlHierarchy =
       await this.applicationFormService.convertFormDataToXml(applicationFormId);
+
+    // Append applicant name to consent form filenames, matching original submission behaviour
+    let fileName = form.type as string;
+    if (
+      (form.type === ApplicationFormType.DISCLOSURECONSENT ||
+        form.type === ApplicationFormType.PCCCONSENT) &&
+      form.userId
+    ) {
+      const memberUser = await this.userService.findOne(form.userId);
+      if (memberUser) {
+        const { firstName } = this.userUtil.firstAndMiddleName(
+          memberUser.first_name,
+        );
+        fileName = `${firstName}_${this.userUtil.toTitleCase(memberUser.last_name)}-${form.type}`;
+      }
+    }
+    // prefix all re-submitted forms with today's date
+    //const now = new Date();
+    //const datePrefix = `${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}-${now.getFullYear()}`;
+    //fileName = `${datePrefix}-${fileName}`;
+    fileName = `AMENDED-${fileName}`;
 
     const attachmentResult = (await this.siebelApiService.createFormAttachment(
       applicationPackage.srId,
       {
-        fileName: form.type as string,
+        fileName: fileName,
         template: formId,
         xmlHierarchy,
         fileContent: form.formData,
@@ -501,6 +527,7 @@ export class ApplicationPackageProcessor {
         Status: 'Open',
         Priority: '3-Standard',
         Type: 'Caregiver Application',
+        //'ICM Stage': getDefaultSrStage(pkg.subtype),
         'SR Sub Type': pkg.subtype,
         'SR Sub Sub Type': pkg.subsubtype,
         'ICM BCSC DID': primaryUser.bc_services_card_id,
@@ -693,7 +720,10 @@ export class ApplicationPackageProcessor {
       'Step 3: Updating service request stage to Referral',
     );
 
-    await this.siebelApiService.updateServiceRequestStage(srId, 'Referral');
+    await this.siebelApiService.updateServiceRequestStage(
+      srId,
+      getDefaultSrStage(pkg.subtype),
+    );
 
     this.logger.info(
       { applicationPackageId, srId },
