@@ -412,10 +412,31 @@ export class ApplicationPackageProcessor {
     const xmlHierarchy =
       await this.applicationFormService.convertFormDataToXml(applicationFormId);
 
+    // Append applicant name to consent form filenames, matching original submission behaviour
+    let fileName = form.type as string;
+    if (
+      (form.type === ApplicationFormType.DISCLOSURECONSENT ||
+        form.type === ApplicationFormType.PCCCONSENT) &&
+      form.userId
+    ) {
+      const memberUser = await this.userService.findOne(form.userId);
+      if (memberUser) {
+        const { firstName } = this.userUtil.firstAndMiddleName(
+          memberUser.first_name,
+        );
+        fileName = `${firstName}_${this.userUtil.toTitleCase(memberUser.last_name)}-${form.type}`;
+      }
+    }
+    // prefix all re-submitted forms with today's date
+    //const now = new Date();
+    //const datePrefix = `${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}-${now.getFullYear()}`;
+    //fileName = `${datePrefix}-${fileName}`;
+    fileName = `AMENDED-${fileName}`;
+
     const attachmentResult = (await this.siebelApiService.createFormAttachment(
       applicationPackage.srId,
       {
-        fileName: form.type,
+        fileName: fileName,
         template: formId,
         xmlHierarchy,
         fileContent: form.formData,
