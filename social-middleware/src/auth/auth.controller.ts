@@ -153,6 +153,7 @@ export class AuthController {
           email: decoded.email,
           name: decoded.name,
         },
+        expiresAt: decoded.exp != undefined ? decoded.exp * 1000 : 0, // conver to ms for the front end
       };
     } catch (error) {
       this.logger.error({ error }, 'Session validation error');
