@@ -49,7 +49,10 @@ import { ApplicationFormStatus } from '../../application-form/enums/application-
 import { AttachmentsService } from '../../attachments/attachments.service';
 import { NotificationService } from '../../notifications/services/notification.service';
 
-import { AttachmentType } from '../../attachments/enums/attachment-types.enum';
+import {
+  AttachmentType,
+  AttachmentCategoryMap,
+} from '../../attachments/enums/attachment-types.enum';
 import { GenderTypes } from '../../household/enums/gender-types.enum';
 import { UUID } from 'crypto';
 import { ApplicationPackageSubType } from '../enums/application-package-subtypes.enum';
@@ -1546,6 +1549,93 @@ export class ApplicationPackageService {
       success: true,
       attachmentsUploaded: uploadedCount,
     };
+  }
+  async submitDocumentsToICM(
+    applicationPackageId: string,
+    householdMemberId: string | null,
+    attachmentType: string,
+    userId: string,
+  ): Promise<{ success: boolean; attachmentsUploaded: number }> {
+    this.logger.info(
+      { applicationPackageId, householdMemberId, attachmentType, userId },
+      'Starting document submission to ICM',
+    );
+
+    const applicationPackage = (await this.applicationPackageModel
+      .findOne({ applicationPackageId })
+      .lean()
+      .exec()) as ApplicationPackage;
+
+    if (!applicationPackage) {
+      throw new NotFoundException(
+        `Application package ${applicationPackageId} not found`,
+      );
+    }
+
+    if (!applicationPackage.srId) {
+      throw new BadRequestException(
+        'Service request not created yet — cannot submit documents to ICM',
+      );
+    }
+
+    const allAttachments =
+      await this.attachmentsService.findByApplicationPackageId(
+        applicationPackageId,
+        userId,
+      );
+
+    const pending = allAttachments.filter(
+      (att) =>
+        att.attachmentType === attachmentType &&
+        att.householdMemberId === householdMemberId &&
+        !att.icmAttachmentId,
+    );
+
+    if (pending.length === 0) {
+      return { success: true, attachmentsUploaded: 0 };
+    }
+
+    const category =
+      AttachmentCategoryMap[attachmentType as AttachmentType] ?? 'Other';
+    let uploadedCount = 0;
+
+    for (const attachment of pending) {
+      try {
+        const fullAttachment = await this.attachmentsService.findById(
+          attachment.attachmentId,
+        );
+
+        if (!fullAttachment?.fileData) {
+          this.logger.warn(
+            { attachmentId: attachment.attachmentId },
+            'Skipping attachment with no file content',
+          );
+          continue;
+        }
+
+        await this.siebelApiService.createAttachment(applicationPackage.srId, {
+          fileName: fullAttachment.fileName,
+          fileContent: fullAttachment.fileData,
+          fileType: fullAttachment.fileType,
+          category,
+          description: attachmentType,
+        });
+
+        await this.attachmentsService.saveIcmAttachmentId(
+          attachment.attachmentId,
+          `submitted-${Date.now()}`,
+        );
+
+        uploadedCount++;
+      } catch (err) {
+        this.logger.error(
+          { attachmentId: attachment.attachmentId, err },
+          'Failed to upload attachment to ICM',
+        );
+      }
+    }
+
+    return { success: true, attachmentsUploaded: uploadedCount };
   }
 
   async validateHouseholdCompletion(
