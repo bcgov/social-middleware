@@ -67,6 +67,7 @@ export class AttachmentsService {
       fileSize: attachment.fileSize,
       description: attachment.description,
       uploadedBy: attachment.uploadedBy,
+      icmAttachmentId: attachment.icmAttachmentId,
       createdAt: attachment.createdAt,
       updatedAt: attachment.updatedAt,
     }));
