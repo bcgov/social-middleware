@@ -1242,37 +1242,79 @@ export class ApplicationPackageService {
     applicationPackageId: string,
     userId: string,
   ): Promise<{ status: ApplicationPackageStatus }> {
-    try {
-      this.logger.info(
-        { applicationPackageId, userId },
-        'Attempting to lock application package',
+    this.logger.info(
+      { applicationPackageId, userId },
+      'Attempting to lock application package',
+    );
+
+    // Verify ownership
+    const applicationPackage = await this.applicationPackageModel
+      .findOne({ applicationPackageId, userId })
+      .lean();
+
+    if (!applicationPackage) {
+      throw new NotFoundException(
+        `Application package ${applicationPackageId} not found or not owned by user, will not lock.`,
       );
+    }
 
-      // Verify ownership
-      const applicationPackage = await this.applicationPackageModel
-        .findOne({ applicationPackageId, userId })
+    // If already past Application, return current status idempotently
+    if (applicationPackage.status !== ApplicationPackageStatus.APPLICATION) {
+      this.logger.warn(
+        { applicationPackageId, status: applicationPackage.status },
+        'Lock called on package not in Application status — returning current status',
+      );
+      return { status: applicationPackage.status };
+    }
+
+    // validate household completion
+    const householdValidation =
+      await this.householdService.validateHouseholdCompletion(
+        applicationPackageId,
+        applicationPackage.hasPartner,
+        applicationPackage.hasHousehold,
+      );
+    if (!householdValidation.isComplete) {
+      //household data is incomplete
+      throw new BadRequestException(`Household data is incomplete`);
+    }
+
+    // Atomically transition APPLICATION → CONSENT (or SUBMITTED if no screening).
+    // Uses the status as a condition so only one concurrent request wins.
+    const claimed = await this.applicationPackageModel.findOneAndUpdate(
+      {
+        applicationPackageId,
+        userId,
+        status: ApplicationPackageStatus.APPLICATION,
+      },
+      {
+        $set: {
+          status: ApplicationPackageStatus.CONSENT,
+          updatedAt: new Date(),
+        },
+      },
+      { returnDocument: 'before' },
+    );
+
+    if (!claimed) {
+      // A concurrent request already claimed the lock — return current status
+      this.logger.warn(
+        { applicationPackageId },
+        'Lock already claimed by concurrent request — returning current status',
+      );
+      const current = await this.applicationPackageModel
+        .findOne({ applicationPackageId })
         .lean();
-
-      if (!applicationPackage) {
+      if (!current) {
         throw new NotFoundException(
-          `Application package ${applicationPackageId} not found or not owned by user, will not lock.`,
+          `Application package ${applicationPackageId} not found`,
         );
       }
-      // validate household completion
-      const householdValidation =
-        await this.householdService.validateHouseholdCompletion(
-          applicationPackageId,
-          applicationPackage.hasPartner,
-          applicationPackage.hasHousehold,
-        );
-      if (!householdValidation.isComplete) {
-        //household data is incomplete
-        throw new BadRequestException( // TODO: what is the right ERROR??
-          `Household data is incomplete`,
-        );
-      }
+      return { status: current.status };
+    }
 
-      // check if there are non-self household members who are adults (require screenings)
+    // check if there are non-self household members who are adults (require screenings)
+    try {
       const allHouseholdMembers =
         await this.householdService.findAllHouseholdMembers(
           applicationPackageId,
@@ -1299,13 +1341,11 @@ export class ApplicationPackageService {
           nonSelfAdultMembers,
         );
 
-        await this.applicationPackageModel.findOneAndUpdate(
+        this.logger.info(
           { applicationPackageId },
-          {
-            status: ApplicationPackageStatus.CONSENT,
-            updatedAt: new Date(),
-          },
+          'Application locked — screening workflow generated, status set to Consent',
         );
+
         return {
           status: ApplicationPackageStatus.CONSENT,
         };
@@ -1330,6 +1370,16 @@ export class ApplicationPackageService {
         };
       }
     } catch (error) {
+      // Roll back the status so the user can retry
+      await this.applicationPackageModel.findOneAndUpdate(
+        { applicationPackageId },
+        {
+          $set: {
+            status: ApplicationPackageStatus.APPLICATION,
+            updatedAt: new Date(),
+          },
+        },
+      );
       this.logger.error(
         { error, applicationPackageId, userId },
         'Error locking the application package',
@@ -1553,7 +1603,7 @@ export class ApplicationPackageService {
   async submitDocumentsToICM(
     applicationPackageId: string,
     householdMemberId: string | null,
-    attachmentType: string,
+    attachmentType: AttachmentType,
     userId: string,
   ): Promise<{ success: boolean; attachmentsUploaded: number }> {
     this.logger.info(
@@ -1595,8 +1645,7 @@ export class ApplicationPackageService {
       return { success: true, attachmentsUploaded: 0 };
     }
 
-    const category =
-      AttachmentCategoryMap[attachmentType as AttachmentType] ?? 'Other';
+    const category = AttachmentCategoryMap[attachmentType] ?? 'Other';
     let uploadedCount = 0;
 
     for (const attachment of pending) {
