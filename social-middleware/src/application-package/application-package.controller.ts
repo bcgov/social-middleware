@@ -479,4 +479,36 @@ export class ApplicationPackageController {
       userId,
     );
   }
+
+  @Post(':applicationPackageId/submit-documents-to-icm')
+  @UseGuards(SessionAuthGuard)
+  @ApiOperation({
+    summary: 'Submit pending documents to ICM',
+    description:
+      'Uploads all pending (not yet ICM-submitted) attachments for a given member and document type to Siebel.',
+  })
+  @ApiResponse({
+    status: 200,
+    schema: {
+      type: 'object',
+      properties: {
+        success: { type: 'boolean' },
+        attachmentsUploaded: { type: 'number' },
+      },
+    },
+  })
+  async submitDocumentsToICM(
+    @Param('applicationPackageId', new ParseUUIDPipe())
+    applicationPackageId: string,
+    @Body() body: { householdMemberId?: string | null; attachmentType: string },
+    @Req() request: Request,
+  ): Promise<{ success: boolean; attachmentsUploaded: number }> {
+    const userId = this.sessionUtil.extractUserIdFromRequest(request);
+    return this.applicationPackageService.submitDocumentsToICM(
+      applicationPackageId,
+      body.householdMemberId ?? null,
+      body.attachmentType,
+      userId,
+    );
+  }
 }
