@@ -149,10 +149,11 @@ describe('ApplicationPackageService - updateApplicationPackageStage', () => {
         mockApplicationFormService.createApplicationForm,
       ).toHaveBeenCalledTimes(7);
 
-      const createdTypes =
-        mockApplicationFormService.createApplicationForm.mock.calls.map(
-          (call) => call[0].type,
-        );
+      const createdTypes = (
+        mockApplicationFormService.createApplicationForm.mock.calls as Array<
+          [{ type: string }]
+        >
+      ).map((call) => call[0].type);
       expect(createdTypes).toEqual(
         expect.arrayContaining([
           ApplicationFormType.ABOUTME,
@@ -422,10 +423,12 @@ describe('ApplicationPackageService - createApplicationPackage', () => {
   const mockSave = jest.fn();
 
   // Must be a constructor function, not a plain object
-  const MockModel = jest.fn().mockImplementation((data) => ({
-    ...data,
-    save: mockSave,
-  }));
+  const MockModel = jest
+    .fn()
+    .mockImplementation((data: Partial<ApplicationPackage>) => ({
+      ...data,
+      save: mockSave,
+    }));
 
   const mockApplicationFormService = {
     createApplicationForm: jest.fn(),
@@ -538,10 +541,11 @@ describe('ApplicationPackageService - createApplicationPackage', () => {
     expect(
       mockApplicationFormService.createApplicationForm,
     ).toHaveBeenCalledTimes(2);
-    const types =
-      mockApplicationFormService.createApplicationForm.mock.calls.map(
-        (call) => call[0].type,
-      );
+    const types = (
+      mockApplicationFormService.createApplicationForm.mock.calls as Array<
+        [{ type: string }]
+      >
+    ).map((call) => call[0].type);
     expect(types).toEqual([
       ApplicationFormType.REFERRAL,
       ApplicationFormType.INDIGENOUS,
@@ -574,5 +578,375 @@ describe('ApplicationPackageService - createApplicationPackage', () => {
     await expect(service.createApplicationPackage(dto, '')).rejects.toThrow(
       BadRequestException,
     );
+  });
+});
+
+describe('ApplicationPackageService - lockApplicationPackage', () => {
+  let service: ApplicationPackageService;
+
+  const mockFindOne = jest.fn();
+  const mockFindOneAndUpdate = jest.fn();
+  const mockApplicationPackageModel = {
+    findOne: mockFindOne,
+    findOneAndUpdate: mockFindOneAndUpdate,
+  };
+
+  const mockHouseholdService = {
+    validateHouseholdCompletion: jest.fn(),
+    findAllHouseholdMembers: jest.fn(),
+    findPrimaryApplicant: jest.fn(),
+  };
+
+  const mockApplicationFormService = {
+    getApplicationFormByHouseholdId: jest.fn(),
+    createApplicationForm: jest.fn(),
+    createScreeningFormsAndAccessCode: jest.fn(),
+  };
+
+  const mockLogger = {
+    info: jest.fn(),
+    warn: jest.fn(),
+    error: jest.fn(),
+    debug: jest.fn(),
+    setContext: jest.fn(),
+  };
+
+  const APPLICATION_PACKAGE_ID = 'pkg-lock-001';
+  const USER_ID = 'user-lock-001';
+
+  const mockPackageInApplication: Partial<ApplicationPackage> = {
+    applicationPackageId: APPLICATION_PACKAGE_ID,
+    userId: USER_ID,
+    status: ApplicationPackageStatus.APPLICATION,
+    hasPartner: 'true',
+    hasHousehold: 'false',
+  };
+
+  const mockSelfMember = {
+    householdMemberId: 'hm-self-001',
+    relationshipToPrimary: RelationshipToPrimary.Self,
+    dateOfBirth: '1990-01-01',
+  };
+
+  const mockAdultPartner = {
+    householdMemberId: 'hm-partner-001',
+    relationshipToPrimary: RelationshipToPrimary.Spouse,
+    dateOfBirth: '1985-06-15',
+  };
+
+  beforeEach(async () => {
+    jest.clearAllMocks();
+
+    mockFindOne.mockReturnValue({
+      lean: jest.fn().mockResolvedValue(mockPackageInApplication),
+    });
+
+    mockFindOneAndUpdate.mockResolvedValue(mockPackageInApplication);
+
+    mockHouseholdService.validateHouseholdCompletion.mockResolvedValue({
+      isComplete: true,
+      errors: [],
+    });
+
+    mockHouseholdService.findAllHouseholdMembers.mockResolvedValue([
+      mockSelfMember,
+      mockAdultPartner,
+    ]);
+
+    mockApplicationFormService.createScreeningFormsAndAccessCode.mockResolvedValue(
+      undefined,
+    );
+    mockApplicationFormService.getApplicationFormByHouseholdId.mockResolvedValue(
+      [],
+    );
+
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        ApplicationPackageService,
+        {
+          provide: getModelToken(ApplicationPackage.name),
+          useValue: mockApplicationPackageModel,
+        },
+        {
+          provide: ApplicationFormService,
+          useValue: mockApplicationFormService,
+        },
+        { provide: HouseholdService, useValue: mockHouseholdService },
+        {
+          provide: NotificationService,
+          useValue: {
+            sendApplicationReady: jest.fn(),
+            sendApplicationSubmitted: jest.fn(),
+          },
+        },
+        { provide: AccessCodeService, useValue: {} },
+        { provide: UserService, useValue: {} },
+        { provide: ConfigService, useValue: { get: jest.fn() } },
+        { provide: SiebelApiService, useValue: {} },
+        { provide: UserUtil, useValue: {} },
+        { provide: ApplicationPackageQueueService, useValue: {} },
+        { provide: AttachmentsService, useValue: {} },
+        { provide: 'PinoLogger:ApplicationFormService', useValue: mockLogger },
+      ],
+    }).compile();
+
+    service = module.get<ApplicationPackageService>(ApplicationPackageService);
+  });
+
+  describe('pre-claim guards', () => {
+    it('throws NotFoundException when package is not found or not owned by user', async () => {
+      mockFindOne.mockReturnValue({ lean: jest.fn().mockResolvedValue(null) });
+
+      await expect(
+        service.lockApplicationPackage(APPLICATION_PACKAGE_ID, USER_ID),
+      ).rejects.toThrow(NotFoundException);
+
+      expect(mockFindOneAndUpdate).not.toHaveBeenCalled();
+    });
+
+    it('returns current status without touching DB when package is not in Application status', async () => {
+      mockFindOne.mockReturnValue({
+        lean: jest.fn().mockResolvedValue({
+          ...mockPackageInApplication,
+          status: ApplicationPackageStatus.CONSENT,
+        }),
+      });
+
+      const result = await service.lockApplicationPackage(
+        APPLICATION_PACKAGE_ID,
+        USER_ID,
+      );
+
+      expect(result).toEqual({ status: ApplicationPackageStatus.CONSENT });
+      expect(mockFindOneAndUpdate).not.toHaveBeenCalled();
+      expect(
+        mockHouseholdService.validateHouseholdCompletion,
+      ).not.toHaveBeenCalled();
+    });
+
+    it('throws BadRequestException when household validation fails', async () => {
+      mockHouseholdService.validateHouseholdCompletion.mockResolvedValue({
+        isComplete: false,
+        errors: [
+          'Partner is required but no spouse/partner/common-law record found',
+        ],
+      });
+
+      await expect(
+        service.lockApplicationPackage(APPLICATION_PACKAGE_ID, USER_ID),
+      ).rejects.toThrow(BadRequestException);
+
+      expect(mockFindOneAndUpdate).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('atomic claim', () => {
+    it('returns current status when concurrent request already claimed the lock', async () => {
+      mockFindOneAndUpdate.mockResolvedValueOnce(null);
+
+      const currentPackage = {
+        ...mockPackageInApplication,
+        status: ApplicationPackageStatus.CONSENT,
+      };
+      mockFindOne
+        .mockReturnValueOnce({
+          lean: jest.fn().mockResolvedValue(mockPackageInApplication),
+        })
+        .mockReturnValueOnce({
+          lean: jest.fn().mockResolvedValue(currentPackage),
+        });
+
+      const result = await service.lockApplicationPackage(
+        APPLICATION_PACKAGE_ID,
+        USER_ID,
+      );
+
+      expect(result).toEqual({ status: ApplicationPackageStatus.CONSENT });
+    });
+
+    it('throws NotFoundException when package is deleted between claim attempt and status read', async () => {
+      mockFindOneAndUpdate.mockResolvedValueOnce(null);
+
+      mockFindOne
+        .mockReturnValueOnce({
+          lean: jest.fn().mockResolvedValue(mockPackageInApplication),
+        })
+        .mockReturnValueOnce({
+          lean: jest.fn().mockResolvedValue(null),
+        });
+
+      await expect(
+        service.lockApplicationPackage(APPLICATION_PACKAGE_ID, USER_ID),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('screening required path', () => {
+    it('generates the screening workflow and returns Consent status', async () => {
+      const generateWorkflow = jest
+        .spyOn(service as any, 'generateHousholdScreeningWorkflow')
+        .mockResolvedValue(undefined);
+
+      const result = await service.lockApplicationPackage(
+        APPLICATION_PACKAGE_ID,
+        USER_ID,
+      );
+
+      expect(generateWorkflow).toHaveBeenCalledWith(APPLICATION_PACKAGE_ID, [
+        mockAdultPartner,
+      ]);
+      expect(result).toEqual({ status: ApplicationPackageStatus.CONSENT });
+    });
+
+    it('does not call submitApplicationPackage when screening is required', async () => {
+      jest
+        .spyOn(service as any, 'generateHousholdScreeningWorkflow')
+        .mockResolvedValue(undefined);
+      const submitSpy = jest
+        .spyOn(service, 'submitApplicationPackage')
+        .mockResolvedValue({ serviceRequestId: 'sr-001', isComplete: true });
+
+      await service.lockApplicationPackage(APPLICATION_PACKAGE_ID, USER_ID);
+
+      expect(submitSpy).not.toHaveBeenCalled();
+    });
+
+    it('excludes Self member from screening workflow', async () => {
+      const generateWorkflow = jest
+        .spyOn(service as any, 'generateHousholdScreeningWorkflow')
+        .mockResolvedValue(undefined);
+
+      await service.lockApplicationPackage(APPLICATION_PACKAGE_ID, USER_ID);
+
+      const passedMembers = generateWorkflow.mock.calls[0][1];
+      expect(passedMembers).not.toContainEqual(
+        expect.objectContaining({
+          relationshipToPrimary: RelationshipToPrimary.Self,
+        }),
+      );
+    });
+
+    it('excludes minor household members from screening workflow', async () => {
+      const minorMember = {
+        householdMemberId: 'hm-minor-001',
+        relationshipToPrimary: RelationshipToPrimary.Child,
+        dateOfBirth: new Date(Date.now() - 10 * 365 * 24 * 60 * 60 * 1000)
+          .toISOString()
+          .split('T')[0],
+      };
+      mockHouseholdService.findAllHouseholdMembers.mockResolvedValue([
+        mockSelfMember,
+        mockAdultPartner,
+        minorMember,
+      ]);
+
+      const generateWorkflow = jest
+        .spyOn(service as any, 'generateHousholdScreeningWorkflow')
+        .mockResolvedValue(undefined);
+
+      await service.lockApplicationPackage(APPLICATION_PACKAGE_ID, USER_ID);
+
+      const passedMembers = generateWorkflow.mock.calls[0][1];
+      expect(passedMembers).not.toContainEqual(
+        expect.objectContaining({ householdMemberId: 'hm-minor-001' }),
+      );
+    });
+  });
+
+  describe('no screening required path', () => {
+    beforeEach(() => {
+      mockFindOne.mockReturnValue({
+        lean: jest.fn().mockResolvedValue({
+          ...mockPackageInApplication,
+          hasPartner: 'false',
+          hasHousehold: 'false',
+        }),
+      });
+      mockHouseholdService.findAllHouseholdMembers.mockResolvedValue([
+        mockSelfMember,
+      ]);
+    });
+
+    it('calls submitApplicationPackage and returns Submitted status', async () => {
+      const submitSpy = jest
+        .spyOn(service, 'submitApplicationPackage')
+        .mockResolvedValue({ serviceRequestId: 'sr-001', isComplete: true });
+
+      const result = await service.lockApplicationPackage(
+        APPLICATION_PACKAGE_ID,
+        USER_ID,
+      );
+
+      expect(submitSpy).toHaveBeenCalledWith(APPLICATION_PACKAGE_ID, USER_ID);
+      expect(result).toEqual({ status: ApplicationPackageStatus.SUBMITTED });
+    });
+
+    it('does not generate the screening workflow', async () => {
+      jest
+        .spyOn(service, 'submitApplicationPackage')
+        .mockResolvedValue({ serviceRequestId: 'sr-001', isComplete: true });
+
+      const generateWorkflow = jest.spyOn(
+        service as any,
+        'generateHousholdScreeningWorkflow',
+      );
+
+      await service.lockApplicationPackage(APPLICATION_PACKAGE_ID, USER_ID);
+
+      expect(generateWorkflow).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('rollback on error', () => {
+    it('resets status to Application and rethrows when screening workflow fails', async () => {
+      jest
+        .spyOn(service as any, 'generateHousholdScreeningWorkflow')
+        .mockRejectedValue(new Error('Screening form creation failed'));
+
+      await expect(
+        service.lockApplicationPackage(APPLICATION_PACKAGE_ID, USER_ID),
+      ).rejects.toThrow('Screening form creation failed');
+
+      expect(mockFindOneAndUpdate).toHaveBeenLastCalledWith(
+        { applicationPackageId: APPLICATION_PACKAGE_ID },
+        expect.objectContaining({
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+          $set: expect.objectContaining({
+            status: ApplicationPackageStatus.APPLICATION,
+          }),
+        }),
+      );
+    });
+
+    it('resets status to Application and rethrows when submitApplicationPackage fails', async () => {
+      mockFindOne.mockReturnValue({
+        lean: jest.fn().mockResolvedValue({
+          ...mockPackageInApplication,
+          hasPartner: 'false',
+          hasHousehold: 'false',
+        }),
+      });
+      mockHouseholdService.findAllHouseholdMembers.mockResolvedValue([
+        mockSelfMember,
+      ]);
+
+      jest
+        .spyOn(service, 'submitApplicationPackage')
+        .mockRejectedValue(new Error('Siebel unavailable'));
+
+      await expect(
+        service.lockApplicationPackage(APPLICATION_PACKAGE_ID, USER_ID),
+      ).rejects.toThrow('Siebel unavailable');
+
+      expect(mockFindOneAndUpdate).toHaveBeenLastCalledWith(
+        { applicationPackageId: APPLICATION_PACKAGE_ID },
+        expect.objectContaining({
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+          $set: expect.objectContaining({
+            status: ApplicationPackageStatus.APPLICATION,
+          }),
+        }),
+      );
+    });
   });
 });
