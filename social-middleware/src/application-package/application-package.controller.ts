@@ -30,6 +30,7 @@ import { Request } from 'express';
 import { ApplicationPackage } from './schema/application-package.schema';
 import { ApplicationForm } from '../application-form/schemas/application-form.schema';
 import { PinoLogger } from 'nestjs-pino';
+import { AttachmentType } from 'src/attachments/enums/attachment-types.enum';
 
 @ApiBearerAuth()
 @ApiTags('Application Package')
@@ -507,7 +508,7 @@ export class ApplicationPackageController {
     return this.applicationPackageService.submitDocumentsToICM(
       applicationPackageId,
       body.householdMemberId ?? null,
-      body.attachmentType,
+      body.attachmentType as AttachmentType,
       userId,
     );
   }
