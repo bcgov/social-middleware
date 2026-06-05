@@ -26,6 +26,7 @@ import {
 import { CreateApplicationPackageDto } from '../dto/create-application-package.dto';
 import { RelationshipToPrimary } from '../../household/enums/relationship-to-primary.enum';
 import { AttachmentsService } from '../../attachments/attachments.service';
+import { AttachmentType } from '../../attachments/enums/attachment-types.enum';
 import { SiebelApiService } from '../../siebel/siebel-api.service';
 import { ConfigService } from '@nestjs/config';
 
@@ -113,7 +114,10 @@ describe('ApplicationPackageService - updateApplicationPackageStage', () => {
         { provide: UserUtil, useValue: {} },
         { provide: ApplicationPackageQueueService, useValue: {} },
         { provide: AttachmentsService, useValue: {} },
-        { provide: 'PinoLogger:ApplicationFormService', useValue: mockLogger },
+        {
+          provide: `PinoLogger:${ApplicationFormService.name}`,
+          useValue: mockLogger,
+        },
         {
           provide: ApplicationFormService,
           useValue: mockApplicationFormService,
@@ -496,7 +500,10 @@ describe('ApplicationPackageService - createApplicationPackage', () => {
         { provide: ApplicationPackageQueueService, useValue: {} },
         { provide: NotificationService, useValue: {} },
         { provide: AttachmentsService, useValue: {} },
-        { provide: 'PinoLogger:ApplicationFormService', useValue: mockLogger },
+        {
+          provide: `PinoLogger:${ApplicationFormService.name}`,
+          useValue: mockLogger,
+        },
       ],
     }).compile();
 
@@ -686,7 +693,10 @@ describe('ApplicationPackageService - lockApplicationPackage', () => {
         { provide: UserUtil, useValue: {} },
         { provide: ApplicationPackageQueueService, useValue: {} },
         { provide: AttachmentsService, useValue: {} },
-        { provide: 'PinoLogger:ApplicationFormService', useValue: mockLogger },
+        {
+          provide: `PinoLogger:${ApplicationFormService.name}`,
+          useValue: mockLogger,
+        },
       ],
     }).compile();
 
@@ -948,5 +958,328 @@ describe('ApplicationPackageService - lockApplicationPackage', () => {
         }),
       );
     });
+  });
+});
+
+describe('ApplicationPackageService - submitDocumentsToICM', () => {
+  let service: ApplicationPackageService;
+
+  const APPLICATION_PACKAGE_ID = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890';
+  const HOUSEHOLD_MEMBER_ID = 'b2c3d4e5-f6a7-8901-bcde-f12345678901';
+  const ATTACHMENT_ID = 'att-001';
+  const SR_ID = 'sr-001';
+  const USER_ID = 'user-001';
+
+  const mockApplicationPackageModel = {
+    findOne: jest.fn(),
+  };
+
+  const mockAttachmentsService = {
+    findByApplicationPackageId: jest.fn(),
+    findById: jest.fn(),
+    saveIcmAttachmentId: jest.fn(),
+  };
+
+  const mockSiebelApiService = {
+    createAttachment: jest.fn(),
+  };
+
+  const mockLogger = {
+    info: jest.fn(),
+    warn: jest.fn(),
+    error: jest.fn(),
+    debug: jest.fn(),
+    setContext: jest.fn(),
+  };
+
+  const mockPackage = {
+    applicationPackageId: APPLICATION_PACKAGE_ID,
+    srId: SR_ID,
+    userId: USER_ID,
+  };
+
+  const mockPendingAttachment = {
+    attachmentId: ATTACHMENT_ID,
+    attachmentType: AttachmentType.MEDICAL_ASSESSMENT,
+    householdMemberId: HOUSEHOLD_MEMBER_ID,
+    icmAttachmentId: null,
+    fileName: 'test-file',
+    fileType: 'pdf',
+  };
+
+  const mockFullAttachment = {
+    ...mockPendingAttachment,
+    fileData: 'base64encodeddata',
+  };
+
+  const makeLeanExec = (value: any) => ({
+    lean: () => ({ exec: () => Promise.resolve(value) }),
+  });
+
+  beforeEach(async () => {
+    jest.clearAllMocks();
+
+    // Wire up all the other required providers to satisfy DI
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        ApplicationPackageService,
+        {
+          provide: getModelToken(ApplicationPackage.name),
+          useValue: mockApplicationPackageModel,
+        },
+        { provide: AttachmentsService, useValue: mockAttachmentsService },
+        { provide: SiebelApiService, useValue: mockSiebelApiService },
+        {
+          provide: `PinoLogger:${ApplicationFormService.name}`,
+          useValue: mockLogger,
+        },
+        // Stub out all other deps the service requires
+        { provide: ApplicationFormService, useValue: {} },
+        { provide: HouseholdService, useValue: {} },
+        { provide: NotificationService, useValue: {} },
+        { provide: AccessCodeService, useValue: {} },
+        { provide: UserService, useValue: {} },
+        { provide: UserUtil, useValue: {} },
+        { provide: ApplicationPackageQueueService, useValue: {} },
+        { provide: ConfigService, useValue: { get: jest.fn() } },
+        { provide: getModelToken('ApplicationForm'), useValue: {} },
+      ],
+    }).compile();
+
+    service = module.get<ApplicationPackageService>(ApplicationPackageService);
+  });
+
+  it('throws NotFoundException when application package is not found', async () => {
+    mockApplicationPackageModel.findOne = jest
+      .fn()
+      .mockReturnValue(makeLeanExec(null));
+
+    await expect(
+      service.submitDocumentsToICM(
+        APPLICATION_PACKAGE_ID,
+        HOUSEHOLD_MEMBER_ID,
+        AttachmentType.MEDICAL_ASSESSMENT,
+        USER_ID,
+      ),
+    ).rejects.toThrow(NotFoundException);
+  });
+
+  it('throws BadRequestException when package has no srId', async () => {
+    mockApplicationPackageModel.findOne = jest
+      .fn()
+      .mockReturnValue(makeLeanExec({ ...mockPackage, srId: null }));
+
+    await expect(
+      service.submitDocumentsToICM(
+        APPLICATION_PACKAGE_ID,
+        HOUSEHOLD_MEMBER_ID,
+        AttachmentType.MEDICAL_ASSESSMENT,
+        USER_ID,
+      ),
+    ).rejects.toThrow(BadRequestException);
+  });
+
+  it('returns zero attachmentsUploaded when no pending attachments exist', async () => {
+    mockApplicationPackageModel.findOne = jest
+      .fn()
+      .mockReturnValue(makeLeanExec(mockPackage));
+    mockAttachmentsService.findByApplicationPackageId.mockResolvedValue([]);
+
+    const result = await service.submitDocumentsToICM(
+      APPLICATION_PACKAGE_ID,
+      HOUSEHOLD_MEMBER_ID,
+      AttachmentType.MEDICAL_ASSESSMENT,
+      USER_ID,
+    );
+
+    expect(result).toEqual({ success: true, attachmentsUploaded: 0 });
+    expect(mockSiebelApiService.createAttachment).not.toHaveBeenCalled();
+  });
+
+  it('filters out attachments that already have an icmAttachmentId', async () => {
+    mockApplicationPackageModel.findOne = jest
+      .fn()
+      .mockReturnValue(makeLeanExec(mockPackage));
+    mockAttachmentsService.findByApplicationPackageId.mockResolvedValue([
+      { ...mockPendingAttachment, icmAttachmentId: 'already-submitted' },
+    ]);
+
+    const result = await service.submitDocumentsToICM(
+      APPLICATION_PACKAGE_ID,
+      HOUSEHOLD_MEMBER_ID,
+      AttachmentType.MEDICAL_ASSESSMENT,
+      USER_ID,
+    );
+
+    expect(result).toEqual({ success: true, attachmentsUploaded: 0 });
+  });
+
+  it('filters by householdMemberId — does not submit attachments belonging to other members', async () => {
+    mockApplicationPackageModel.findOne = jest
+      .fn()
+      .mockReturnValue(makeLeanExec(mockPackage));
+    mockAttachmentsService.findByApplicationPackageId.mockResolvedValue([
+      { ...mockPendingAttachment, householdMemberId: 'other-member-id' },
+    ]);
+
+    const result = await service.submitDocumentsToICM(
+      APPLICATION_PACKAGE_ID,
+      HOUSEHOLD_MEMBER_ID,
+      AttachmentType.MEDICAL_ASSESSMENT,
+      USER_ID,
+    );
+
+    expect(result).toEqual({ success: true, attachmentsUploaded: 0 });
+  });
+
+  it('matches null householdMemberId for primary applicant uploads', async () => {
+    mockApplicationPackageModel.findOne = jest
+      .fn()
+      .mockReturnValue(makeLeanExec(mockPackage));
+    mockAttachmentsService.findByApplicationPackageId.mockResolvedValue([
+      { ...mockPendingAttachment, householdMemberId: null },
+    ]);
+    mockAttachmentsService.findById.mockResolvedValue({
+      ...mockFullAttachment,
+      householdMemberId: null,
+    });
+    mockSiebelApiService.createAttachment.mockResolvedValue({});
+
+    const result = await service.submitDocumentsToICM(
+      APPLICATION_PACKAGE_ID,
+      null,
+      AttachmentType.MEDICAL_ASSESSMENT,
+      USER_ID,
+    );
+
+    expect(result.attachmentsUploaded).toBe(1);
+  });
+
+  it('uploads pending attachments to Siebel with correct category', async () => {
+    mockApplicationPackageModel.findOne = jest
+      .fn()
+      .mockReturnValue(makeLeanExec(mockPackage));
+    mockAttachmentsService.findByApplicationPackageId.mockResolvedValue([
+      mockPendingAttachment,
+    ]);
+    mockAttachmentsService.findById.mockResolvedValue(mockFullAttachment);
+    mockSiebelApiService.createAttachment.mockResolvedValue({});
+
+    await service.submitDocumentsToICM(
+      APPLICATION_PACKAGE_ID,
+      HOUSEHOLD_MEMBER_ID,
+      AttachmentType.MEDICAL_ASSESSMENT,
+      USER_ID,
+    );
+
+    expect(mockSiebelApiService.createAttachment).toHaveBeenCalledWith(
+      SR_ID,
+      expect.objectContaining({
+        fileName: mockFullAttachment.fileName,
+        fileContent: mockFullAttachment.fileData,
+        fileType: mockFullAttachment.fileType,
+        category: 'Medical',
+        description: AttachmentType.MEDICAL_ASSESSMENT,
+      }),
+    );
+  });
+
+  it('saves icmAttachmentId after successful Siebel upload', async () => {
+    mockApplicationPackageModel.findOne = jest
+      .fn()
+      .mockReturnValue(makeLeanExec(mockPackage));
+    mockAttachmentsService.findByApplicationPackageId.mockResolvedValue([
+      mockPendingAttachment,
+    ]);
+    mockAttachmentsService.findById.mockResolvedValue(mockFullAttachment);
+    mockSiebelApiService.createAttachment.mockResolvedValue({});
+
+    await service.submitDocumentsToICM(
+      APPLICATION_PACKAGE_ID,
+      HOUSEHOLD_MEMBER_ID,
+      AttachmentType.MEDICAL_ASSESSMENT,
+      USER_ID,
+    );
+
+    expect(mockAttachmentsService.saveIcmAttachmentId).toHaveBeenCalledWith(
+      ATTACHMENT_ID,
+      expect.any(String),
+    );
+  });
+
+  it('skips attachments with no fileData and does not count them', async () => {
+    mockApplicationPackageModel.findOne = jest
+      .fn()
+      .mockReturnValue(makeLeanExec(mockPackage));
+    mockAttachmentsService.findByApplicationPackageId.mockResolvedValue([
+      mockPendingAttachment,
+    ]);
+    mockAttachmentsService.findById.mockResolvedValue({
+      ...mockFullAttachment,
+      fileData: null,
+    });
+
+    const result = await service.submitDocumentsToICM(
+      APPLICATION_PACKAGE_ID,
+      HOUSEHOLD_MEMBER_ID,
+      AttachmentType.MEDICAL_ASSESSMENT,
+      USER_ID,
+    );
+
+    expect(mockSiebelApiService.createAttachment).not.toHaveBeenCalled();
+    expect(result.attachmentsUploaded).toBe(0);
+  });
+
+  it('continues processing remaining attachments when one upload fails', async () => {
+    const secondAttachment = {
+      ...mockPendingAttachment,
+      attachmentId: 'att-002',
+    };
+    mockApplicationPackageModel.findOne = jest
+      .fn()
+      .mockReturnValue(makeLeanExec(mockPackage));
+    mockAttachmentsService.findByApplicationPackageId.mockResolvedValue([
+      mockPendingAttachment,
+      secondAttachment,
+    ]);
+    mockAttachmentsService.findById
+      .mockResolvedValueOnce(mockFullAttachment)
+      .mockResolvedValueOnce({
+        ...mockFullAttachment,
+        attachmentId: 'att-002',
+      });
+    mockSiebelApiService.createAttachment
+      .mockRejectedValueOnce(new Error('Siebel timeout'))
+      .mockResolvedValueOnce({});
+
+    const result = await service.submitDocumentsToICM(
+      APPLICATION_PACKAGE_ID,
+      HOUSEHOLD_MEMBER_ID,
+      AttachmentType.MEDICAL_ASSESSMENT,
+      USER_ID,
+    );
+
+    expect(result.attachmentsUploaded).toBe(1);
+    expect(mockAttachmentsService.saveIcmAttachmentId).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns the count of successfully uploaded attachments', async () => {
+    mockApplicationPackageModel.findOne = jest
+      .fn()
+      .mockReturnValue(makeLeanExec(mockPackage));
+    mockAttachmentsService.findByApplicationPackageId.mockResolvedValue([
+      mockPendingAttachment,
+    ]);
+    mockAttachmentsService.findById.mockResolvedValue(mockFullAttachment);
+    mockSiebelApiService.createAttachment.mockResolvedValue({});
+
+    const result = await service.submitDocumentsToICM(
+      APPLICATION_PACKAGE_ID,
+      HOUSEHOLD_MEMBER_ID,
+      AttachmentType.MEDICAL_ASSESSMENT,
+      USER_ID,
+    );
+
+    expect(result).toEqual({ success: true, attachmentsUploaded: 1 });
   });
 });
