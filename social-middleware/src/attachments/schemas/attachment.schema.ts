@@ -45,7 +45,9 @@ export class Attachment {
 
   createdAt!: Date;
   updatedAt!: Date;
-  sentToICMAt!: Date;
+
+  @Prop({ required: false, type: Date, default: null })
+  sentToICMAt!: Date | null;
 }
 
 export const AttachmentSchema = SchemaFactory.createForClass(Attachment);
