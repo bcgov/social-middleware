@@ -119,6 +119,11 @@ export class SiebelApiService {
       this.logger.info({ bcscId }, 'Contact found for BCSC ID');
       return result;
     } catch (error) {
+      // if they've never logged in before, we don't expect to find a value
+      if (error instanceof AxiosError && error.response?.status === 404) {
+        this.logger.info({ bcscId }, 'No contact found for BCSC ID');
+        return null;
+      }
       this.logger.error(
         { error, bcscId },
         'Failed to search for contact by BCSC ID',
