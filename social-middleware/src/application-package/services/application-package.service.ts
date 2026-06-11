@@ -780,11 +780,92 @@ export class ApplicationPackageService {
         );
       }
 
+      // locate the primary applicant
       const primaryApplicant = await this.userService.findOne(
         applicationPackage.userId,
       );
-      // We will create payloads for every other household-member
-      // filter out the primary applicant (they were created on the initial submission)
+
+      // if this is a Kinship application or
+      // if the primary applicant has updated their BCSC application since the referral stage,
+      // we will create a new prospect record for them
+      // so that the information will flow through to ICM
+      if (primaryApplicant.bcsc_update_pending) {
+        try {
+          this.logger.info(
+            {
+              applicationPackageId,
+              userId: applicationPackage.userId,
+            },
+            'BCSC update pending - creating new prospect for primary applicant in ICM',
+          );
+
+          const { firstName, middleName } = this.userUtil.firstAndMiddleName(
+            primaryApplicant.first_name,
+          );
+
+          const newPrimaryProspectResponse =
+            (await this.siebelApiService.createProspect({
+              ServiceRequestId: serviceRequestId,
+              IcmBcscDid: primaryApplicant.bc_services_card_id,
+              FirstName: firstName,
+              MiddleName: middleName,
+              LastName: this.userUtil.toTitleCase(primaryApplicant.last_name),
+              DateofBirth: formatDateForSiebel(primaryApplicant.dateOfBirth),
+              StreetAddress: primaryApplicant.street_address,
+              City: primaryApplicant.city,
+              Prov: primaryApplicant.region,
+              PostalCode: primaryApplicant.postal_code,
+              EmailAddress: primaryApplicant.email,
+              HomePhone: primaryApplicant.home_phone || '',
+              AlternatePhone: primaryApplicant.alternate_phone || '',
+              Gender:
+                this.userUtil.sexToGenderType(primaryApplicant.sex) ||
+                GenderTypes.Unspecified,
+              Relationship: 'Key player',
+              ApplicantFlag: 'Y',
+            })) as { items?: { Id?: string } };
+
+          const newProspectId = newPrimaryProspectResponse?.items?.Id;
+
+          if (!newProspectId) {
+            throw new Error('Failed to get prospect ID from Siebel response');
+          }
+
+          const primaryHouseholdMember = allHouseholdMembers.find(
+            (member) =>
+              member.relationshipToPrimary == RelationshipToPrimary.Self,
+          );
+
+          if (primaryHouseholdMember) {
+            await this.householdService.updateHouseholdMember(
+              primaryHouseholdMember.householdMemberId,
+              { prospectId: newProspectId },
+            );
+          }
+
+          // TO DO: Create Re-Prospect Activity
+
+          await this.userService.updateUser(applicationPackage.userId, {
+            bcsc_update_pending: false,
+          });
+
+          this.logger.info(
+            { applicationPackageId },
+            'New prospect created for primary applicant and bcsc_update_pending cleared',
+          );
+        } catch (error) {
+          this.logger.error(
+            {
+              error,
+              applicationPackageId,
+            },
+            'Failed to re-prospect primary applicant - submission continues',
+          );
+        }
+      }
+
+      // Now we will create payloads for every other household-member
+      // filter out the primary applicant
       const nonPrimaryHouseholdMembers = allHouseholdMembers.filter(
         (member) => member.relationshipToPrimary != RelationshipToPrimary.Self,
       );
