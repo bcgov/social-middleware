@@ -127,9 +127,6 @@ export class UserService {
     }
     // found no changes, return
     if (Object.keys(diff).length === 0) {
-      console.log('========================');
-      console.log('****** NO CHANGE ******');
-      console.log('========================');
       return { user: existing, changed: false };
     }
 
@@ -140,10 +137,6 @@ export class UserService {
     //const updated = await this.updateUser((existing as any).id, diff);
     // return the updated user object
 
-    console.log('========================');
-    console.log('******Updated Data******');
-    console.log(diff);
-    console.log('========================');
     //return { user: updated, changed: true };
     return { user: existing, changed: false };
   }
