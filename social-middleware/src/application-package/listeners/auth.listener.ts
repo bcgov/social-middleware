@@ -12,6 +12,7 @@ import {
 import { ApplicationPackageService } from '../services/application-package.service';
 import { ServiceRequestStage } from '../enums/application-package-status.enum';
 import { UserService } from 'src/auth/user.service';
+import { BcscSyncService } from '../services/bcsc-sync.service';
 
 @Injectable()
 export class AuthListener implements OnModuleInit {
@@ -20,6 +21,7 @@ export class AuthListener implements OnModuleInit {
     private readonly siebelApiService: SiebelApiService,
     private readonly applicationPackageService: ApplicationPackageService,
     private readonly userService: UserService,
+    private readonly bcscSyncService: BcscSyncService,
     @InjectPinoLogger(AuthListener.name)
     private readonly logger: PinoLogger,
   ) {}
@@ -45,8 +47,16 @@ export class AuthListener implements OnModuleInit {
       // sync the ICM Contact ID (if available)
       await this.syncContactId(userData);
 
-      // get service requests from Siebel
+      //if the BCSC Data has changed, we need to do some checks
+      if (userData.bcscDataChanged) {
+        this.logger.info(
+          { userId: userData.userId },
+          'BCSC data changed — running package sync',
+        );
+        await this.bcscSyncService.syncOnLogin(userData.userId);
+      }
 
+      // get service requests from Siebel
       const serviceRequests: SiebelSRsResponse =
         await this.siebelApiService.getServiceRequestsByBcscId(
           userData.bc_services_card_id,
