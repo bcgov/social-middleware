@@ -1283,3 +1283,232 @@ describe('ApplicationPackageService - submitDocumentsToICM', () => {
     expect(result).toEqual({ success: true, attachmentsUploaded: 1 });
   });
 });
+
+describe('ApplicationPackageService - submitApplicationPackage — BCSC re-prospect', () => {
+  let service: ApplicationPackageService;
+
+  const mockFindOne = jest.fn();
+  const mockFindOneAndUpdate = jest.fn();
+  const mockApplicationPackageModel = {
+    findOne: mockFindOne,
+    findOneAndUpdate: mockFindOneAndUpdate,
+  };
+
+  const mockHouseholdService = {
+    findAllHouseholdMembers: jest.fn(),
+    updateHouseholdMember: jest.fn(),
+  };
+
+  const mockApplicationFormService = {
+    findAllByApplicationPackageId: jest.fn(),
+    convertFormDataToXml: jest.fn(),
+    saveSiebelAttachmentId: jest.fn(),
+    findByPackageAndUser: jest.fn(),
+  };
+
+  const mockUserService = {
+    findOne: jest.fn(),
+    updateUser: jest.fn(),
+  };
+
+  const mockSiebelApiService = {
+    createProspect: jest.fn(),
+    updateServiceRequestFields: jest.fn(),
+  };
+
+  const mockUserUtil = {
+    firstAndMiddleName: jest
+      .fn()
+      .mockReturnValue({ firstName: 'Jane', middleName: '' }),
+    toTitleCase: jest.fn((s: string) => s),
+    sexToGenderType: jest.fn().mockReturnValue('F'),
+  };
+
+  const mockLogger = {
+    info: jest.fn(),
+    warn: jest.fn(),
+    error: jest.fn(),
+    debug: jest.fn(),
+    setContext: jest.fn(),
+  };
+
+  const PACKAGE_ID = 'pkg-bcsc-001';
+  const USER_ID = 'user-bcsc-001';
+  const SR_ID = 'sr-bcsc-001';
+
+  const mockPackage: Partial<ApplicationPackage> = {
+    applicationPackageId: PACKAGE_ID,
+    userId: USER_ID,
+    srId: SR_ID,
+  };
+
+  const mockPrimaryUser = {
+    id: USER_ID,
+    first_name: 'Jane',
+    last_name: 'Doe',
+    bc_services_card_id: 'bcsc-did-001',
+    dateOfBirth: '1990-03-15',
+    street_address: '123 Main St',
+    city: 'Victoria',
+    region: 'BC',
+    country: 'CA',
+    postal_code: 'V8V 1A1',
+    email: 'jane@example.com',
+    home_phone: '250-555-0100',
+    alternate_phone: '',
+    sex: 'F',
+    bcsc_update_pending: true,
+  };
+
+  const mockSelfMember = {
+    householdMemberId: 'hm-self-001',
+    relationshipToPrimary: RelationshipToPrimary.Self,
+  };
+
+  beforeEach(async () => {
+    jest.clearAllMocks();
+
+    mockFindOne.mockReturnValue({
+      lean: jest.fn().mockReturnValue({
+        exec: jest.fn().mockResolvedValue(mockPackage),
+      }),
+    });
+    mockFindOneAndUpdate.mockResolvedValue(mockPackage);
+
+    mockHouseholdService.findAllHouseholdMembers.mockResolvedValue([
+      mockSelfMember,
+    ]);
+    mockHouseholdService.updateHouseholdMember.mockResolvedValue(
+      mockSelfMember,
+    );
+
+    // Empty forms — satisfies both isApplicationPackageComplete and the attachment loop
+    mockApplicationFormService.findAllByApplicationPackageId.mockResolvedValue(
+      [],
+    );
+
+    mockUserService.findOne.mockResolvedValue(mockPrimaryUser);
+    mockUserService.updateUser.mockResolvedValue(mockPrimaryUser);
+
+    mockSiebelApiService.createProspect.mockResolvedValue({
+      items: { Id: 'new-prospect-id' },
+    });
+    mockSiebelApiService.updateServiceRequestFields.mockResolvedValue({});
+
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        ApplicationPackageService,
+        {
+          provide: getModelToken(ApplicationPackage.name),
+          useValue: mockApplicationPackageModel,
+        },
+        {
+          provide: ApplicationFormService,
+          useValue: mockApplicationFormService,
+        },
+        { provide: HouseholdService, useValue: mockHouseholdService },
+        {
+          provide: NotificationService,
+          useValue: {
+            sendApplicationReady: jest.fn(),
+            sendApplicationSubmitted: jest.fn(),
+          },
+        },
+        { provide: AccessCodeService, useValue: {} },
+        { provide: UserService, useValue: mockUserService },
+        { provide: ConfigService, useValue: { get: jest.fn() } },
+        { provide: SiebelApiService, useValue: mockSiebelApiService },
+        { provide: UserUtil, useValue: mockUserUtil },
+        {
+          provide: ApplicationPackageQueueService,
+          useValue: { enqueueReferralSubmission: jest.fn() },
+        },
+        { provide: AttachmentsService, useValue: {} },
+        {
+          provide: `PinoLogger:${ApplicationFormService.name}`,
+          useValue: mockLogger,
+        },
+      ],
+    }).compile();
+
+    service = module.get<ApplicationPackageService>(ApplicationPackageService);
+  });
+
+  it('does not call createProspect when bcsc_update_pending is false', async () => {
+    mockUserService.findOne.mockResolvedValue({
+      ...mockPrimaryUser,
+      bcsc_update_pending: false,
+    });
+
+    await service.submitApplicationPackage(PACKAGE_ID, USER_ID);
+
+    expect(mockSiebelApiService.createProspect).not.toHaveBeenCalled();
+  });
+
+  it('calls createProspect with primary applicant data when bcsc_update_pending is true', async () => {
+    await service.submitApplicationPackage(PACKAGE_ID, USER_ID);
+
+    expect(mockSiebelApiService.createProspect).toHaveBeenCalledWith(
+      expect.objectContaining({
+        ServiceRequestId: SR_ID,
+        IcmBcscDid: 'bcsc-did-001',
+        Relationship: 'Key player',
+        ApplicantFlag: 'Y',
+      }),
+    );
+  });
+
+  it('saves the returned prospectId to the primary household member', async () => {
+    await service.submitApplicationPackage(PACKAGE_ID, USER_ID);
+
+    expect(mockHouseholdService.updateHouseholdMember).toHaveBeenCalledWith(
+      'hm-self-001',
+      { prospectId: 'new-prospect-id' },
+    );
+  });
+
+  it('clears bcsc_update_pending after a successful re-prospect', async () => {
+    await service.submitApplicationPackage(PACKAGE_ID, USER_ID);
+
+    expect(mockUserService.updateUser).toHaveBeenCalledWith(USER_ID, {
+      bcsc_update_pending: false,
+    });
+  });
+
+  it('does not save prospectId or clear flag when prospect response has no Id', async () => {
+    mockSiebelApiService.createProspect.mockResolvedValue({ items: {} });
+
+    const result = await service.submitApplicationPackage(PACKAGE_ID, USER_ID);
+
+    expect(result.isComplete).toBe(true);
+    expect(mockHouseholdService.updateHouseholdMember).not.toHaveBeenCalled();
+    expect(mockUserService.updateUser).not.toHaveBeenCalledWith(USER_ID, {
+      bcsc_update_pending: false,
+    });
+  });
+
+  it('continues submission without clearing the flag when createProspect throws', async () => {
+    mockSiebelApiService.createProspect.mockRejectedValue(
+      new Error('Siebel unavailable'),
+    );
+
+    const result = await service.submitApplicationPackage(PACKAGE_ID, USER_ID);
+
+    expect(result.isComplete).toBe(true);
+    expect(mockUserService.updateUser).not.toHaveBeenCalledWith(USER_ID, {
+      bcsc_update_pending: false,
+    });
+  });
+
+  it('skips updateHouseholdMember but still clears the flag when no Self member exists', async () => {
+    mockHouseholdService.findAllHouseholdMembers.mockResolvedValue([]);
+
+    await service.submitApplicationPackage(PACKAGE_ID, USER_ID);
+
+    expect(mockSiebelApiService.createProspect).toHaveBeenCalled();
+    expect(mockHouseholdService.updateHouseholdMember).not.toHaveBeenCalled();
+    expect(mockUserService.updateUser).toHaveBeenCalledWith(USER_ID, {
+      bcsc_update_pending: false,
+    });
+  });
+});

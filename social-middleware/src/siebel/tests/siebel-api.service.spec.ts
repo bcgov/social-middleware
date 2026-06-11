@@ -581,3 +581,23 @@ describe('SiebelApiService - createProspect()', () => {
     );
   });
 });
+
+// ─── createReProspectActivity() ──────────────────────────────────────────────
+/*
+describe('SiebelApiService - createReProspectActivity()', () => {
+  it('calls PUT /Activities/Activities with the service request ID in the payload', async () => {
+    const httpPut = jest.fn().mockReturnValue(of({ data: {} }));
+    const service = await makeModule({ put: httpPut });
+
+    await service.createReProspectActivity('sr-001');
+
+    expect(httpPut).toHaveBeenCalledWith(
+      expect.stringContaining('/Activities/Activities'),
+      expect.objectContaining({
+        'SR Id': 'sr-001',
+      }),
+      expect.anything(),
+    );
+  });
+});
+*/
