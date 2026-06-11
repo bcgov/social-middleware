@@ -86,6 +86,68 @@ export class UserService {
       throw error;
     }
   }
+
+  async findCreateOrSync(
+    incomingData: CreateUserDto,
+  ): Promise<{ user: User; changed: boolean }> {
+    let existing: User;
+    // look for the user
+    try {
+      existing = await this.findByBcServicesCardId(
+        incomingData.bc_services_card_id,
+      );
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        // they weren't found, so let's create them
+        const created = await this.create(incomingData);
+        return { user: created, changed: false };
+      }
+      throw error;
+    }
+
+    // they WERE found, so let's see if anything changed..
+
+    const bcscFields = [
+      'first_name',
+      'last_name',
+      //'email', // email is a bcsc field but they have the power to override it; let's not include this as a diff.
+      'dateOfBirth',
+      'street_address',
+      'city',
+      'region',
+      'country',
+      'postal_code',
+    ] as const;
+
+    const diff: Partial<User> = {};
+    for (const field of bcscFields) {
+      if (incomingData[field] != (existing as any)[field]) {
+        (diff as any)[field] = incomingData[field];
+      }
+    }
+    // found no changes, return
+    if (Object.keys(diff).length === 0) {
+      console.log('========================');
+      console.log('****** NO CHANGE ******');
+      console.log('========================');
+      return { user: existing, changed: false };
+    }
+
+    // we found some changes, let's note the date
+    diff.bcsc_last_synced = new Date();
+
+    // update the user record with the changes
+    //const updated = await this.updateUser((existing as any).id, diff);
+    // return the updated user object
+
+    console.log('========================');
+    console.log('******Updated Data******');
+    console.log(diff);
+    console.log('========================');
+    //return { user: updated, changed: true };
+    return { user: existing, changed: false };
+  }
+
   async updateUser(id: string, updateData: Partial<User>): Promise<User> {
     const updatedUser = await this.userModel.findByIdAndUpdate(
       id,
