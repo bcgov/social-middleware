@@ -160,6 +160,25 @@ export class ApplicationPackageService {
     return appPackage;
   }
 
+  // when a NEW_APPLICATION access code is redeemed,
+  // update the application package and the SR to move them into the APPLICATION stage
+  async activateNewApplication(
+    applicationPackageId: string,
+    userId: string,
+  ): Promise<void> {
+    const pkg = await this.getApplicationPackage(applicationPackageId, userId);
+    await this.updateApplicationPackageStage(
+      pkg,
+      ServiceRequestStage.APPLICATION,
+    );
+    if (pkg.srId) {
+      await this.siebelApiService.updateServiceRequestStage(
+        pkg.srId,
+        ServiceRequestStage.APPLICATION,
+      );
+    }
+  }
+
   async createApplicationPackageForm(
     applicationPackageId: UUID,
     userId: UUID,
