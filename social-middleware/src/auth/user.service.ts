@@ -134,11 +134,11 @@ export class UserService {
     diff.bcsc_last_synced = new Date();
 
     // update the user record with the changes
-    //const updated = await this.updateUser((existing as any).id, diff);
+    const updated = await this.updateUser((existing as any).id, diff);
     // return the updated user object
 
-    //return { user: updated, changed: true };
-    return { user: existing, changed: false };
+    return { user: updated, changed: true };
+    //return { user: existing, changed: false };
   }
 
   async updateUser(id: string, updateData: Partial<User>): Promise<User> {
