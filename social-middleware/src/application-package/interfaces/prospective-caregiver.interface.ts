@@ -9,7 +9,7 @@ export interface ProspectiveCaregiver {
   dateOfBirth: string;
   email: string;
   contactId: string;
-  activityId: string;
+  srId: string;
   subtype: ApplicationPackageSubType;
   subsubtype: ApplicationPackageSubSubType;
 }
