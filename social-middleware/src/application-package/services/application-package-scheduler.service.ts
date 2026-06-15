@@ -2,11 +2,13 @@ import { Injectable } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { ApplicationPackageQueueService } from '../queue/application-package-queue.service';
 import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
+import { CaregiverInvitationService } from './caregiver-invitation.service';
 
 @Injectable()
 export class ApplicationPackageSchedulerService {
   constructor(
     private readonly queueService: ApplicationPackageQueueService,
+    private readonly caregiverInvitationService: CaregiverInvitationService,
     @InjectPinoLogger(ApplicationPackageSchedulerService.name)
     private readonly logger: PinoLogger,
   ) {}
@@ -31,6 +33,15 @@ export class ApplicationPackageSchedulerService {
       );
     } catch (error) {
       this.logger.error({ error }, 'Cron job failed during package scan');
+    }
+  }
+  @Cron('*/2 * * * *')
+  async pollKinshipReferrals() {
+    this.logger.info('Cron job triggered: polling Kinship referral SRs');
+    try {
+      await this.caregiverInvitationService.pollKinshipReferrals();
+    } catch (error) {
+      this.logger.error({ error }, 'Kinship referral poll cron failed');
     }
   }
 }
