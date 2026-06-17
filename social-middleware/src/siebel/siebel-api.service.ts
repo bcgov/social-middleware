@@ -133,7 +133,7 @@ export class SiebelApiService {
       return result;
     } catch (error) {
       // if they've never logged in before, we don't expect to find a value
-      if (error instanceof AxiosError && error.response?.status === 404) {
+      if (error instanceof SiebelApiError && error.status === 404) {
         this.logger.info({ bcscId }, 'No contact found for BCSC ID');
         return null;
       }
@@ -563,13 +563,13 @@ export class SiebelApiService {
 
   private handleError(error: AxiosError, errorData: unknown): SiebelApiError {
     if (error.response?.status === 401) {
-      return new Error(
+      return new SiebelApiError(
         'Unauthorized: Check your Siebel credentials and trusted username',
       );
     }
 
     if (error.response?.status === 403) {
-      return new Error(
+      return new SiebelApiError(
         'Forbidden: Insufficient permissions or blacklisted user',
       );
     }
