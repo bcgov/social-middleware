@@ -982,6 +982,7 @@ describe('ApplicationPackageService - submitDocumentsToICM', () => {
 
   const mockSiebelApiService = {
     createAttachment: jest.fn(),
+    updateServiceRequestFields: jest.fn(),
   };
 
   const mockLogger = {
@@ -1314,6 +1315,7 @@ describe('ApplicationPackageService - submitApplicationPackage — BCSC re-prosp
   const mockSiebelApiService = {
     createProspect: jest.fn(),
     updateServiceRequestFields: jest.fn(),
+    updateServiceRequestStage: jest.fn(),
   };
 
   const mockUserUtil = {
@@ -1509,6 +1511,66 @@ describe('ApplicationPackageService - submitApplicationPackage — BCSC re-prosp
     expect(mockHouseholdService.updateHouseholdMember).not.toHaveBeenCalled();
     expect(mockUserService.updateUser).toHaveBeenCalledWith(USER_ID, {
       bcsc_update_pending: false,
+    });
+  });
+
+  describe('activateNewApplication', () => {
+    const APPLICATION_PACKAGE_ID = 'pkg-001';
+    const USER_ID = 'user-001';
+    const BCSC_DID = 'bcsc-did-999';
+
+    it('updates the package stage and the Siebel SR when srId is present', async () => {
+      const pkg = {
+        applicationPackageId: APPLICATION_PACKAGE_ID,
+        srId: 'sr-001',
+      };
+      jest
+        .spyOn(service, 'getApplicationPackage')
+        .mockResolvedValue(pkg as any);
+      jest
+        .spyOn(service, 'updateApplicationPackageStage')
+        .mockResolvedValue(undefined as any);
+
+      await service.activateNewApplication(
+        APPLICATION_PACKAGE_ID,
+        USER_ID,
+        BCSC_DID,
+      );
+
+      expect(service.getApplicationPackage).toHaveBeenCalledWith(
+        APPLICATION_PACKAGE_ID,
+        USER_ID,
+      );
+      expect(service.updateApplicationPackageStage).toHaveBeenCalledWith(
+        pkg,
+        ServiceRequestStage.APPLICATION,
+      );
+      expect(
+        mockSiebelApiService.updateServiceRequestStage,
+      ).toHaveBeenCalledWith('sr-001', ServiceRequestStage.APPLICATION);
+      expect(
+        mockSiebelApiService.updateServiceRequestFields,
+      ).toHaveBeenCalledWith('sr-001', { 'ICM BCSC DID': BCSC_DID });
+    });
+
+    it('does not call Siebel when the package has no srId', async () => {
+      const pkg = { applicationPackageId: APPLICATION_PACKAGE_ID, srId: null };
+      jest
+        .spyOn(service, 'getApplicationPackage')
+        .mockResolvedValue(pkg as any);
+      jest
+        .spyOn(service, 'updateApplicationPackageStage')
+        .mockResolvedValue(undefined as any);
+
+      await service.activateNewApplication(
+        APPLICATION_PACKAGE_ID,
+        USER_ID,
+        BCSC_DID,
+      );
+
+      expect(
+        mockSiebelApiService.updateServiceRequestStage,
+      ).not.toHaveBeenCalled();
     });
   });
 });
