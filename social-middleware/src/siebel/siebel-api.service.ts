@@ -11,7 +11,6 @@ import {
   IcmContactDetail,
 } from './dto/caregiver-type-response.dto';
 import { IcmCaregiverType } from './enums/icm-caregiver-type.enum';
-//import { Builder } from 'xml2js';
 
 interface SiebelContactResponse {
   Id?: string;
@@ -147,7 +146,6 @@ export class SiebelApiService {
 
   async getServiceRequestsByBcscId(bcscId: string): Promise<SiebelSRsResponse> {
     const endpoint = '/ServiceRequest/ServiceRequest';
-    //const encodedBcscId = encodeURIComponent(bcscId); // get around special characters
 
     const params = {
       searchspec: `[ICM BCSC DID]='${bcscId}' AND [SR Type]='Caregiver Application'`,
@@ -155,8 +153,6 @@ export class SiebelApiService {
       ViewMode: 'Organization',
       ChildLinks: 'None',
       PageSize: 100,
-      //'ICM BCSC DID': bcscId,
-      //'SR Type': 'Caregiver Application',
     };
 
     const rawResponse = await this.get<{
@@ -327,7 +323,6 @@ export class SiebelApiService {
 
     try {
       return await this.put(endpoint, fields, params);
-      //return await this.put(endpoint, fields);
     } catch (error) {
       this.logger.error(
         { error, serviceRequestId, fields },
@@ -576,18 +571,11 @@ export class SiebelApiService {
       );
     }
 
-    //const message =
-    //  (errorData as { message?: string })?.message ||
-    //  error.message ||
-    //  'Siebel API request failed';
-
     const message =
       (errorData as { message?: string })?.message ||
       error.message ||
       'Siebel API request failed';
 
     return new SiebelApiError(message, error.response?.status);
-
-    //return new Error(message);
   }
 }
