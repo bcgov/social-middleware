@@ -168,6 +168,14 @@ export class CaregiverInvitationService {
           continue;
         }
 
+        if (!contact['Birth Date']) {
+          this.logger.warn(
+            { srId, contactId },
+            'Contact has no Birth Date — skipping SR',
+          );
+          continue;
+        }
+
         const [month, day, year] = contact['Birth Date'].split('/');
         const dateOfBirth = `${year}-${month}-${day}`;
 
