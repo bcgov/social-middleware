@@ -3,7 +3,7 @@ import { ServiceRequestStage } from './application-package-status.enum';
 export enum ApplicationPackageSubType {
   FCH = 'FCH',
   OOC = 'OOC',
-  RELIEF = 'Relief(Appendix F)',
+  PROSPECTIVE = 'Prospective Caregiver',
 }
 
 export enum ApplicationPackageSubSubType {

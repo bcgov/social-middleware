@@ -1,4 +1,4 @@
-import { Injectable, InternalServerErrorException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { ConfigService } from '@nestjs/config';
 import { firstValueFrom } from 'rxjs';
@@ -6,10 +6,11 @@ import { AxiosError } from 'axios';
 import { SiebelAuthService } from './siebel-auth.service';
 import { PinoLogger } from 'nestjs-pino';
 import {
-  ApplicationPackageSubType,
-  ApplicationPackageSubSubType,
-} from 'src/application-package/enums/application-package-subtypes.enum';
-//import { Builder } from 'xml2js';
+  CaregiverTypeItem,
+  CaregiverTypesResponse,
+  IcmContactDetail,
+} from './dto/caregiver-type-response.dto';
+import { IcmCaregiverType } from './enums/icm-caregiver-type.enum';
 
 interface SiebelContactResponse {
   Id?: string;
@@ -22,12 +23,23 @@ export interface SiebelSRResponse {
   Id?: string;
   'ICM BCSC DID'?: string;
   'ICM Stage'?: string;
+  'Primary Contact Id'?: string;
   [key: string]: unknown;
 }
 
 export interface SiebelSRsResponse {
   items: SiebelSRResponse[];
   [key: string]: unknown;
+}
+
+export class SiebelApiError extends Error {
+  constructor(
+    message: string,
+    public readonly status?: number,
+  ) {
+    super(message);
+    this.name = 'SiebelApiError';
+  }
 }
 @Injectable()
 export class SiebelApiService {
@@ -119,6 +131,11 @@ export class SiebelApiService {
       this.logger.info({ bcscId }, 'Contact found for BCSC ID');
       return result;
     } catch (error) {
+      // if they've never logged in before, we don't expect to find a value
+      if (error instanceof SiebelApiError && error.status === 404) {
+        this.logger.info({ bcscId }, 'No contact found for BCSC ID');
+        return null;
+      }
       this.logger.error(
         { error, bcscId },
         'Failed to search for contact by BCSC ID',
@@ -129,7 +146,6 @@ export class SiebelApiService {
 
   async getServiceRequestsByBcscId(bcscId: string): Promise<SiebelSRsResponse> {
     const endpoint = '/ServiceRequest/ServiceRequest';
-    //const encodedBcscId = encodeURIComponent(bcscId); // get around special characters
 
     const params = {
       searchspec: `[ICM BCSC DID]='${bcscId}' AND [SR Type]='Caregiver Application'`,
@@ -137,8 +153,6 @@ export class SiebelApiService {
       ViewMode: 'Organization',
       ChildLinks: 'None',
       PageSize: 100,
-      //'ICM BCSC DID': bcscId,
-      //'SR Type': 'Caregiver Application',
     };
 
     const rawResponse = await this.get<{
@@ -174,15 +188,14 @@ export class SiebelApiService {
       if (error instanceof AxiosError) {
         const errorData = error.response?.data as unknown;
 
-        this.logger.error(
-          {
-            endpoint,
-            params,
-            status: error.response?.status,
-            errorData,
-          },
-          'GET request failed',
-        );
+        if (error.response?.status === 404) {
+          this.logger.debug({ endpoint, params }, 'Resource not found (404)');
+        } else {
+          this.logger.error(
+            { endpoint, params, status: error.response?.status, errorData },
+            'GET request failed',
+          );
+        }
 
         throw this.handleError(error, errorData);
       }
@@ -192,6 +205,7 @@ export class SiebelApiService {
     }
   }
 
+  /*
   async createCaregiverApplicationSR(
     subtype: ApplicationPackageSubType,
     subsubtype: ApplicationPackageSubSubType,
@@ -237,7 +251,7 @@ export class SiebelApiService {
 
     return { srId };
   }
-
+*/
   async createServiceRequest(serviceRequestData: unknown) {
     const endpoint = '/ServiceRequest/ServiceRequest';
     try {
@@ -309,7 +323,6 @@ export class SiebelApiService {
 
     try {
       return await this.put(endpoint, fields, params);
-      //return await this.put(endpoint, fields);
     } catch (error) {
       this.logger.error(
         { error, serviceRequestId, fields },
@@ -421,6 +434,24 @@ export class SiebelApiService {
     return await this.put(endpoint, payload);
   }
 
+  async getIcmContactById(contactId: string): Promise<IcmContactDetail | null> {
+    const endpoint = `/ICMContact/ICMContact/${contactId}`;
+    const params = {
+      fields: 'Id,First Name,Last Name,Birth Date,Primary Email',
+      ChildLinks: 'None',
+      ViewMode: 'Organization',
+    };
+
+    try {
+      return await this.get<IcmContactDetail>(endpoint, params);
+    } catch (error) {
+      if (error instanceof SiebelApiError && error.status === 404) {
+        return null;
+      }
+      throw error;
+    }
+  }
+
   async put<T>(
     endpoint: string,
     data?: unknown,
@@ -464,16 +495,79 @@ export class SiebelApiService {
     }
   }
 
-  private handleError(error: AxiosError, errorData: unknown): Error {
+  async getActiveCaregiverType(
+    contactId: string,
+    caregiverType: IcmCaregiverType,
+  ): Promise<CaregiverTypeItem | null> {
+    const endpoint = `/ICMContact/ICMContact/${contactId}/CaregiverTypes`;
+    const params = {
+      //SearchSpec: `([Caregiver Type] = '${caregiverType}')`,
+      ChildLinks: 'None',
+      ViewMode: 'Organization',
+    };
+
+    try {
+      const result = await this.get<CaregiverTypesResponse>(endpoint, params);
+      const active = (result.items ?? []).find(
+        (item) => item['Caregiver Type'] === caregiverType && !item['End Date'],
+      );
+      return active ?? null;
+    } catch (error) {
+      if (error instanceof SiebelApiError && error.status === 404) {
+        return null;
+      }
+      throw error;
+    }
+  }
+
+  async getNewKinshipSRsForProspectiveCaregivers(): Promise<
+    SiebelSRResponse[]
+  > {
+    const params = {
+      SearchSpec: `([SR Type]='Caregiver Application' AND [SR Sub Type]='OOC' AND [ICM Stage]='Referral' AND [Primary Contact Id] <> '' AND [Primary Contact Id] <> 'No Match Row Id')`,
+      fields: 'Id,Primary Contact Id,ICM Stage,SR Sub Type',
+      ViewMode: 'Organization',
+      ChildLinks: 'None',
+    };
+
+    const result = await this.get<SiebelSRsResponse>(
+      '/ServiceRequest/ServiceRequest',
+      params,
+    );
+
+    const srs: SiebelSRResponse[] = result.items
+      ? Array.isArray(result.items)
+        ? result.items
+        : [result.items]
+      : [];
+
+    const matched = await Promise.all(
+      srs.map(async (sr) => {
+        const contactId = sr['Primary Contact Id'];
+        if (!contactId) return null;
+        const caregiverType = await this.getActiveCaregiverType(
+          contactId,
+          IcmCaregiverType.PROSPECTIVE_CAREGIVER,
+        );
+        return caregiverType ? sr : null;
+      }),
+    );
+
+    return matched.filter((sr): sr is SiebelSRResponse => sr !== null);
+  }
+
+  private handleError(error: AxiosError, errorData: unknown): SiebelApiError {
     if (error.response?.status === 401) {
-      return new Error(
+      return new SiebelApiError(
         'Unauthorized: Check your Siebel credentials and trusted username',
+        401,
       );
     }
 
     if (error.response?.status === 403) {
-      return new Error(
+      return new SiebelApiError(
         'Forbidden: Insufficient permissions or blacklisted user',
+        403,
       );
     }
 
@@ -482,6 +576,6 @@ export class SiebelApiService {
       error.message ||
       'Siebel API request failed';
 
-    return new Error(message);
+    return new SiebelApiError(message, error.response?.status);
   }
 }

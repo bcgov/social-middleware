@@ -3,13 +3,10 @@ import { HttpService } from '@nestjs/axios';
 import { ConfigService } from '@nestjs/config';
 import { of, throwError } from 'rxjs';
 import { AxiosError } from 'axios';
-import { SiebelApiService } from '../siebel-api.service';
+import { SiebelApiService, SiebelApiError } from '../siebel-api.service';
 import { SiebelAuthService } from '../siebel-auth.service';
 import { PinoLogger } from 'nestjs-pino';
-import {
-  ApplicationPackageSubType,
-  ApplicationPackageSubSubType,
-} from 'src/application-package/enums/application-package-subtypes.enum';
+import { IcmCaregiverType } from '../enums/icm-caregiver-type.enum';
 
 const mockLogger = {
   setContext: jest.fn(),
@@ -182,7 +179,9 @@ describe('SiebelApiService - get()', () => {
   it('includes the Bearer token and trusted username in headers', async () => {
     httpGet.mockReturnValue(of({ data: {} }));
     await service.get('/some/endpoint');
-    const headers = httpGet.mock.calls[0][1].headers;
+    const headers = (
+      httpGet.mock.calls[0][1] as { headers: Record<string, string> }
+    ).headers;
     expect(headers['Authorization']).toBe('Bearer mock-token');
     expect(headers['X-ICM-TrustedUsername']).toBe('trusted-user');
   });
@@ -337,94 +336,6 @@ describe('SiebelApiService - getServiceRequestsByBcscId()', () => {
   });
 });
 
-// ─── createCaregiverApplicationSR() ───────────────────────────────────────────
-
-describe('SiebelApiService - createCaregiverApplicationSR()', () => {
-  let httpPut: jest.Mock;
-
-  beforeEach(() => {
-    jest.clearAllMocks();
-    mockSiebelAuthService.getAccessToken.mockResolvedValue('mock-token');
-    httpPut = jest.fn();
-  });
-
-  it('returns srId from a successful response', async () => {
-    httpPut.mockReturnValue(of({ data: { items: { Id: 'sr-999' } } }));
-    const service = await makeModule(
-      { put: httpPut },
-      { NODE_ENV: 'production' },
-    );
-
-    const result = await service.createCaregiverApplicationSR(
-      ApplicationPackageSubType.FCH,
-      ApplicationPackageSubSubType.FCH,
-      'bcsc-did-001',
-    );
-
-    expect(result).toEqual({ srId: 'sr-999' });
-  });
-
-  it('throws InternalServerErrorException when createServiceRequest returns falsy', async () => {
-    httpPut.mockReturnValue(of({ data: null }));
-    const service = await makeModule({ put: httpPut });
-
-    await expect(
-      service.createCaregiverApplicationSR(
-        ApplicationPackageSubType.FCH,
-        ApplicationPackageSubSubType.FCH,
-        'bcsc-did-001',
-      ),
-    ).rejects.toThrow('Failed to create service request');
-  });
-
-  it('throws InternalServerErrorException when srId is missing from response', async () => {
-    httpPut.mockReturnValue(of({ data: { items: {} } }));
-    const service = await makeModule({ put: httpPut });
-
-    await expect(
-      service.createCaregiverApplicationSR(
-        ApplicationPackageSubType.FCH,
-        ApplicationPackageSubSubType.FCH,
-        'bcsc-did-001',
-      ),
-    ).rejects.toThrow('Failed to get service request ID from Siebel');
-  });
-
-  it('appends NODE_ENV to the Memo for non-production environments', async () => {
-    httpPut.mockReturnValue(of({ data: { items: { Id: 'sr-001' } } }));
-    const service = await makeModule(
-      { put: httpPut },
-      { NODE_ENV: 'development' },
-    );
-
-    await service.createCaregiverApplicationSR(
-      ApplicationPackageSubType.FCH,
-      ApplicationPackageSubSubType.FCH,
-      'bcsc-did-001',
-    );
-
-    const payload = httpPut.mock.calls[0][1];
-    expect(payload.Memo).toContain('development');
-  });
-
-  it('omits an env suffix from Memo in production', async () => {
-    httpPut.mockReturnValue(of({ data: { items: { Id: 'sr-001' } } }));
-    const service = await makeModule(
-      { put: httpPut },
-      { NODE_ENV: 'production' },
-    );
-
-    await service.createCaregiverApplicationSR(
-      ApplicationPackageSubType.FCH,
-      ApplicationPackageSubSubType.FCH,
-      'bcsc-did-001',
-    );
-
-    const payload = httpPut.mock.calls[0][1];
-    expect(payload.Memo).toBe('Created By  Portal');
-  });
-});
-
 // ─── updateServiceRequestStage() ──────────────────────────────────────────────
 
 describe('SiebelApiService - updateServiceRequestStage()', () => {
@@ -459,6 +370,39 @@ describe('SiebelApiService - updateServiceRequestStage()', () => {
 });
 
 // ─── updateServiceRequestFields() ─────────────────────────────────────────────
+
+describe('SiebelApiService - updateServiceRequestFields()', () => {
+  let service: SiebelApiService;
+  let httpPut: jest.Mock;
+
+  beforeEach(async () => {
+    jest.clearAllMocks();
+    mockSiebelAuthService.getAccessToken.mockResolvedValue('mock-token');
+    httpPut = jest.fn().mockReturnValue(of({ data: {} }));
+    service = await makeModule({ put: httpPut });
+  });
+
+  it('sends the provided fields to the SR endpoint', async () => {
+    await service.updateServiceRequestFields('sr-001', {
+      'ICM BCSC DID': 'bcsc-did-999',
+    });
+
+    expect(httpPut).toHaveBeenCalledWith(
+      'https://siebel.example.com/ServiceRequest/ServiceRequest/sr-001',
+      { 'ICM BCSC DID': 'bcsc-did-999' },
+      expect.objectContaining({ params: { ViewMode: 'Organization' } }),
+    );
+  });
+
+  it('rethrows errors from the PUT call', async () => {
+    httpPut.mockReturnValue(
+      throwError(() => createAxiosError(500, { message: 'Siebel error' })),
+    );
+    await expect(
+      service.updateServiceRequestFields('sr-001', { field: 'value' }),
+    ).rejects.toThrow('Siebel error');
+  });
+});
 
 describe('SiebelApiService - updateServiceRequestFields()', () => {
   let service: SiebelApiService;
@@ -579,5 +523,334 @@ describe('SiebelApiService - createProspect()', () => {
       }),
       expect.anything(),
     );
+  });
+});
+
+// ─── getActiveCaregiverType() ─────────────────────────────────────────────────
+
+describe('SiebelApiService - getActiveCaregiverType()', () => {
+  let service: SiebelApiService;
+  let httpGet: jest.Mock;
+
+  beforeEach(async () => {
+    jest.clearAllMocks();
+    mockSiebelAuthService.getAccessToken.mockResolvedValue('mock-token');
+    httpGet = jest.fn();
+    service = await makeModule({ get: httpGet });
+  });
+
+  it('returns the matching active record', async () => {
+    httpGet.mockReturnValue(
+      of({
+        data: {
+          items: [
+            {
+              Id: 'ct-1',
+              'Caregiver Type': 'Prospective Caregiver',
+              'End Date': '',
+            },
+          ],
+        },
+      }),
+    );
+
+    const result = await service.getActiveCaregiverType(
+      'contact-001',
+      IcmCaregiverType.PROSPECTIVE_CAREGIVER,
+    );
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        Id: 'ct-1',
+        'Caregiver Type': 'Prospective Caregiver',
+      }),
+    );
+  });
+
+  it('ignores records with an End Date set', async () => {
+    httpGet.mockReturnValue(
+      of({
+        data: {
+          items: [
+            {
+              Id: 'ct-1',
+              'Caregiver Type': 'Prospective Caregiver',
+              'End Date': '01/01/2020',
+            },
+          ],
+        },
+      }),
+    );
+
+    const result = await service.getActiveCaregiverType(
+      'contact-001',
+      IcmCaregiverType.PROSPECTIVE_CAREGIVER,
+    );
+
+    expect(result).toBeNull();
+  });
+
+  it('returns null when no record matches the caregiver type', async () => {
+    httpGet.mockReturnValue(
+      of({
+        data: {
+          items: [{ Id: 'ct-1', 'Caregiver Type': 'FCH', 'End Date': '' }],
+        },
+      }),
+    );
+
+    const result = await service.getActiveCaregiverType(
+      'contact-001',
+      IcmCaregiverType.PROSPECTIVE_CAREGIVER,
+    );
+
+    expect(result).toBeNull();
+  });
+
+  it('returns the first match when multiple active records exist (does not throw)', async () => {
+    httpGet.mockReturnValue(
+      of({
+        data: {
+          items: [
+            {
+              Id: 'ct-1',
+              'Caregiver Type': 'Prospective Caregiver',
+              'End Date': '',
+            },
+            {
+              Id: 'ct-2',
+              'Caregiver Type': 'Prospective Caregiver',
+              'End Date': '',
+            },
+          ],
+        },
+      }),
+    );
+
+    const result = await service.getActiveCaregiverType(
+      'contact-001',
+      IcmCaregiverType.PROSPECTIVE_CAREGIVER,
+    );
+
+    expect(result?.Id).toBe('ct-1');
+  });
+
+  it('returns null on 404 (no CaregiverTypes records for contact)', async () => {
+    httpGet.mockReturnValue(
+      throwError(() => createAxiosError(404, { ERROR: 'no data' })),
+    );
+
+    const result = await service.getActiveCaregiverType(
+      'contact-001',
+      IcmCaregiverType.PROSPECTIVE_CAREGIVER,
+    );
+
+    expect(result).toBeNull();
+  });
+
+  it('rethrows non-404 errors', async () => {
+    httpGet.mockReturnValue(
+      throwError(() => createAxiosError(500, { message: 'ICM down' })),
+    );
+
+    await expect(
+      service.getActiveCaregiverType(
+        'contact-001',
+        IcmCaregiverType.PROSPECTIVE_CAREGIVER,
+      ),
+    ).rejects.toThrow('ICM down');
+  });
+});
+
+// ─── getIcmContactById() ───────────────────────────────────────────────────────
+
+describe('SiebelApiService - getIcmContactById()', () => {
+  let service: SiebelApiService;
+  let httpGet: jest.Mock;
+
+  beforeEach(async () => {
+    jest.clearAllMocks();
+    mockSiebelAuthService.getAccessToken.mockResolvedValue('mock-token');
+    httpGet = jest.fn();
+    service = await makeModule({ get: httpGet });
+  });
+
+  it('returns contact details when found', async () => {
+    const contact = {
+      Id: 'contact-001',
+      'First Name': 'Jane',
+      'Last Name': 'Doe',
+      'Birth Date': '01/15/1990',
+      'Primary Email': 'jane@example.com',
+    };
+    httpGet.mockReturnValue(of({ data: contact }));
+
+    const result = await service.getIcmContactById('contact-001');
+
+    expect(result).toEqual(contact);
+  });
+
+  it('returns null on 404', async () => {
+    httpGet.mockReturnValue(
+      throwError(() => createAxiosError(404, { ERROR: 'no data' })),
+    );
+
+    const result = await service.getIcmContactById('contact-001');
+
+    expect(result).toBeNull();
+  });
+
+  it('rethrows non-404 errors', async () => {
+    httpGet.mockReturnValue(
+      throwError(() => createAxiosError(500, { message: 'ICM down' })),
+    );
+
+    await expect(service.getIcmContactById('contact-001')).rejects.toThrow(
+      'ICM down',
+    );
+  });
+});
+
+// ─── getNewKinshipSRsForProspectiveCaregivers() ────────────────────────────────
+
+describe('SiebelApiService - getNewKinshipSRsForProspectiveCaregivers()', () => {
+  let service: SiebelApiService;
+  let httpGet: jest.Mock;
+
+  beforeEach(async () => {
+    jest.clearAllMocks();
+    mockSiebelAuthService.getAccessToken.mockResolvedValue('mock-token');
+    httpGet = jest.fn();
+    service = await makeModule({ get: httpGet });
+  });
+
+  it('includes both exclusions in the SearchSpec', async () => {
+    httpGet.mockReturnValue(of({ data: { items: [] } }));
+
+    await service.getNewKinshipSRsForProspectiveCaregivers();
+
+    const params = (
+      httpGet.mock.calls[0][1] as { params: { SearchSpec: string } }
+    ).params;
+    expect(params.SearchSpec).toContain("[Primary Contact Id] <> ''");
+    expect(params.SearchSpec).toContain(
+      "[Primary Contact Id] <> 'No Match Row Id'",
+    );
+  });
+
+  it('returns only SRs whose contact has an active Prospective Caregiver type', async () => {
+    httpGet
+      .mockReturnValueOnce(
+        of({
+          data: {
+            items: [
+              { Id: 'sr-001', 'Primary Contact Id': 'contact-001' },
+              { Id: 'sr-002', 'Primary Contact Id': 'contact-002' },
+            ],
+          },
+        }),
+      )
+      // first contact: has the caregiver type
+      .mockReturnValueOnce(
+        of({
+          data: {
+            items: [
+              {
+                Id: 'ct-1',
+                'Caregiver Type': 'Prospective Caregiver',
+                'End Date': '',
+              },
+            ],
+          },
+        }),
+      )
+      // second contact: 404, no caregiver types at all
+      .mockReturnValueOnce(
+        throwError(() => createAxiosError(404, { ERROR: 'no data' })),
+      );
+
+    const result = await service.getNewKinshipSRsForProspectiveCaregivers();
+
+    expect(result).toEqual([
+      { Id: 'sr-001', 'Primary Contact Id': 'contact-001' },
+    ]);
+  });
+
+  it('normalizes a single SR item to an array', async () => {
+    httpGet
+      .mockReturnValueOnce(
+        of({
+          data: {
+            items: { Id: 'sr-001', 'Primary Contact Id': 'contact-001' },
+          },
+        }),
+      )
+      .mockReturnValueOnce(
+        of({
+          data: {
+            items: [
+              {
+                Id: 'ct-1',
+                'Caregiver Type': 'Prospective Caregiver',
+                'End Date': '',
+              },
+            ],
+          },
+        }),
+      );
+
+    const result = await service.getNewKinshipSRsForProspectiveCaregivers();
+
+    expect(result).toHaveLength(1);
+    expect(result[0].Id).toBe('sr-001');
+  });
+});
+
+// ─── get() — 404 log level ──────────────────────────────────────────────────
+
+describe('SiebelApiService - get() 404 logging', () => {
+  let service: SiebelApiService;
+  let httpGet: jest.Mock;
+
+  beforeEach(async () => {
+    jest.clearAllMocks();
+    mockSiebelAuthService.getAccessToken.mockResolvedValue('mock-token');
+    httpGet = jest.fn();
+    service = await makeModule({ get: httpGet });
+  });
+
+  it('logs 404s at debug level, not error', async () => {
+    httpGet.mockReturnValue(
+      throwError(() => createAxiosError(404, { ERROR: 'no data' })),
+    );
+
+    await expect(service.get('/endpoint')).rejects.toThrow();
+
+    expect(mockLogger.debug).toHaveBeenCalledWith(
+      expect.objectContaining({ endpoint: '/endpoint' }),
+      expect.stringContaining('404'),
+    );
+    expect(mockLogger.error).not.toHaveBeenCalled();
+  });
+
+  it('still logs non-404 errors at error level', async () => {
+    httpGet.mockReturnValue(
+      throwError(() => createAxiosError(500, { message: 'ICM down' })),
+    );
+
+    await expect(service.get('/endpoint')).rejects.toThrow();
+
+    expect(mockLogger.error).toHaveBeenCalled();
+  });
+
+  it('throws a SiebelApiError carrying the HTTP status', async () => {
+    httpGet.mockReturnValue(
+      throwError(() => createAxiosError(404, { ERROR: 'no data' })),
+    );
+
+    await expect(service.get('/endpoint')).rejects.toThrow(SiebelApiError);
+    await expect(service.get('/endpoint')).rejects.toMatchObject({
+      status: 404,
+    });
   });
 });

@@ -14,7 +14,7 @@ export class HouseholdMembers {
   householdMemberId!: string;
 
   @Prop({ required: false, type: String, default: null })
-  userId!: string;
+  userId?: string;
 
   @Prop({ required: true, type: String })
   firstName!: string;

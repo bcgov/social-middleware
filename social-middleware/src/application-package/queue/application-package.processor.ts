@@ -130,7 +130,7 @@ export class ApplicationPackageProcessor {
       ]);
       const queuedPackageIds = new Set(
         queuedJobs
-          .filter((j) => j.name === 'submission')
+          .filter((j) => j != null && j.name === 'submission')
           .map(
             (j) =>
               (j.data as { applicationPackageId: string }).applicationPackageId,

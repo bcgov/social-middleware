@@ -115,6 +115,16 @@ export class ApplicationFormService {
     }
   }
 
+  // update the form status of an application form
+  async updateFormStatus(
+    applicationFormId: string,
+    status: ApplicationFormStatus,
+  ): Promise<void> {
+    await this.applicationFormModel
+      .findOneAndUpdate({ applicationFormId }, { $set: { status } })
+      .exec();
+  }
+
   async cloneApplicationForm(
     sourceFormId: string,
   ): Promise<{ applicationFormId: string }> {

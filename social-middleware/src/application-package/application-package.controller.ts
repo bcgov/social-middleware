@@ -31,6 +31,10 @@ import { ApplicationPackage } from './schema/application-package.schema';
 import { ApplicationForm } from '../application-form/schemas/application-form.schema';
 import { PinoLogger } from 'nestjs-pino';
 import { AttachmentType } from 'src/attachments/enums/attachment-types.enum';
+import { AccessCodeType } from 'src/household/enums/access-code-type.enum';
+import { AccessCodeService } from 'src/household/services/access-code.service';
+import { UserService } from 'src/auth/user.service';
+import { SiebelApiService } from 'src/siebel/siebel-api.service';
 
 @ApiBearerAuth()
 @ApiTags('Application Package')
@@ -39,6 +43,9 @@ import { AttachmentType } from 'src/attachments/enums/attachment-types.enum';
 export class ApplicationPackageController {
   constructor(
     private readonly applicationPackageService: ApplicationPackageService,
+    private readonly accessCodeService: AccessCodeService,
+    private readonly userService: UserService,
+    private readonly siebelApiService: SiebelApiService,
     private readonly sessionUtil: SessionUtil,
     private readonly logger: PinoLogger,
   ) {}
@@ -511,5 +518,63 @@ export class ApplicationPackageController {
       body.attachmentType as AttachmentType,
       userId,
     );
+  }
+
+  @Post('access-code/redeem')
+  @ApiOperation({ summary: 'Redeem an access code' })
+  async redeemAccessCode(
+    @Body(new ValidationPipe({ whitelist: true, transform: true }))
+    dto: { accessCode: string },
+    @Req() request: Request,
+  ): Promise<{
+    success: boolean;
+    type?: AccessCodeType;
+    householdMemberId?: string;
+    applicationPackageId?: string;
+    message: string;
+  }> {
+    const userId = this.sessionUtil.extractUserIdFromRequest(request);
+
+    const user = await this.userService.findOne(userId);
+    if (!user) {
+      return { success: false, message: 'User not found' };
+    }
+
+    const result = await this.accessCodeService.associateUserWithAccessCode(
+      dto.accessCode,
+      userId,
+      { lastName: user.last_name, dateOfBirth: user.dateOfBirth },
+    );
+
+    if (!result.success) {
+      return {
+        success: false,
+        message: result.error ?? 'Failed to redeem access code',
+      };
+    }
+
+    if (
+      result.type === AccessCodeType.NEW_APPLICATION &&
+      result.applicationPackageId
+    ) {
+      try {
+        await this.applicationPackageService.activateNewApplication(
+          result.applicationPackageId,
+          userId,
+          user.bc_services_card_id,
+        );
+      } catch (error) {
+        this.logger.error(
+          { error, applicationPackageId: result.applicationPackageId },
+          'Failed to trigger APPLICATION stage after NEW_APPLICATION redemption',
+        );
+      }
+    }
+    return {
+      success: true,
+      type: result.type,
+      applicationPackageId: result.applicationPackageId,
+      message: 'Access code redeemed successfully',
+    };
   }
 }

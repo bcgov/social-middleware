@@ -36,6 +36,13 @@ export const FormId: Record<ApplicationFormType, string> = {
   [ApplicationFormType.ABOUTHOUSEHOLD]: 'CF0047',
 };
 
+// these forms have databindings, we may need to reference them at certain points
+export const FORMS_WITH_DATABINDINGS: ApplicationFormType[] = [
+  ApplicationFormType.ABOUTME,
+  ApplicationFormType.PCCCONSENT,
+  ApplicationFormType.DISCLOSURECONSENT,
+];
+
 // helper to return formID by formType
 export function getFormIdForFormType(FormType: ApplicationFormType): string {
   return FormId[FormType];

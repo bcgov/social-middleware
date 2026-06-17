@@ -54,6 +54,12 @@ export class User {
   @Prop({ default: Date.now })
   last_login!: Date;
 
+  @Prop({ required: false })
+  bcsc_last_synced?: Date;
+
+  @Prop({ default: false })
+  bcsc_update_pending!: boolean;
+
   @Prop({ default: UserStatus.ACTIVE })
   status!: string;
 }

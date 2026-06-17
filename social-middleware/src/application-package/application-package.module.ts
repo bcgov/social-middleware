@@ -20,6 +20,7 @@ import { IcmStageProcessor } from './queue/icm-stage.processor';
 import { IcmStageQueueModule } from './queue/icm-stage-queue.module';
 import { IcmStageSchedulerService } from './services/icm-stage-scheduler.service';
 import { CaregiverInvitationService } from './services/caregiver-invitation.service';
+import { BcscSyncService } from './services/bcsc-sync.service';
 
 @Module({
   imports: [
@@ -41,6 +42,7 @@ import { CaregiverInvitationService } from './services/caregiver-invitation.serv
     ApplicationPackageService,
     AuthListener,
     ApplicationPackageSchedulerService,
+    BcscSyncService,
     CaregiverInvitationService,
     IcmStageSchedulerService,
     IcmStageProcessor,
