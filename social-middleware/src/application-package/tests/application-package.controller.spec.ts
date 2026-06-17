@@ -12,6 +12,10 @@ import { AttachmentType } from 'src/attachments/enums/attachment-types.enum';
 import { Request } from 'express';
 import { SessionAuthGuard } from 'src/auth/session-auth.guard';
 import { PinoLogger } from 'nestjs-pino';
+import { AccessCodeService } from 'src/household/services/access-code.service';
+import { AccessCodeType } from 'src/household/enums/access-code-type.enum';
+import { UserService } from 'src/auth/user.service';
+import { SiebelApiService } from 'src/siebel/siebel-api.service';
 
 describe('ApplicationPackageController', () => {
   let controller: ApplicationPackageController;
@@ -31,6 +35,14 @@ describe('ApplicationPackageController', () => {
     setContext: jest.fn(),
   };
 
+  const mockAccessCodeService = {
+    associateUserWithAccessCode: jest.fn(),
+  };
+  const mockUserService = {
+    findOne: jest.fn(),
+  };
+  const mockSiebelApiService = {};
+
   const mockService = {
     createApplicationPackage: jest.fn(),
     updateApplicationPackage: jest.fn(),
@@ -45,6 +57,7 @@ describe('ApplicationPackageController', () => {
     lockApplicationPackage: jest.fn(),
     uploadMedicalAssessments: jest.fn(),
     submitDocumentsToICM: jest.fn(),
+    activateNewApplication: jest.fn(),
   };
 
   const mockRequest = {} as Request;
@@ -62,6 +75,9 @@ describe('ApplicationPackageController', () => {
           provide: PinoLogger,
           useValue: mockLogger,
         },
+        { provide: AccessCodeService, useValue: mockAccessCodeService },
+        { provide: UserService, useValue: mockUserService },
+        { provide: SiebelApiService, useValue: mockSiebelApiService },
       ],
     })
       .overrideGuard(SessionAuthGuard)
@@ -596,6 +612,88 @@ describe('ApplicationPackageController', () => {
       );
 
       expect(result).toEqual(mockResult);
+    });
+  });
+
+  describe('redeemAccessCode', () => {
+    const dto = { accessCode: 'ABC123' };
+    const mockUser = {
+      last_name: 'Doe',
+      dateOfBirth: '1990-01-15',
+      bc_services_card_id: 'bcsc-did-999',
+    };
+
+    beforeEach(() => {
+      mockUserService.findOne.mockResolvedValue(mockUser);
+      mockService.activateNewApplication = jest.fn();
+    });
+
+    it('returns failure when the user is not found', async () => {
+      mockUserService.findOne.mockResolvedValue(null);
+
+      const result = await controller.redeemAccessCode(dto, mockRequest);
+
+      expect(result).toEqual({ success: false, message: 'User not found' });
+      expect(
+        mockAccessCodeService.associateUserWithAccessCode,
+      ).not.toHaveBeenCalled();
+    });
+
+    it('returns failure when redemption fails', async () => {
+      mockAccessCodeService.associateUserWithAccessCode.mockResolvedValue({
+        success: false,
+        error: 'Invalid or expired access code',
+      });
+
+      const result = await controller.redeemAccessCode(dto, mockRequest);
+
+      expect(result).toEqual({
+        success: false,
+        message: 'Invalid or expired access code',
+      });
+    });
+
+    it('does not activate a new application for a SCREENING redemption', async () => {
+      mockAccessCodeService.associateUserWithAccessCode.mockResolvedValue({
+        success: true,
+        householdMemberId: 'hm-001',
+      });
+
+      const result = await controller.redeemAccessCode(dto, mockRequest);
+
+      expect(mockService.activateNewApplication).not.toHaveBeenCalled();
+      expect(result.success).toBe(true);
+    });
+
+    it('activates the new application for a NEW_APPLICATION redemption', async () => {
+      mockAccessCodeService.associateUserWithAccessCode.mockResolvedValue({
+        success: true,
+        type: AccessCodeType.NEW_APPLICATION,
+        applicationPackageId: 'pkg-001',
+      });
+
+      await controller.redeemAccessCode(dto, mockRequest);
+
+      expect(mockService.activateNewApplication).toHaveBeenCalledWith(
+        'pkg-001',
+        USER_ID,
+        'bcsc-did-999',
+      );
+    });
+
+    it('still returns success if activateNewApplication throws', async () => {
+      mockAccessCodeService.associateUserWithAccessCode.mockResolvedValue({
+        success: true,
+        type: AccessCodeType.NEW_APPLICATION,
+        applicationPackageId: 'pkg-001',
+      });
+      mockService.activateNewApplication.mockRejectedValue(
+        new Error('Siebel down'),
+      );
+
+      const result = await controller.redeemAccessCode(dto, mockRequest);
+
+      expect(result.success).toBe(true);
     });
   });
 });
