@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
+import { ConfigService } from '@nestjs/config';
 import { ApplicationPackageQueueService } from '../queue/application-package-queue.service';
 import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
 import { CaregiverInvitationService } from './caregiver-invitation.service';
@@ -9,6 +10,7 @@ export class ApplicationPackageSchedulerService {
   constructor(
     private readonly queueService: ApplicationPackageQueueService,
     private readonly caregiverInvitationService: CaregiverInvitationService,
+    private readonly configService: ConfigService,
     @InjectPinoLogger(ApplicationPackageSchedulerService.name)
     private readonly logger: PinoLogger,
   ) {}
@@ -37,6 +39,9 @@ export class ApplicationPackageSchedulerService {
   }
   @Cron('*/2 * * * *')
   async pollKinshipReferrals() {
+    if (this.configService.get<string>('TEST_KINSHIP') === 'false') {
+      return;
+    }
     this.logger.info('Cron job triggered: polling Kinship referral SRs');
     try {
       await this.caregiverInvitationService.pollKinshipReferrals();
