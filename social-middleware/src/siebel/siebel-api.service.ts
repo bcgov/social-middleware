@@ -565,12 +565,14 @@ export class SiebelApiService {
     if (error.response?.status === 401) {
       return new SiebelApiError(
         'Unauthorized: Check your Siebel credentials and trusted username',
+        401,
       );
     }
 
     if (error.response?.status === 403) {
       return new SiebelApiError(
         'Forbidden: Insufficient permissions or blacklisted user',
+        403,
       );
     }
 
