@@ -561,6 +561,7 @@ export class ApplicationPackageController {
         await this.applicationPackageService.activateNewApplication(
           result.applicationPackageId,
           userId,
+          user.bc_services_card_id,
         );
       } catch (error) {
         this.logger.error(
@@ -571,6 +572,7 @@ export class ApplicationPackageController {
     }
     return {
       success: true,
+      type: result.type,
       applicationPackageId: result.applicationPackageId,
       message: 'Access code redeemed successfully',
     };
