@@ -436,3 +436,111 @@ describe('AccessCodeService - createAccessCode', () => {
     ).rejects.toThrow(InternalServerErrorException);
   });
 });
+
+// ─── resendOrCreateAccessCode ─────────────────────────────────────────────────
+
+describe('AccessCodeService - resendOrCreateAccessCode', () => {
+  let service: AccessCodeService;
+
+  const mockFindOne = jest.fn();
+  const mockSave = jest.fn();
+  const MockScreeningAccessCodeModel = jest.fn().mockImplementation(() => ({
+    save: mockSave,
+  })) as unknown as jest.Mock & { findOne: jest.Mock };
+  MockScreeningAccessCodeModel.findOne = mockFindOne;
+
+  beforeEach(async () => {
+    jest.clearAllMocks();
+    mockSave.mockResolvedValue({});
+
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        AccessCodeService,
+        {
+          provide: getModelToken(ScreeningAccessCode.name),
+          useValue: MockScreeningAccessCodeModel,
+        },
+        { provide: getModelToken(ApplicationPackage.name), useValue: {} },
+        { provide: getModelToken(ApplicationForm.name), useValue: {} },
+        { provide: HouseholdService, useValue: mockHouseholdService },
+        { provide: PinoLogger, useValue: mockLogger },
+      ],
+    }).compile();
+
+    service = module.get<AccessCodeService>(AccessCodeService);
+  });
+
+  const mockSortedFindOne = (record: unknown) => {
+    mockFindOne.mockReturnValue({
+      sort: jest.fn().mockReturnValue({
+        lean: jest.fn().mockReturnValue({
+          exec: jest.fn().mockResolvedValue(record),
+        }),
+      }),
+    });
+  };
+
+  it('returns the existing code unchanged when it is still valid', async () => {
+    mockSortedFindOne({
+      accessCode: 'EXISTING',
+      expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+      isUsed: false,
+      attemptCount: 0,
+    });
+
+    const result = await service.resendOrCreateAccessCode('hm-001');
+
+    expect(result).toEqual(
+      expect.objectContaining({ accessCode: 'EXISTING', isNew: false }),
+    );
+    expect(mockSave).not.toHaveBeenCalled();
+  });
+
+  it('creates a new code when none exists', async () => {
+    mockSortedFindOne(null);
+
+    const result = await service.resendOrCreateAccessCode('hm-001');
+
+    expect(result.isNew).toBe(true);
+    expect(mockSave).toHaveBeenCalled();
+  });
+
+  it('creates a new code when the existing one has expired', async () => {
+    mockSortedFindOne({
+      accessCode: 'EXPIRED',
+      expiresAt: new Date(Date.now() - 60 * 60 * 1000),
+      isUsed: false,
+      attemptCount: 0,
+    });
+
+    const result = await service.resendOrCreateAccessCode('hm-001');
+
+    expect(result.isNew).toBe(true);
+  });
+
+  it('creates a new code when the existing one is already used', async () => {
+    mockSortedFindOne({
+      accessCode: 'USED',
+      expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+      isUsed: true,
+      attemptCount: 0,
+    });
+
+    const result = await service.resendOrCreateAccessCode('hm-001');
+
+    expect(result.isNew).toBe(true);
+  });
+
+  it('creates a new code when attemptCount has reached the limit', async () => {
+    mockSortedFindOne({
+      accessCode: 'LOCKED',
+      expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+      isUsed: false,
+      attemptCount: 5,
+    });
+
+    const result = await service.resendOrCreateAccessCode('hm-001');
+
+    expect(result.isNew).toBe(true);
+  });
+});
