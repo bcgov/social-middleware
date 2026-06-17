@@ -165,6 +165,7 @@ export class ApplicationPackageService {
   async activateNewApplication(
     applicationPackageId: string,
     userId: string,
+    bcscDid: string,
   ): Promise<void> {
     const pkg = await this.getApplicationPackage(applicationPackageId, userId);
     await this.updateApplicationPackageStage(
@@ -176,6 +177,9 @@ export class ApplicationPackageService {
         pkg.srId,
         ServiceRequestStage.APPLICATION,
       );
+      await this.siebelApiService.updateServiceRequestFields(pkg.srId, {
+        'ICM BCSC DID': bcscDid,
+      });
     }
   }
 
