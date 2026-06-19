@@ -208,6 +208,9 @@ export class AuthController {
       email: user.email,
       home_phone: user.home_phone,
       alternate_phone: user.alternate_phone,
+      ...(user.resource_case_active_date // if they have an active resource case, send the date, otherwise send nothing
+        ? { resource_case_active_date: user.resource_case_active_date }
+        : {}),
     };
   }
 }
