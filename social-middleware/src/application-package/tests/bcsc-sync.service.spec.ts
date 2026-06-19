@@ -37,6 +37,7 @@ const mockUser: User = {
   last_login: new Date(),
   status: 'active',
   bcsc_update_pending: false,
+  resource_case_closed: false,
 };
 
 const mockPrimaryApplicant = {
