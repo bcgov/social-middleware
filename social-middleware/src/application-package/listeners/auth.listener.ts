@@ -14,6 +14,7 @@ import { ApplicationPackageService } from '../services/application-package.servi
 import { ServiceRequestStage } from '../enums/application-package-status.enum';
 import { UserService } from 'src/auth/user.service';
 import { User } from '../../auth/schemas/user.schema';
+import { ConfigService } from '@nestjs/config';
 import { BcscSyncService } from '../services/bcsc-sync.service';
 
 // private helper function to compute resouce case active date:
@@ -31,6 +32,7 @@ export class AuthListener implements OnModuleInit {
     private readonly applicationPackageService: ApplicationPackageService,
     private readonly userService: UserService,
     private readonly bcscSyncService: BcscSyncService,
+    private readonly configService: ConfigService,
     @InjectPinoLogger(AuthListener.name)
     private readonly logger: PinoLogger,
   ) {}
@@ -57,7 +59,9 @@ export class AuthListener implements OnModuleInit {
       await this.syncContactId(userData);
 
       // sync resource case status (requires contact_id to be est)
-      await this.syncResourceCase(userData);
+      if (this.configService.get<string>('TEST_RESOURCE_CASE') === 'true') {
+        await this.syncResourceCase(userData);
+      }
 
       //if the BCSC Data has changed, we need to do some checks
       if (userData.bcscDataChanged) {
