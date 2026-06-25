@@ -195,6 +195,8 @@ export class AuthController {
   async getUserProfile(@Req() req: Request): Promise<UserProfileResponse> {
     const userId = this.sessionUtil.extractUserIdFromRequest(req);
     const user = await this.userService.findOne(userId);
+    const sendResourceDetails =
+      this.configService.get<string>('TEST_RESOURCE_CASE') === 'true';
 
     return {
       first_name: user.first_name,
@@ -208,6 +210,9 @@ export class AuthController {
       email: user.email,
       home_phone: user.home_phone,
       alternate_phone: user.alternate_phone,
+      ...(user.resource_case_active_date && sendResourceDetails // if they have an active resource case, send the date, otherwise send nothing
+        ? { resource_case_active_date: user.resource_case_active_date }
+        : {}),
     };
   }
 }

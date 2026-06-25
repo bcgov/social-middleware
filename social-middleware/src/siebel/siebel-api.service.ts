@@ -32,6 +32,14 @@ export interface SiebelSRsResponse {
   [key: string]: unknown;
 }
 
+export interface SiebelResourceCase {
+  Id: string;
+  Status: string;
+  'Created Date': string;
+  'Reopened Date': string;
+  [key: string]: unknown;
+}
+
 export class SiebelApiError extends Error {
   constructor(
     message: string,
@@ -447,6 +455,42 @@ export class SiebelApiService {
     } catch (error) {
       if (error instanceof SiebelApiError && error.status === 404) {
         return null;
+      }
+      throw error;
+    }
+  }
+
+  async getOpenResourceCasesByContactId(
+    contactId: string,
+  ): Promise<SiebelResourceCase[]> {
+    const endpoint = '/Cases/Case';
+    const params = {
+      SearchSpec: `([Key Player Id] = '${contactId}' AND [Type] = 'Resource' AND [Status] = 'Open')`,
+      ViewMode: 'Catalog',
+      fields: 'Id,Status,Created Date,Reopened Date',
+      ChildLinks: 'None',
+    };
+
+    try {
+      const result = await this.get<{
+        items?: SiebelResourceCase | SiebelResourceCase[];
+        Id?: string;
+        [key: string]: unknown;
+      }>(endpoint, params);
+
+      if (result.items) {
+        return Array.isArray(result.items) ? result.items : [result.items];
+      }
+
+      // single result returned directly without items wrapper
+      if (result.Id) {
+        return [result as unknown as SiebelResourceCase];
+      }
+
+      return [];
+    } catch (error) {
+      if (error instanceof SiebelApiError && error.status === 404) {
+        return [];
       }
       throw error;
     }

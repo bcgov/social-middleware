@@ -51,6 +51,18 @@ export class User {
   @Prop({ required: false })
   contact_id!: string; // row ID from ICM
 
+  @Prop({ required: false, type: String, default: null })
+  resource_case_id?: string;
+
+  @Prop({ required: false, type: Date, default: null })
+  resource_case_active_date?: Date;
+
+  @Prop({ type: Boolean, default: false })
+  resource_case_closed!: boolean;
+
+  @Prop({ required: false, type: Date, default: null })
+  resource_case_last_checked?: Date;
+
   @Prop({ default: Date.now })
   last_login!: Date;
 

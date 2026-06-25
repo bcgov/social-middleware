@@ -48,6 +48,7 @@ const baseExistingUser: User = {
   last_login: new Date(),
   status: 'active',
   bcsc_update_pending: false,
+  resource_case_closed: false,
 };
 
 describe('UserService', () => {
@@ -152,7 +153,7 @@ describe('UserService', () => {
 
       expect(updateUserSpy).toHaveBeenCalledWith(
         'user-001',
-        expect.objectContaining({ bcsc_last_synced: expect.any(Date) }),
+        expect.objectContaining({ bcsc_last_synced: expect.any(Date) as Date }),
       );
     });
 
