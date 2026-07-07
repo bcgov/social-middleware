@@ -574,6 +574,7 @@ export class ApplicationPackageController {
       success: true,
       type: result.type,
       applicationPackageId: result.applicationPackageId,
+      householdMemberId: result.householdMemberId ?? undefined,
       message: 'Access code redeemed successfully',
     };
   }
