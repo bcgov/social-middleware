@@ -74,7 +74,7 @@ export function getApplicationFormRecipe(
         ApplicationFormType.ABOUTME,
         ApplicationFormType.HOUSEHOLD,
         ApplicationFormType.CHILDREN,
-        ApplicationFormType.HEALTH,
+        //ApplicationFormType.HEALTH,
         ApplicationFormType.PLACEMENT,
         ApplicationFormType.REFERENCES,
         ApplicationFormType.DISCLOSURECONSENT,
