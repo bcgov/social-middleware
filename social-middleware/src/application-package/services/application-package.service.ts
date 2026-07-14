@@ -40,7 +40,10 @@ import {
   getApplicantFlag,
   RelationshipToPrimary,
 } from '../../household/enums/relationship-to-primary.enum';
-import { SiebelApiService } from '../../siebel/siebel-api.service';
+import {
+  SiebelApiService,
+  SiebelApiError,
+} from '../../siebel/siebel-api.service';
 //import { ReferralState } from './enums/application-package-subtypes.enum';
 import { ValidateHouseholdCompletionDto } from '../dto/validate-application-package.dto';
 //import { CreateApplicationFormDto } from '../application-form/dto/create-application-form.dto';
@@ -211,61 +214,138 @@ export class ApplicationPackageService {
     );
   }
 
-  // cancel an application package, which includes deleting all associated forms,
-  // household members, and access codes
-  // only allowed if the package is in DRAFT or IN_PROGRESS status
+  // mark an application package as cancelled
+  // create a notification in ICM to notify staff that an application has been cancelled
+  // application will be deleted on next log in
   async cancelApplicationPackage(
     dto: CancelApplicationPackageDto,
   ): Promise<void> {
-    try {
-      // Delete all application forms for this package
-      await this.applicationFormService.deleteByApplicationPackageId(
-        dto.applicationPackageId,
-      );
+    // find the application package
+    const appPackage = await this.applicationPackageModel
+      .findOne({
+        userId: { $eq: dto.userId },
+        applicationPackageId: { $eq: dto.applicationPackageId },
+      })
+      .exec();
 
-      // Delete all screening access codes associated with this package
-      await this.accessCodeService.deleteByApplicationPackageId(
-        dto.applicationPackageId,
-      );
-      // Delete all household members for this package
-      await this.householdService.deleteAllMembersByApplicationPackageId(
-        dto.applicationPackageId,
-      );
-
-      // find and delete the application package
-      const appPackage = await this.applicationPackageModel
-        .findOneAndDelete({
-          userId: { $eq: dto.userId },
-          applicationPackageId: { $eq: dto.applicationPackageId },
-        })
-        .exec();
-
-      if (!appPackage) {
-        throw new NotFoundException(
-          'Application package not found or access denied',
-        );
-      }
-      this.logger.info(
-        { applicationPackageId: dto.applicationPackageId, userId: dto.userId },
-        'Application package cancelled successfully',
-      );
-    } catch (error) {
-      if (error instanceof NotFoundException) {
-        throw error; // Re-throw NotFoundException
-      }
-
-      this.logger.error(
-        {
-          error,
-          applicationPackageId: dto.applicationPackageId,
-          userId: dto.userId,
-        },
-        'Failed to cancel application package',
-      );
-      throw new InternalServerErrorException(
-        'Failed to cancel application package',
+    // if not found, nothing to do
+    if (!appPackage) {
+      throw new NotFoundException(
+        'Application package not found or access denied',
       );
     }
+
+    // if there is a service request ID on the application package, we can notify staff about it;
+    // otherwise it hasn't been sent in yet
+    if (appPackage.srId) {
+      try {
+        // get the current details of the service request
+        const srDetails = await this.siebelApiService.getIcmServiceRequestById(
+          appPackage.srId,
+        );
+        // if we didn't find the service request, then there is a data issue..
+        if (!srDetails) {
+          // expected in dev/test when environments/DBs are out of sync with ICM
+          this.logger.warn(
+            {
+              applicationPackageId: dto.applicationPackageId,
+              srId: appPackage.srId,
+            },
+            'Service Request not found in ICM; skipping notification and proceeding with local cancellation',
+          );
+        } else {
+          // create a service request notification assigned to the service request assignee
+          await this.siebelApiService.createSRNotification(appPackage.srId, {
+            serviceRequestNumber: srDetails['Service Request Number']!,
+            owner: srDetails['Assigned To Id']!,
+          });
+
+          // reflect the cancellation on the SR itself
+          if (
+            this.configService.get<string>('OCT2027_RELEASE_ENABLED') === 'true'
+          ) {
+            await this.siebelApiService.updateServiceRequestFields(
+              appPackage.srId,
+              {
+                Resolution: 'Withdrawn',
+                'CP Outcome':
+                  'Withdrawn via portal on ' + formatDateForSiebel(new Date()),
+                'ICM CGA Resolution Decision Date': formatDateForSiebel(
+                  new Date(),
+                ),
+              },
+            );
+          }
+        }
+      } catch (error) {
+        const isConnectivityFailure =
+          error instanceof SiebelApiError &&
+          (error.status === undefined ||
+            (error.status === 403 &&
+              error.message.includes('IP address not allowed')));
+
+        if (isConnectivityFailure) {
+          this.logger.warn(
+            {
+              applicationPackageId: dto.applicationPackageId,
+              srId: appPackage.srId,
+            },
+            'Siebel unreachable during cancellation; queuing notification for retry',
+          );
+          await this.applicationPackageQueueService.enqueueCancellationNotification(
+            dto.applicationPackageId,
+            appPackage.srId,
+          );
+        } else {
+          this.logger.error(
+            {
+              error,
+              applicationPackageId: dto.applicationPackageId,
+              srId: appPackage.srId,
+            },
+            'Failed to fetch Service Request or create ICM notification during cancellation',
+          );
+
+          throw new InternalServerErrorException(
+            'Failed to cancel application package',
+          );
+        }
+      }
+    }
+
+    appPackage.status = ApplicationPackageStatus.WITHDRAWN;
+    await appPackage.save();
+
+    this.logger.info(
+      { applicationPackageId: dto.applicationPackageId, userId: dto.userId },
+      'Application package soft-cancelled successfully',
+    );
+  }
+
+  async deleteWithdrawnPackages(userId: string): Promise<void> {
+    const withdrawn = await this.applicationPackageModel
+      .find({ userId, status: ApplicationPackageStatus.WITHDRAWN })
+      .select('applicationPackageId')
+      .lean();
+
+    if (withdrawn.length === 0) return;
+    const packageIds = withdrawn.map((p) => p.applicationPackageId);
+
+    for (const applicationPackageId of packageIds) {
+      await this.applicationFormService.deleteByApplicationPackageId(
+        applicationPackageId,
+      );
+      await this.accessCodeService.deleteByApplicationPackageId(
+        applicationPackageId,
+      );
+      await this.householdService.deleteAllMembersByApplicationPackageId(
+        applicationPackageId,
+      );
+    }
+
+    await this.applicationPackageModel.deleteMany({
+      applicationPackageId: { $in: packageIds },
+    });
   }
 
   async updateApplicationPackage(
