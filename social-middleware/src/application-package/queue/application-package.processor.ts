@@ -363,6 +363,54 @@ export class ApplicationPackageProcessor {
     }
   }
 
+  @Process('notify-cancellation')
+  async handleCancellationNotification(
+    job: Job<{ applicationPackageId: string; srId: string }>,
+  ): Promise<{ success: boolean }> {
+    const { applicationPackageId, srId } = job.data;
+
+    const appPackage = await this.applicationPackageModel
+      .findOne({ applicationPackageId })
+      .lean()
+      .exec();
+
+    if (!appPackage?.srId) {
+      this.logger.warn(
+        { applicationPackageId, srId },
+        'No application package/srId found for cancellation notification job; skipping',
+      );
+      return { success: false };
+    }
+
+    const srDetails = await this.siebelApiService.getIcmServiceRequestById(
+      appPackage.srId,
+    );
+
+    if (!srDetails) {
+      this.logger.warn(
+        { applicationPackageId, srId },
+        'Service Request not found in ICM during queued cancellation notification; skipping',
+      );
+      return { success: false };
+    }
+
+    await this.siebelApiService.createSRNotification(srId, {
+      serviceRequestNumber: srDetails['Service Request Number']!,
+      owner: srDetails['Assigned To Id']!,
+    });
+
+    if (this.configService.get<string>('OCT2027_RELEASE_ENABLED') === 'true') {
+      await this.siebelApiService.updateServiceRequestFields(appPackage.srId, {
+        Resolution: 'Withdrawn',
+        'CP Outcome':
+          'Withdrawn via portal on ' + formatDateForSiebel(new Date()),
+        'ICM CGA Resolution Decision Date': formatDateForSiebel(new Date()),
+      });
+    }
+
+    return { success: true };
+  }
+
   /**
    * Process submit individual form to attachment on SR
    * Idempotent - can be safely retried
