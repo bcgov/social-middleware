@@ -137,6 +137,34 @@ export class ApplicationPackageQueueService {
   }
 
   /**
+   * Enqueue an ICM cancellation notification when Siebel is unreachable at cancel time
+   */
+  async enqueueCancellationNotification(
+    applicationPackageId: string,
+    srId: string,
+  ): Promise<void> {
+    await this.applicationPackageQueue.add(
+      'notify-cancellation',
+      { applicationPackageId, srId },
+      {
+        jobId: `notify-cancellation-${applicationPackageId}`,
+        attempts: 12,
+        backoff: {
+          type: 'exponential',
+          delay: 30000,
+        },
+        removeOnComplete: 100,
+        removeOnFail: false,
+      },
+    );
+
+    this.logger.info(
+      { applicationPackageId, srId },
+      'Enqueued ICM cancellation notification (Siebel unreachable)',
+    );
+  }
+
+  /**
    * Enqueue referral submission to Siebel/ICM
    * Creates SR, Prospect for Primary Applicant, and sets Referral Stage on SR to trigger Activity Plan
    */
