@@ -63,6 +63,11 @@ export class AuthListener implements OnModuleInit {
         await this.syncResourceCase(userData);
       }
 
+      // remove any previously withdrawn application packages
+      await this.applicationPackageService.deleteWithdrawnPackages(
+        userData.userId,
+      );
+
       //if the BCSC Data has changed, we need to do some checks
       if (userData.bcscDataChanged) {
         this.logger.info(

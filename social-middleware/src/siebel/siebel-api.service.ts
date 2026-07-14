@@ -27,8 +27,24 @@ export interface SiebelSRResponse {
   [key: string]: unknown;
 }
 
+export interface CreateNotificationData {
+  serviceRequestNumber: string;
+  owner: string;
+}
+
 export interface SiebelSRsResponse {
   items: SiebelSRResponse[];
+  [key: string]: unknown;
+}
+
+export interface SiebelSRDetail {
+  Id?: string;
+  'Service Request Number'?: string;
+  'Assigned To Id'?: string;
+  'Assigned To'?: string;
+  Status?: string;
+  'ICM Stage'?: string;
+  Resolution?: string;
   [key: string]: unknown;
 }
 
@@ -442,6 +458,30 @@ export class SiebelApiService {
     return await this.put(endpoint, payload);
   }
 
+  async createSRNotification(
+    serviceRequestId: string,
+    activityData: CreateNotificationData,
+  ) {
+    const endpoint = '/Activities/Activities';
+
+    const payload = {
+      Id: 'NULL',
+      Type: 'Notification',
+      'ICM Sub Type': 'Action Required',
+      Description: `Caregiver Applicant has cancelled their application (${activityData.serviceRequestNumber})`,
+      Priority: '3-Standard',
+      Status: 'Open',
+      'Action By': 'Staff',
+      'Activity SR Id': serviceRequestId,
+      'Primary Owner Id': activityData.owner,
+    };
+
+    this.logger.debug(
+      `Creating notification activity for Service Request: ${serviceRequestId}`,
+    );
+    return await this.put(endpoint, payload);
+  }
+
   async getIcmContactById(contactId: string): Promise<IcmContactDetail | null> {
     const endpoint = `/ICMContact/ICMContact/${contactId}`;
     const params = {
@@ -452,6 +492,24 @@ export class SiebelApiService {
 
     try {
       return await this.get<IcmContactDetail>(endpoint, params);
+    } catch (error) {
+      if (error instanceof SiebelApiError && error.status === 404) {
+        return null;
+      }
+      throw error;
+    }
+  }
+
+  async getIcmServiceRequestById(srId: string): Promise<SiebelSRDetail | null> {
+    const endpoint = `/ServiceRequest/ServiceRequest/${srId}`;
+    const params = {
+      fields:
+        'Id, Service Request Number, Assigned To Id, Assigned To, Status, ICM Stage, Resolution',
+      ChildLinks: 'None',
+      ViewMode: 'Organization',
+    };
+    try {
+      return await this.get<SiebelSRDetail>(endpoint, params);
     } catch (error) {
       if (error instanceof SiebelApiError && error.status === 404) {
         return null;
@@ -601,24 +659,25 @@ export class SiebelApiService {
   }
 
   private handleError(error: AxiosError, errorData: unknown): SiebelApiError {
+    const upstreamMessage = (errorData as { message?: string })?.message;
     if (error.response?.status === 401) {
       return new SiebelApiError(
-        'Unauthorized: Check your Siebel credentials and trusted username',
+        upstreamMessage ||
+          'Unauthorized: Check your Siebel credentials and trusted username',
         401,
       );
     }
 
     if (error.response?.status === 403) {
       return new SiebelApiError(
-        'Forbidden: Insufficient permissions or blacklisted user',
+        upstreamMessage ||
+          'Forbidden: Insufficient permissions or blacklisted user',
         403,
       );
     }
 
     const message =
-      (errorData as { message?: string })?.message ||
-      error.message ||
-      'Siebel API request failed';
+      upstreamMessage || error.message || 'Siebel API request failed';
 
     return new SiebelApiError(message, error.response?.status);
   }
