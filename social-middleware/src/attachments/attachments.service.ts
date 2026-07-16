@@ -67,8 +67,10 @@ export class AttachmentsService {
       fileSize: attachment.fileSize,
       description: attachment.description,
       uploadedBy: attachment.uploadedBy,
+      icmAttachmentId: attachment.icmAttachmentId,
       createdAt: attachment.createdAt,
       updatedAt: attachment.updatedAt,
+      sentToICMAt: attachment.sentToICMAt,
     }));
   }
 
@@ -96,6 +98,7 @@ export class AttachmentsService {
       icmAttachmentId: attachment.icmAttachmentId,
       createdAt: attachment.createdAt,
       updatedAt: attachment.updatedAt,
+      sentToICMAt: attachment.sentToICMAt,
     }));
   }
 
@@ -143,7 +146,7 @@ export class AttachmentsService {
   ): Promise<void> {
     await this.attachmentModel.findOneAndUpdate(
       { attachmentId },
-      { icmAttachmentId },
+      { icmAttachmentId, sentToICMAt: new Date() },
     );
   }
 }

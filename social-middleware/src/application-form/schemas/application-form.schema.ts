@@ -34,6 +34,9 @@ export class ApplicationForm {
   })
   status!: ApplicationFormStatus;
 
+  @Prop({ default: false })
+  isClone!: boolean;
+
   @Prop({ type: String, default: null }) // Allows storing raw JSON
   formData!: string | null;
 

@@ -5,8 +5,9 @@ import {
   UserLoggedInEvent,
 } from '../../common/events/auth-events.service';
 import { SiebelApiService } from '../../siebel/siebel-api.service';
-import { ApplicationPackageService } from '../application-package.service';
+import { ApplicationPackageService } from '../services/application-package.service';
 import { UserService } from '../../auth/user.service';
+import { BcscSyncService } from '../services/bcsc-sync.service';
 import { User } from 'src/auth/schemas';
 
 const mockLogger = {
@@ -24,6 +25,7 @@ const mockUserEvent: UserLoggedInEvent = {
   firstName: 'Jane',
   lastName: 'Doe',
   email: 'jane@example.com',
+  bcscDataChanged: false,
 };
 
 const mockUser = (overrides: Partial<User> = {}): User => ({
@@ -41,7 +43,167 @@ const mockUser = (overrides: Partial<User> = {}): User => ({
   contact_id: '',
   last_login: new Date(),
   status: 'active',
+  bcsc_update_pending: false,
+  resource_case_closed: false,
   ...overrides,
+});
+
+function makeListener(
+  overrides: {
+    userService?: Partial<
+      jest.Mocked<Pick<UserService, 'findOne' | 'updateUser'>>
+    >;
+    siebelApiService?: Partial<
+      jest.Mocked<
+        Pick<
+          SiebelApiService,
+          'getContactByBcscId' | 'getServiceRequestsByBcscId'
+        >
+      >
+    >;
+    authEventsService?: Partial<
+      jest.Mocked<
+        Pick<
+          AuthEventsService,
+          'onUserLoggedIn' | 'completeUserSync' | 'emitUserLoggedInEvent'
+        >
+      >
+    >;
+    bcscSyncService?: Partial<
+      jest.Mocked<Pick<BcscSyncService, 'syncOnLogin'>>
+    >;
+  } = {},
+) {
+  const userService = {
+    findOne: jest.fn().mockResolvedValue(mockUser()),
+    updateUser: jest.fn().mockResolvedValue(mockUser()),
+    ...overrides.userService,
+  };
+  const siebelApiService = {
+    getContactByBcscId: jest.fn().mockResolvedValue(null),
+    getServiceRequestsByBcscId: jest.fn().mockResolvedValue({ items: [] }),
+    ...overrides.siebelApiService,
+  };
+  const authEventsService = {
+    onUserLoggedIn: jest.fn(),
+    completeUserSync: jest.fn(),
+    emitUserLoggedInEvent: jest.fn(),
+    ...overrides.authEventsService,
+  };
+  const bcscSyncService = {
+    syncOnLogin: jest.fn().mockResolvedValue(undefined),
+    ...overrides.bcscSyncService,
+  };
+
+  return { userService, siebelApiService, authEventsService, bcscSyncService };
+}
+
+async function buildAndTrigger(
+  mocks: ReturnType<typeof makeListener>,
+  event: UserLoggedInEvent,
+) {
+  const module: TestingModule = await Test.createTestingModule({
+    providers: [
+      AuthListener,
+      { provide: AuthEventsService, useValue: mocks.authEventsService },
+      { provide: SiebelApiService, useValue: mocks.siebelApiService },
+      {
+        provide: ApplicationPackageService,
+        useValue: { getApplicationPackages: jest.fn().mockResolvedValue([]) },
+      },
+      { provide: UserService, useValue: mocks.userService },
+      { provide: BcscSyncService, useValue: mocks.bcscSyncService },
+      { provide: 'PinoLogger:AuthListener', useValue: mockLogger },
+    ],
+  }).compile();
+
+  const listener = module.get<AuthListener>(AuthListener);
+
+  let loginCallback!: (e: UserLoggedInEvent) => void;
+  mocks.authEventsService.onUserLoggedIn.mockImplementation((cb) => {
+    loginCallback = cb;
+  });
+  listener.onModuleInit();
+
+  const done = new Promise<void>((resolve) => {
+    mocks.authEventsService.completeUserSync.mockImplementation(() =>
+      resolve(),
+    );
+  });
+  loginCallback(event);
+  await done;
+}
+
+describe('AuthListener.syncContactId', () => {
+  it('skips ICM lookup when contact_id is already set', async () => {
+    const mocks = makeListener({
+      userService: {
+        findOne: jest
+          .fn()
+          .mockResolvedValue(mockUser({ contact_id: 'existing-id' })),
+      },
+    });
+
+    await buildAndTrigger(mocks, mockUserEvent);
+
+    expect(mocks.siebelApiService.getContactByBcscId).not.toHaveBeenCalled();
+    expect(mocks.userService.updateUser).not.toHaveBeenCalled();
+  });
+
+  it('persists contact_id when ICM returns a match', async () => {
+    const mocks = makeListener({
+      userService: {
+        findOne: jest.fn().mockResolvedValue(mockUser({ contact_id: '' })),
+      },
+      siebelApiService: {
+        getContactByBcscId: jest.fn().mockResolvedValue({ Id: 'contact-abc' }),
+      },
+    });
+
+    await buildAndTrigger(mocks, mockUserEvent);
+
+    expect(mocks.userService.updateUser).toHaveBeenCalledWith('user-001', {
+      contact_id: 'contact-abc',
+    });
+  });
+
+  it('does not update user when ICM returns no match', async () => {
+    const mocks = makeListener({
+      userService: {
+        findOne: jest.fn().mockResolvedValue(mockUser({ contact_id: '' })),
+      },
+      siebelApiService: {
+        getContactByBcscId: jest.fn().mockResolvedValue(null),
+      },
+    });
+
+    await buildAndTrigger(mocks, mockUserEvent);
+
+    expect(mocks.userService.updateUser).not.toHaveBeenCalled();
+  });
+
+  it('logs error and does not block login when ICM call throws', async () => {
+    const mocks = makeListener({
+      userService: {
+        findOne: jest.fn().mockResolvedValue(mockUser({ contact_id: '' })),
+      },
+      siebelApiService: {
+        getContactByBcscId: jest
+          .fn()
+          .mockRejectedValue(new Error('Siebel unavailable')),
+      },
+    });
+
+    await buildAndTrigger(mocks, mockUserEvent);
+
+    expect(mocks.authEventsService.completeUserSync).toHaveBeenCalledWith(
+      'user-001',
+    );
+    expect(mockLogger.error).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: 'user-001' }),
+      expect.stringContaining('login not blocked'),
+    );
+  });
 });
 
 describe('AuthListener.syncContactId', () => {
@@ -84,6 +246,7 @@ describe('AuthListener.syncContactId', () => {
           useValue: { getApplicationPackages: jest.fn().mockResolvedValue([]) },
         },
         { provide: UserService, useValue: userService },
+        { provide: BcscSyncService, useValue: { syncOnLogin: jest.fn() } },
         { provide: 'PinoLogger:AuthListener', useValue: mockLogger },
       ],
     }).compile();
@@ -123,6 +286,9 @@ describe('AuthListener.syncContactId', () => {
 
   it('persists contact_id when ICM returns a match', async () => {
     userService.findOne.mockResolvedValue(mockUser({ contact_id: '' }));
+    siebelApiService.getContactByBcscId.mockResolvedValue({
+      Id: 'contact-abc',
+    });
 
     await triggerLogin(mockUserEvent);
 
@@ -162,5 +328,66 @@ describe('AuthListener.syncContactId', () => {
       expect.stringContaining('login not blocked'),
     );
     expect(userService.updateUser).not.toHaveBeenCalled();
+  });
+});
+
+// ─── BCSC sync (new tests) ──────────────────────────────────────────────────
+
+describe('AuthListener — BCSC sync', () => {
+  it('does not call syncOnLogin when bcscDataChanged is false', async () => {
+    const mocks = makeListener();
+    const event = { ...mockUserEvent, bcscDataChanged: false };
+
+    await buildAndTrigger(mocks, event);
+
+    expect(mocks.bcscSyncService.syncOnLogin).not.toHaveBeenCalled();
+  });
+
+  it('calls syncOnLogin with userId when bcscDataChanged is true', async () => {
+    const mocks = makeListener();
+    const event = { ...mockUserEvent, bcscDataChanged: true };
+
+    await buildAndTrigger(mocks, event);
+
+    expect(mocks.bcscSyncService.syncOnLogin).toHaveBeenCalledWith('user-001');
+    expect(mocks.bcscSyncService.syncOnLogin).toHaveBeenCalledTimes(1);
+  });
+
+  it('calls syncOnLogin before the Siebel service request check', async () => {
+    const callOrder: string[] = [];
+    const mocks = makeListener({
+      bcscSyncService: {
+        syncOnLogin: jest.fn().mockImplementation(() => {
+          callOrder.push('sync');
+          return Promise.resolve();
+        }),
+      },
+      siebelApiService: {
+        getServiceRequestsByBcscId: jest.fn().mockImplementation(() => {
+          callOrder.push('siebel');
+          return Promise.resolve({ items: [] });
+        }),
+      },
+    });
+    const event = { ...mockUserEvent, bcscDataChanged: true };
+
+    await buildAndTrigger(mocks, event);
+
+    expect(callOrder).toEqual(['sync', 'siebel']);
+  });
+
+  it('completes the login event and logs the error when syncOnLogin throws', async () => {
+    const mocks = makeListener({
+      bcscSyncService: {
+        syncOnLogin: jest.fn().mockRejectedValue(new Error('Sync failed')),
+      },
+    });
+    const event = { ...mockUserEvent, bcscDataChanged: true };
+
+    await buildAndTrigger(mocks, event);
+
+    expect(mocks.authEventsService.completeUserSync).toHaveBeenCalledWith(
+      'user-001',
+    );
   });
 });

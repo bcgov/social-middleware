@@ -8,6 +8,7 @@ export interface UserLoggedInEvent {
   email: string;
   firstName: string;
   lastName: string;
+  bcscDataChanged: boolean;
 }
 
 @Injectable()

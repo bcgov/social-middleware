@@ -1,14 +1,19 @@
 import { RelationshipToPrimary } from '../../household/enums/relationship-to-primary.enum';
+import {
+  ApplicationPackageSubSubType,
+  ApplicationPackageSubType,
+} from '../../application-package/enums/application-package-subtypes.enum';
 
 // the types of form supported in the system; the string is the label that will appear on the page and in the tables of contents
 export enum ApplicationFormType {
   REFERRAL = 'Referral',
   INDIGENOUS = 'Indigenous Background and Preferences',
   ABOUTME = 'About Me',
-  HOUSEHOLD = 'Adults in household',
-  CHILDREN = 'Children in household',
+  HOUSEHOLD = 'Adults in my home',
+  HEALTH = 'Health',
+  CHILDREN = 'Children',
   REFERENCES = 'References',
-  PLACEMENT = 'Type of placement',
+  PLACEMENT = 'Caregiver Considerations',
   DISCLOSURECONSENT = 'Consent for Disclosure of Criminal Record Information',
   PCCCONSENT = 'Consent for Prior Contact Check',
   SCREENING = 'Screening',
@@ -23,6 +28,7 @@ export const FormId: Record<ApplicationFormType, string> = {
   [ApplicationFormType.ABOUTME]: 'CF0040',
   [ApplicationFormType.HOUSEHOLD]: 'HOUSEHOLD',
   [ApplicationFormType.CHILDREN]: 'CF0042',
+  [ApplicationFormType.HEALTH]: 'CF0038',
   [ApplicationFormType.PLACEMENT]: 'CF0043',
   [ApplicationFormType.REFERENCES]: 'CF0044',
   [ApplicationFormType.DISCLOSURECONSENT]: 'CF0045',
@@ -32,9 +38,61 @@ export const FormId: Record<ApplicationFormType, string> = {
   [ApplicationFormType.ABOUTHOUSEHOLD]: 'CF0047',
 };
 
+// these forms have databindings, we may need to reference them at certain points
+export const FORMS_WITH_DATABINDINGS: ApplicationFormType[] = [
+  ApplicationFormType.ABOUTME,
+  ApplicationFormType.PCCCONSENT,
+  ApplicationFormType.DISCLOSURECONSENT,
+];
+
 // helper to return formID by formType
 export function getFormIdForFormType(FormType: ApplicationFormType): string {
   return FormId[FormType];
+}
+
+export function getReferralRecipe(
+  SubType: ApplicationPackageSubType,
+  SubSubType: ApplicationPackageSubSubType,
+): ApplicationFormType[] {
+  // SubSubType doesn't change much yet
+  switch (SubType) {
+    case ApplicationPackageSubType.FCH:
+      return [ApplicationFormType.REFERRAL, ApplicationFormType.INDIGENOUS];
+    default:
+      return [];
+  }
+}
+
+export function getApplicationFormRecipe(
+  SubType: ApplicationPackageSubType,
+  SubSubType: ApplicationPackageSubSubType,
+): ApplicationFormType[] {
+  // SubSubType doesn't change much yet
+  switch (SubType) {
+    case ApplicationPackageSubType.FCH:
+      return [
+        ApplicationFormType.ABOUTME,
+        ApplicationFormType.HOUSEHOLD,
+        ApplicationFormType.CHILDREN,
+        //ApplicationFormType.HEALTH,
+        ApplicationFormType.PLACEMENT,
+        ApplicationFormType.REFERENCES,
+        ApplicationFormType.DISCLOSURECONSENT,
+        ApplicationFormType.PCCCONSENT,
+      ];
+    case ApplicationPackageSubType.OOC:
+      return [
+        ApplicationFormType.ABOUTME,
+        ApplicationFormType.INDIGENOUS,
+        ApplicationFormType.HOUSEHOLD,
+        ApplicationFormType.CHILDREN,
+        ApplicationFormType.HEALTH,
+        ApplicationFormType.DISCLOSURECONSENT,
+        ApplicationFormType.PCCCONSENT,
+      ];
+    default:
+      return [];
+  }
 }
 
 // helper to generate the forms for various household member types

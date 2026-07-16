@@ -9,7 +9,6 @@ import {
   ApplicationPackage,
   ApplicationPackageSchema,
 } from '../schema/application-package.schema';
-import { FormCompletedListener } from './form-completed.listener';
 import { AuthModule } from '../../auth/auth.module';
 import { SiebelModule } from '../../siebel/siebel.module';
 import { NotificationModule } from '../../notifications/notification.module';
@@ -53,11 +52,7 @@ import { CommonModule } from '../../common/common.module';
     CommonModule,
     forwardRef(() => ApplicationPackageModule),
   ],
-  providers: [
-    ApplicationPackageQueueService,
-    ApplicationPackageProcessor,
-    FormCompletedListener,
-  ],
+  providers: [ApplicationPackageQueueService, ApplicationPackageProcessor],
   exports: [ApplicationPackageQueueService, BullModule],
 })
 export class ApplicationPackageQueueModule {}

@@ -119,11 +119,15 @@ export abstract class BaseAuthStrategy {
     };
 
     this.logger.info('Finding or creating user...');
-    const user = await this.userService.findOrCreate(userData);
-    this.logger.info({ id: user.id, email: user.email }, 'User persisted');
+    //const user = await this.userService.findOrCreate(userData);
+    const { user, changed } = await this.userService.findCreateOrSync(userData);
+    this.logger.info(
+      { id: user.id, email: user.email },
+      `User persisted with ${changed ? 'changes' : 'no changes'}`,
+    );
 
     await this.userService.updateLastLogin(user.id);
-    await this.authService.login(user, userData);
+    await this.authService.login(user, userData, changed);
 
     const sessionToken = this.createSessionToken(userInfo, user);
     this.setSessionCookie(res, sessionToken);

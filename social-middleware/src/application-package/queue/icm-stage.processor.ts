@@ -14,7 +14,7 @@ import {
   ApplicationPackage,
   ApplicationPackageDocument,
 } from '../schema/application-package.schema';
-import { ApplicationPackageService } from '../application-package.service';
+import { ApplicationPackageService } from '../services/application-package.service';
 import { ServiceRequestStage } from '../enums/application-package-status.enum';
 
 interface ServiceRequestItem {

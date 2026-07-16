@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { IcmStageQueueService } from './queue/icm-stage-queue.service';
+import { IcmStageQueueService } from '../queue/icm-stage-queue.service';
 import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
 
 @Injectable()
