@@ -111,7 +111,7 @@ export class CaregiverInvitationService {
 
     // 5. send invitation email
     await this.notificationService.sendCaregiverInvitation(
-      'Tim.Gunderson@gov.bc.ca', //caregiver.email,
+      caregiver.email,
       caregiver.firstName,
       accessCode,
     );
