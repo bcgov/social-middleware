@@ -626,7 +626,7 @@ export class SiebelApiService {
     SiebelSRResponse[]
   > {
     const params = {
-      SearchSpec: `([SR Type]='Caregiver Application' AND [SR Sub Type]='OOC' AND [ICM Stage]='Referral' AND [Primary Contact Id] <> '' AND [Primary Contact Id] <> 'No Match Row Id')`,
+      SearchSpec: `([SR Type]='Caregiver Application' AND [SR Sub Type]='Kinship' AND [ICM Stage]='Referral' AND [Primary Contact Id] <> '' AND [Primary Contact Id] <> 'No Match Row Id')`,
       fields: 'Id,Primary Contact Id,ICM Stage,SR Sub Type',
       ViewMode: 'Organization',
       ChildLinks: 'None',
