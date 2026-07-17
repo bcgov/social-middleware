@@ -10,7 +10,7 @@ export interface CaregiverTypeItem {
 }
 
 export interface CaregiverTypesResponse {
-  items: CaregiverTypeItem[];
+  items: CaregiverTypeItem | CaregiverTypeItem[];
   lastpage: string;
 }
 
