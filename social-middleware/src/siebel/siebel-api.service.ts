@@ -609,8 +609,15 @@ export class SiebelApiService {
     };
 
     try {
-      const result = await this.get<CaregiverTypesResponse>(endpoint, params);
-      const active = (result.items ?? []).find(
+      const raw = await this.get<CaregiverTypesResponse>(endpoint, params);
+      const items: CaregiverTypeItem[] = raw.items
+        ? Array.isArray(raw.items)
+          ? raw.items
+          : [raw.items]
+        : (raw as unknown as CaregiverTypeItem).Id
+          ? [raw as unknown as CaregiverTypeItem]
+          : [];
+      const active = items.find(
         (item) => item['Caregiver Type'] === caregiverType && !item['End Date'],
       );
       return active ?? null;
