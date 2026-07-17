@@ -87,7 +87,6 @@ export function getApplicationFormRecipe(
     case ApplicationPackageSubType.OOC:
       return [
         ApplicationFormType.ABOUTMEKINSHIP,
-        ApplicationFormType.INDIGENOUS,
         ApplicationFormType.HOUSEHOLD,
         ApplicationFormType.CHILDREN,
         ApplicationFormType.REFERENCESKINSHIP,
