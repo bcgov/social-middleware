@@ -9,6 +9,7 @@ import { ApplicationPackageService } from '../services/application-package.servi
 import { UserService } from '../../auth/user.service';
 import { BcscSyncService } from '../services/bcsc-sync.service';
 import { User } from 'src/auth/schemas';
+import { ConfigService } from '@nestjs/config';
 
 const mockLogger = {
   setContext: jest.fn(),
@@ -109,10 +110,14 @@ async function buildAndTrigger(
       { provide: SiebelApiService, useValue: mocks.siebelApiService },
       {
         provide: ApplicationPackageService,
-        useValue: { getApplicationPackages: jest.fn().mockResolvedValue([]) },
+        useValue: {
+          getApplicationPackages: jest.fn().mockResolvedValue([]),
+          deleteWithdrawnPackages: jest.fn().mockResolvedValue(undefined),
+        },
       },
       { provide: UserService, useValue: mocks.userService },
       { provide: BcscSyncService, useValue: mocks.bcscSyncService },
+      { provide: ConfigService, useValue: { get: jest.fn() } },
       { provide: 'PinoLogger:AuthListener', useValue: mockLogger },
     ],
   }).compile();
@@ -247,6 +252,7 @@ describe('AuthListener.syncContactId', () => {
         },
         { provide: UserService, useValue: userService },
         { provide: BcscSyncService, useValue: { syncOnLogin: jest.fn() } },
+        { provide: ConfigService, useValue: { get: jest.fn() } },
         { provide: 'PinoLogger:AuthListener', useValue: mockLogger },
       ],
     }).compile();

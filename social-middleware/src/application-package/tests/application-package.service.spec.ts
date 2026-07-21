@@ -35,8 +35,12 @@ describe('ApplicationPackageService - updateApplicationPackageStage', () => {
 
   // --- mock dependencies ---
   const mockFindOneAndUpdate = jest.fn();
+
+  const mockFindOne = jest.fn();
   const mockApplicationPackageModel = {
     findOneAndUpdate: mockFindOneAndUpdate,
+    findOne: mockFindOne,
+    updateOne: jest.fn().mockResolvedValue({}),
   };
 
   const mockApplicationFormService = {
@@ -89,6 +93,12 @@ describe('ApplicationPackageService - updateApplicationPackageStage', () => {
 
     // Default: findOneAndUpdate returns updated package
     mockFindOneAndUpdate.mockReturnValue({
+      lean: jest.fn().mockReturnValue({
+        exec: jest.fn().mockResolvedValue(mockUpdatedPackage),
+      }),
+    });
+
+    mockFindOne.mockReturnValue({
       lean: jest.fn().mockReturnValue({
         exec: jest.fn().mockResolvedValue(mockUpdatedPackage),
       }),
@@ -193,18 +203,16 @@ describe('ApplicationPackageService - updateApplicationPackageStage', () => {
       ).toHaveBeenCalledTimes(7);
     });
 
-    it('skips form creation if ABOUTME form already exists (idempotency)', async () => {
+    it('skips form creation when the claim is lost (another instance already transitioned)', async () => {
       mockHouseholdService.findPrimaryApplicant.mockResolvedValue(
         mockPrimaryApplicant,
       );
-      mockApplicationFormService.getApplicationFormByHouseholdId.mockResolvedValue(
-        [
-          {
-            type: ApplicationFormType.ABOUTME,
-            applicationFormId: 'existing-form-001',
-          },
-        ],
-      );
+      // claim loses: the atomic findOneAndUpdate matches no document
+      mockFindOneAndUpdate.mockReturnValue({
+        lean: jest.fn().mockReturnValue({
+          exec: jest.fn().mockResolvedValue(null),
+        }),
+      });
 
       await service.updateApplicationPackageStage(
         mockApplicationPackage as ApplicationPackage,
@@ -214,20 +222,21 @@ describe('ApplicationPackageService - updateApplicationPackageStage', () => {
       expect(
         mockApplicationFormService.createApplicationForm,
       ).not.toHaveBeenCalled();
+      // returns the current package via fin
+      expect(mockFindOne).toHaveBeenCalledWith({
+        applicationPackageId: mockApplicationPackage.applicationPackageId,
+      });
     });
 
-    it('skips notification if forms already exist (idempotency)', async () => {
+    it('skips notification when the claim isready transitioned)', async () => {
       mockHouseholdService.findPrimaryApplicant.mockResolvedValue(
         mockPrimaryApplicant,
       );
-      mockApplicationFormService.getApplicationFormByHouseholdId.mockResolvedValue(
-        [
-          {
-            type: ApplicationFormType.ABOUTME,
-            applicationFormId: 'existing-form-001',
-          },
-        ],
-      );
+      mockFindOneAndUpdate.mockReturnValue({
+        lean: jest.fn().mockReturnValue({
+          exec: jest.fn().mockResolvedValue(null),
+        }),
+      });
 
       await service.updateApplicationPackageStage(
         mockApplicationPackage as ApplicationPackage,
@@ -236,6 +245,34 @@ describe('ApplicationPackageService - updateApplicationPackageStage', () => {
 
       expect(
         mockNotificationService.sendApplicationReady,
+      ).not.toHaveBeenCalled();
+    });
+
+    it('claim won but forms already exist — ry guard)', async () => {
+      mockHouseholdService.findPrimaryApplicant.mockResolvedValue(
+        mockPrimaryApplicant,
+      );
+      // claim wins (default mock returns the package), but a prior partial run
+      // already created every recipe form f
+      mockApplicationFormService.getApplicationFormByHouseholdId.mockResolvedValue(
+        [
+          ApplicationFormType.ABOUTME,
+          ApplicationFormType.HOUSEHOLD,
+          ApplicationFormType.CHILDREN,
+          ApplicationFormType.PLACEMENT,
+          ApplicationFormType.REFERENCES,
+          ApplicationFormType.DISCLOSURECONSENT,
+          ApplicationFormType.PCCCONSENT,
+        ].map((type) => ({ type, applicationFormId: `existing-${type}` })),
+      );
+
+      await service.updateApplicationPackageStage(
+        mockApplicationPackage as ApplicationPackage,
+        ServiceRequestStage.APPLICATION,
+      );
+
+      expect(
+        mockApplicationFormService.createApplicationForm,
       ).not.toHaveBeenCalled();
     });
 
@@ -280,14 +317,21 @@ describe('ApplicationPackageService - updateApplicationPackageStage', () => {
         ServiceRequestStage.APPLICATION,
       );
 
-      expect(mockFindOneAndUpdate).toHaveBeenCalledWith(
-        { applicationPackageId: mockApplicationPackage.applicationPackageId },
-        expect.objectContaining({
-          srStage: ServiceRequestStage.APPLICATION,
-          status: ApplicationPackageStatus.APPLICATION,
-        }),
-        { new: true },
-      );
+      const [filter, update, options] = mockFindOneAndUpdate.mock.calls[0] as [
+        Record<string, unknown>,
+        { $set: Record<string, unknown> },
+        { new: boolean },
+      ];
+
+      expect(filter).toMatchObject({
+        applicationPackageId: mockApplicationPackage.applicationPackageId,
+        srStage: { $in: [ServiceRequestStage.REFERRAL, null] },
+      });
+      expect(update.$set).toMatchObject({
+        srStage: ServiceRequestStage.APPLICATION,
+        status: ApplicationPackageStatus.APPLICATION,
+      });
+      expect(options).toEqual({ new: false });
     });
   });
 
@@ -399,13 +443,14 @@ describe('ApplicationPackageService - updateApplicationPackageStage', () => {
       mockHouseholdService.findPrimaryApplicant.mockResolvedValue(
         mockPrimaryApplicant,
       );
-      mockApplicationFormService.getApplicationFormByHouseholdId.mockResolvedValue(
-        [],
-      );
-      mockApplicationFormService.createApplicationForm.mockResolvedValue({
-        applicationFormId: 'form-001',
-      });
+      // claim finds nothing to update...
       mockFindOneAndUpdate.mockReturnValue({
+        lean: jest.fn().mockReturnValue({
+          exec: jest.fn().mockResolvedValue(null),
+        }),
+      });
+      // ...and the follow-up read also finds nothing
+      mockFindOne.mockReturnValue({
         lean: jest.fn().mockReturnValue({
           exec: jest.fn().mockResolvedValue(null),
         }),

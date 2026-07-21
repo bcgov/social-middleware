@@ -481,54 +481,114 @@ export class ApplicationPackageService {
         (applicationPackage.srStage === ServiceRequestStage.REFERRAL ||
           applicationPackage.srStage == null)
       ) {
-        const applicationFormRecipe = getApplicationFormRecipe(
-          applicationPackage.subtype,
-          applicationPackage.subsubtype,
-        );
+        // atomically claim the transition. $in:[REFERRAL, null] also matches a
+        // missing field. Only ONE concurrent caller (either instance) will match,
+        // so only one caller proceeds to create forms.
 
-        // Idempotency check: if ABOUTME already exists, forms were already created
-        const existingForms =
-          await this.applicationFormService.getApplicationFormByHouseholdId(
-            primaryApplicantMember.householdMemberId,
-          );
+        const claimed = await this.applicationPackageModel
+          .findOneAndUpdate(
+            {
+              applicationPackageId: applicationPackage.applicationPackageId,
+              srStage: { $in: [ServiceRequestStage.REFERRAL, null] },
+            },
+            {
+              $set: {
+                srStage: ServiceRequestStage.APPLICATION,
+                status: ApplicationPackageStatus.APPLICATION,
+                updatedAt: new Date(),
+              },
+            },
+            { new: false },
+          )
+          .lean()
+          .exec();
 
-        const formsAlreadyCreated = existingForms.some(
-          (f) => f.type === applicationFormRecipe[0],
-        );
-
-        if (formsAlreadyCreated) {
+        if (!claimed) {
           this.logger.warn(
             { applicationPackageId: applicationPackage.applicationPackageId },
-            'Application forms already exist for this package — skipping creation (duplicate stage transition)',
+            'Stage transition already claimed by another instance -- skipping form creation',
           );
-        } else {
-          // create aboutme as the first application Form
 
-          const applicationPackageId =
-            applicationPackage.applicationPackageId as UUID;
-          const userId = applicationPackage.userId as UUID;
-          const householdMemberId =
-            primaryApplicantMember.householdMemberId as UUID;
+          const current = await this.applicationPackageModel
+            .findOne({
+              applicationPackageId: applicationPackage.applicationPackageId,
+            })
+            .lean()
+            .exec();
 
-          for (const applicationFormType of applicationFormRecipe) {
+          if (!current) {
+            throw new NotFoundException('Application package not found');
+          }
+          return current;
+        }
+        // we won the claim -> create forms exactly once
+        try {
+          const applicationFormRecipe = getApplicationFormRecipe(
+            applicationPackage.subtype,
+            applicationPackage.subsubtype,
+          );
+
+          // guard the revert-then-retry path: skip form types already created
+          // on a prior partial run. Race-free here because the atomic claim
+          // serializes this block (no concurrent caller, retry is sequential)
+
+          const existingForms =
+            await this.applicationFormService.getApplicationFormByHouseholdId(
+              primaryApplicantMember.householdMemberId,
+            );
+
+          const existingTypes = new Set(existingForms.map((f) => f.type));
+
+          for (const type of applicationFormRecipe) {
+            if (existingTypes.has(type)) {
+              continue; // skip existing types
+            }
             await this.createApplicationPackageForm(
-              applicationPackageId,
-              userId,
-              householdMemberId,
-              applicationFormType,
+              applicationPackage.applicationPackageId as UUID,
+              applicationPackage.userId as UUID,
+              primaryApplicantMember.householdMemberId as UUID,
+              type,
             );
           }
 
           // send notification that the application can be accessed
           if (primaryApplicantMember.email) {
-            // they will 100% have an email, it's just that not all household-members have an email.
             await this.notificationService.sendApplicationReady(
               primaryApplicantMember.email,
               applicantName,
             );
           }
+        } catch (err) {
+          // we already flipped the stage; revert so a retry can re-claim and finish
+          await this.applicationPackageModel.updateOne(
+            {
+              applicationPackageId: applicationPackage.applicationPackageId,
+            },
+            {
+              $set: {
+                srStage: applicationPackage.srStage ?? null,
+                status: applicationPackage.status,
+              },
+            },
+          );
+          throw err;
         }
+
+        // stage/status already set by the claim - return here
+        const updated = await this.applicationPackageModel
+          .findOne({
+            applicationPackageId: applicationPackage.applicationPackageId,
+          })
+          .lean()
+          .exec();
+
+        if (!updated) {
+          throw new NotFoundException('Application package not found');
+        }
+        return updated;
       }
+
+      // ---- All other transitions (e.g. SCREENING) fall through to here ----
 
       // update the applicationPackage sr Stage to match the service request
       const updateObject: Partial<ApplicationPackage> = {
