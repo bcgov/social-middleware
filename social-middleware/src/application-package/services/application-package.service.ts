@@ -552,7 +552,10 @@ export class ApplicationPackageService {
           }
 
           // send notification that the application can be accessed
-          if (primaryApplicantMember.email) {
+          if (
+            primaryApplicantMember.email &&
+            applicationPackage.subtype === ApplicationPackageSubType.FCH // we don't notify kinship because they just redeemed an access code
+          ) {
             await this.notificationService.sendApplicationReady(
               primaryApplicantMember.email,
               applicantName,
