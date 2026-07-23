@@ -266,6 +266,36 @@ export class ApplicationPackageProcessor {
       );
 
       if (incompletePrimaryForms.length > 0) {
+        // Self-heal a known status glitch: the package was submitted but the
+        // applicant's Prior Contact Check is stuck in DRAFT. If it's the only
+        // remaining incomplete primary form, correct the status to COMPLETE and let
+        // the next scan retry. (Not a content check — a social worker will catch a
+        // genuinely-incomplete form on review and request resubmission.)
+        const lone = incompletePrimaryForms[0];
+        if (
+          incompletePrimaryForms.length === 1 &&
+          lone.type === ApplicationFormType.PCCCONSENT
+        ) {
+          this.logger.warn(
+            {
+              applicationPackageId,
+              applicationFormId: lone.applicationFormId,
+              previousStatus: lone.status,
+            },
+            'Correcting stuck primary PCC consent form from DRAFT to COMPLETE; deferring for retry',
+          );
+
+          await this.applicationFormService.updateFormStatus(
+            lone.applicationFormId,
+            ApplicationFormStatus.COMPLETE,
+          );
+
+          return {
+            isComplete: false,
+            status: ApplicationPackageStatus.CONSENT,
+          };
+        }
+
         this.logger.info(
           {
             applicationPackageId,
@@ -276,7 +306,6 @@ export class ApplicationPackageProcessor {
         );
         return { isComplete: false, status: ApplicationPackageStatus.CONSENT };
       }
-
       // Validate household information completion
       const householdValidation =
         await this.householdService.validateHouseholdCompletion(
