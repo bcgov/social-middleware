@@ -21,6 +21,7 @@ import { IcmStageQueueModule } from './queue/icm-stage-queue.module';
 import { IcmStageSchedulerService } from './services/icm-stage-scheduler.service';
 import { CaregiverInvitationService } from './services/caregiver-invitation.service';
 import { BcscSyncService } from './services/bcsc-sync.service';
+import { ProspectService } from './services/prospect.service';
 
 @Module({
   imports: [
@@ -40,6 +41,7 @@ import { BcscSyncService } from './services/bcsc-sync.service';
   controllers: [ApplicationPackageController],
   providers: [
     ApplicationPackageService,
+    ProspectService,
     AuthListener,
     ApplicationPackageSchedulerService,
     BcscSyncService,
@@ -47,6 +49,11 @@ import { BcscSyncService } from './services/bcsc-sync.service';
     IcmStageSchedulerService,
     IcmStageProcessor,
   ],
-  exports: [ApplicationPackageService, ApplicationFormModule, HouseholdModule],
+  exports: [
+    ApplicationPackageService,
+    ApplicationFormModule,
+    HouseholdModule,
+    ProspectService,
+  ],
 })
 export class ApplicationPackageModule {}

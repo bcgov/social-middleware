@@ -38,11 +38,11 @@ import {
   ApplicationFormType,
   getFormIdForFormType,
 } from '../../application-form/enums/application-form-types.enum';
+import { ProspectService } from '../services/prospect.service';
 import { SiebelApiService } from '../../siebel/siebel-api.service';
 import { ConfigService } from '@nestjs/config';
 import { UserService } from '../../auth/user.service';
 import { UserUtil } from '../../common/utils/user.util';
-import { GenderTypes } from '../../household/enums/gender-types.enum';
 import { NotificationService } from '../../notifications/services/notification.service';
 
 @Injectable()
@@ -59,6 +59,7 @@ export class ApplicationPackageProcessor {
     private readonly siebelApiService: SiebelApiService,
     private readonly configService: ConfigService,
     private readonly notificationService: NotificationService,
+    private readonly prospectService: ProspectService,
     private readonly userUtil: UserUtil,
     @InjectPinoLogger(ApplicationPackageProcessor.name)
     private readonly logger: PinoLogger,
@@ -664,51 +665,18 @@ export class ApplicationPackageProcessor {
         'Step 2: Creating prospect in Siebel for primary applicant',
       );
 
-      const { firstName, middleName } = this.userUtil.firstAndMiddleName(
-        primaryUser.first_name,
-      );
-
-      const primaryUserProspectPayload = {
-        ServiceRequestId: srId,
-        IcmBcscDid: primaryUser.bc_services_card_id,
-        FirstName: firstName,
-        MiddleName: middleName,
-        LastName: this.userUtil.toTitleCase(primaryUser.last_name),
-        DateofBirth: formatDateForSiebel(primaryUser.dateOfBirth),
-        StreetAddress: primaryUser.street_address,
-        City: primaryUser.city,
-        Prov: primaryUser.region,
-        PostalCode: primaryUser.postal_code,
-        EmailAddress: dto.email || primaryApplicant.email || '',
-        HomePhone: dto.home_phone ?? primaryApplicant.homePhone ?? '',
-        AlternatePhone:
-          dto.alternate_phone || primaryApplicant.alternatePhone || '',
-        Gender:
-          this.userUtil.sexToGenderType(primaryUser.sex) ||
-          GenderTypes.Unspecified,
-        Relationship: 'Key player',
-        ApplicantFlag: 'Y',
-      };
-
-      const siebelProspectResponse =
-        (await this.siebelApiService.createProspect(
-          primaryUserProspectPayload,
-        )) as { items?: { Id?: string } };
-
-      prospectId = siebelProspectResponse?.items?.Id;
-
-      if (!prospectId) {
-        this.logger.error(
-          { siebelProspectResponse },
-          'Failed to create prospect',
-        );
-        throw new InternalServerErrorException('Failed to create prospect');
-      }
-
-      // Save prospect ID to household member
-      await this.householdService.updateHouseholdMember(
-        primaryApplicant.householdMemberId,
-        { prospectId },
+      prospectId = await this.prospectService.createKeyPlayerProspect(
+        primaryUser,
+        srId,
+        {
+          householdMemberId: primaryApplicant.householdMemberId,
+          contact: {
+            email: dto.email || primaryApplicant.email,
+            homePhone: dto.home_phone ?? primaryApplicant.homePhone,
+            alternatePhone:
+              dto.alternate_phone || primaryApplicant.alternatePhone,
+          },
+        },
       );
 
       this.logger.info(
