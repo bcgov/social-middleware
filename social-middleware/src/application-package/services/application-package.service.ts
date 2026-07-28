@@ -185,6 +185,17 @@ export class ApplicationPackageService {
       await this.siebelApiService.updateServiceRequestFields(pkg.srId, {
         'ICM BCSC DID': bcscDid,
       });
+
+      const primaryMember =
+        await this.householdService.findPrimaryApplicant(applicationPackageId);
+      if (primaryMember && !primaryMember.prospectId) {
+        await this.applicationPackageQueueService.enqueueProspectCreation(
+          applicationPackageId,
+          bcscDid,
+          primaryMember.householdMemberId,
+          pkg.srId,
+        );
+      }
     }
   }
 
@@ -321,6 +332,17 @@ export class ApplicationPackageService {
     this.logger.info(
       { applicationPackageId: dto.applicationPackageId, userId: dto.userId },
       'Application package soft-cancelled successfully',
+    );
+  }
+
+  async markPackageWithdrawn(applicationPackageId: string): Promise<void> {
+    await this.applicationPackageModel.updateOne(
+      { applicationPackageId: { $eq: applicationPackageId } },
+      { $set: { status: ApplicationPackageStatus.WITHDRAWN } },
+    );
+    this.logger.info(
+      { applicationPackageId },
+      'Application package marked withdrawn via ICM Resolution',
     );
   }
 

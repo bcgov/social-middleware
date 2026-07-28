@@ -784,6 +784,33 @@ export class ApplicationPackageProcessor {
     return { srId };
   }
 
+  // create a keyplayer prospect, usually because we redeemed an access code
+  @Process('create-prospect')
+  async handleProspectCreation(
+    job: Job<{
+      applicationPackageId: string;
+      bcscDid: string;
+      householdMemberId: string;
+      srId: string;
+    }>,
+  ): Promise<void> {
+    const { applicationPackageId, bcscDid, householdMemberId, srId } = job.data;
+
+    const member = await this.householdService.findById(householdMemberId);
+    if (member?.prospectId) {
+      this.logger.info(
+        { applicationPackageId, householdMemberId },
+        'Prospect already exists — skipping',
+      );
+      return;
+    }
+
+    const user = await this.userService.findByBcServicesCardId(bcscDid);
+    await this.prospectService.createKeyPlayerProspect(user, srId, {
+      householdMemberId,
+    });
+  }
+
   /**
    * Submit a READY package to ICM
    * This is the main submission process with retry logic

@@ -164,6 +164,30 @@ export class ApplicationPackageQueueService {
     );
   }
 
+  async enqueueProspectCreation(
+    applicationPackageId: string,
+    bcscDid: string,
+    householdMemberId: string,
+    srId: string,
+  ): Promise<void> {
+    await this.applicationPackageQueue.add(
+      'create-prospect',
+      { applicationPackageId, bcscDid, householdMemberId, srId },
+      {
+        jobId: `create-prospect-${applicationPackageId}`,
+        attempts: 12,
+        backoff: { type: 'exponential', delay: 30000 },
+        removeOnComplete: 100,
+        removeOnFail: false,
+      },
+    );
+
+    this.logger.info(
+      { applicationPackageId, householdMemberId, srId },
+      'Enqueued prospect creation for kinship redemption',
+    );
+  }
+
   /**
    * Enqueue referral submission to Siebel/ICM
    * Creates SR, Prospect for Primary Applicant, and sets Referral Stage on SR to trigger Activity Plan

@@ -24,6 +24,7 @@ export interface SiebelSRResponse {
   'ICM BCSC DID'?: string;
   'ICM Stage'?: string;
   'Primary Contact Id'?: string;
+  Resolution?: string;
   [key: string]: unknown;
 }
 
@@ -173,7 +174,7 @@ export class SiebelApiService {
 
     const params = {
       searchspec: `[ICM BCSC DID]='${bcscId}' AND [SR Type]='Caregiver Application'`,
-      fields: 'Id, ICM Stage',
+      fields: 'Id, ICM Stage, Resolution',
       ViewMode: 'Organization',
       ChildLinks: 'None',
       PageSize: 100,
