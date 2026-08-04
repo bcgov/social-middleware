@@ -29,6 +29,7 @@ import { AttachmentsService } from '../../attachments/attachments.service';
 import { AttachmentType } from '../../attachments/enums/attachment-types.enum';
 import { SiebelApiService } from '../../siebel/siebel-api.service';
 import { ConfigService } from '@nestjs/config';
+import { ProspectService } from '../services/prospect.service';
 
 describe('ApplicationPackageService - updateApplicationPackageStage', () => {
   let service: ApplicationPackageService;
@@ -88,6 +89,8 @@ describe('ApplicationPackageService - updateApplicationPackageStage', () => {
     status: ApplicationPackageStatus.APPLICATION,
   };
 
+  const mockProspectService = { createKeyPlayerProspect: jest.fn() };
+
   beforeEach(async () => {
     jest.clearAllMocks();
 
@@ -124,6 +127,7 @@ describe('ApplicationPackageService - updateApplicationPackageStage', () => {
         { provide: UserUtil, useValue: {} },
         { provide: ApplicationPackageQueueService, useValue: {} },
         { provide: AttachmentsService, useValue: {} },
+        { provide: ProspectService, useValue: mockProspectService },
         {
           provide: `PinoLogger:${ApplicationFormService.name}`,
           useValue: mockLogger,
@@ -515,6 +519,7 @@ describe('ApplicationPackageService - createApplicationPackage', () => {
     subtype: ApplicationPackageSubType.FCH,
     subsubtype: ApplicationPackageSubSubType.FCH,
   };
+  const mockProspectService = { createKeyPlayerProspect: jest.fn() };
 
   beforeEach(async () => {
     jest.clearAllMocks();
@@ -545,6 +550,7 @@ describe('ApplicationPackageService - createApplicationPackage', () => {
         { provide: ApplicationPackageQueueService, useValue: {} },
         { provide: NotificationService, useValue: {} },
         { provide: AttachmentsService, useValue: {} },
+        { provide: ProspectService, useValue: mockProspectService },
         {
           provide: `PinoLogger:${ApplicationFormService.name}`,
           useValue: mockLogger,
@@ -711,6 +717,7 @@ describe('ApplicationPackageService - lockApplicationPackage', () => {
     mockApplicationFormService.getApplicationFormByHouseholdId.mockResolvedValue(
       [],
     );
+    const mockProspectService = { createKeyPlayerProspect: jest.fn() };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -738,6 +745,7 @@ describe('ApplicationPackageService - lockApplicationPackage', () => {
         { provide: UserUtil, useValue: {} },
         { provide: ApplicationPackageQueueService, useValue: {} },
         { provide: AttachmentsService, useValue: {} },
+        { provide: ProspectService, useValue: mockProspectService },
         {
           provide: `PinoLogger:${ApplicationFormService.name}`,
           useValue: mockLogger,
@@ -1062,6 +1070,8 @@ describe('ApplicationPackageService - submitDocumentsToICM', () => {
     lean: () => ({ exec: () => Promise.resolve(value) }),
   });
 
+  const mockProspectService = { createKeyPlayerProspect: jest.fn() };
+
   beforeEach(async () => {
     jest.clearAllMocks();
 
@@ -1088,6 +1098,7 @@ describe('ApplicationPackageService - submitDocumentsToICM', () => {
         { provide: UserUtil, useValue: {} },
         { provide: ApplicationPackageQueueService, useValue: {} },
         { provide: ConfigService, useValue: { get: jest.fn() } },
+        { provide: ProspectService, useValue: mockProspectService },
         { provide: getModelToken('ApplicationForm'), useValue: {} },
       ],
     }).compile();
@@ -1363,6 +1374,8 @@ describe('ApplicationPackageService - submitApplicationPackage — BCSC re-prosp
     updateServiceRequestStage: jest.fn(),
   };
 
+  const mockProspectService = { createKeyPlayerProspect: jest.fn() };
+
   const mockUserUtil = {
     firstAndMiddleName: jest
       .fn()
@@ -1437,9 +1450,9 @@ describe('ApplicationPackageService - submitApplicationPackage — BCSC re-prosp
     mockUserService.findOne.mockResolvedValue(mockPrimaryUser);
     mockUserService.updateUser.mockResolvedValue(mockPrimaryUser);
 
-    mockSiebelApiService.createProspect.mockResolvedValue({
-      items: { Id: 'new-prospect-id' },
-    });
+    mockProspectService.createKeyPlayerProspect.mockResolvedValue(
+      'new-prospect-id',
+    );
     mockSiebelApiService.updateServiceRequestFields.mockResolvedValue({});
 
     const module: TestingModule = await Test.createTestingModule({
@@ -1475,6 +1488,7 @@ describe('ApplicationPackageService - submitApplicationPackage — BCSC re-prosp
           provide: `PinoLogger:${ApplicationFormService.name}`,
           useValue: mockLogger,
         },
+        { provide: ProspectService, useValue: mockProspectService },
       ],
     }).compile();
 
@@ -1489,28 +1503,16 @@ describe('ApplicationPackageService - submitApplicationPackage — BCSC re-prosp
 
     await service.submitApplicationPackage(PACKAGE_ID, USER_ID);
 
-    expect(mockSiebelApiService.createProspect).not.toHaveBeenCalled();
+    expect(mockProspectService.createKeyPlayerProspect).not.toHaveBeenCalled();
   });
 
-  it('calls createProspect with primary applicant data when bcsc_update_pending is true', async () => {
+  it('calls createKeyPlayerProspect with primary user, srId, and household member id', async () => {
     await service.submitApplicationPackage(PACKAGE_ID, USER_ID);
 
-    expect(mockSiebelApiService.createProspect).toHaveBeenCalledWith(
-      expect.objectContaining({
-        ServiceRequestId: SR_ID,
-        IcmBcscDid: 'bcsc-did-001',
-        Relationship: 'Key player',
-        ApplicantFlag: 'Y',
-      }),
-    );
-  });
-
-  it('saves the returned prospectId to the primary household member', async () => {
-    await service.submitApplicationPackage(PACKAGE_ID, USER_ID);
-
-    expect(mockHouseholdService.updateHouseholdMember).toHaveBeenCalledWith(
-      'hm-self-001',
-      { prospectId: 'new-prospect-id' },
+    expect(mockProspectService.createKeyPlayerProspect).toHaveBeenCalledWith(
+      mockPrimaryUser,
+      SR_ID,
+      { householdMemberId: 'hm-self-001' },
     );
   });
 
@@ -1522,20 +1524,21 @@ describe('ApplicationPackageService - submitApplicationPackage — BCSC re-prosp
     });
   });
 
-  it('does not save prospectId or clear flag when prospect response has no Id', async () => {
-    mockSiebelApiService.createProspect.mockResolvedValue({ items: {} });
+  it('does not clear the flag when ProspectService throws for a missing prospect id', async () => {
+    mockProspectService.createKeyPlayerProspect.mockRejectedValue(
+      new InternalServerErrorException('Failed to create prospect'),
+    );
 
     const result = await service.submitApplicationPackage(PACKAGE_ID, USER_ID);
 
     expect(result.isComplete).toBe(true);
-    expect(mockHouseholdService.updateHouseholdMember).not.toHaveBeenCalled();
     expect(mockUserService.updateUser).not.toHaveBeenCalledWith(USER_ID, {
       bcsc_update_pending: false,
     });
   });
 
-  it('continues submission without clearing the flag when createProspect throws', async () => {
-    mockSiebelApiService.createProspect.mockRejectedValue(
+  it('continues submission without clearing the flag when createKeyPlayerProspect throws', async () => {
+    mockProspectService.createKeyPlayerProspect.mockRejectedValue(
       new Error('Siebel unavailable'),
     );
 
@@ -1552,8 +1555,11 @@ describe('ApplicationPackageService - submitApplicationPackage — BCSC re-prosp
 
     await service.submitApplicationPackage(PACKAGE_ID, USER_ID);
 
-    expect(mockSiebelApiService.createProspect).toHaveBeenCalled();
-    expect(mockHouseholdService.updateHouseholdMember).not.toHaveBeenCalled();
+    expect(mockProspectService.createKeyPlayerProspect).toHaveBeenCalledWith(
+      mockPrimaryUser,
+      SR_ID,
+      { householdMemberId: undefined },
+    );
     expect(mockUserService.updateUser).toHaveBeenCalledWith(USER_ID, {
       bcsc_update_pending: false,
     });

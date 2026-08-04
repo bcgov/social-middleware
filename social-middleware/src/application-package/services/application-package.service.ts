@@ -59,6 +59,7 @@ import {
 import { GenderTypes } from '../../household/enums/gender-types.enum';
 import { UUID } from 'crypto';
 import { ApplicationPackageSubType } from '../enums/application-package-subtypes.enum';
+import { ProspectService } from './prospect.service';
 
 /*
 interface SiebelServiceRequestResponse {
@@ -84,6 +85,7 @@ export class ApplicationPackageService {
     private readonly applicationPackageQueueService: ApplicationPackageQueueService,
     private readonly notificationService: NotificationService,
     private readonly attachmentsService: AttachmentsService,
+    private readonly prospectService: ProspectService,
     @InjectPinoLogger(ApplicationFormService.name)
     private readonly logger: PinoLogger,
   ) {
@@ -183,6 +185,17 @@ export class ApplicationPackageService {
       await this.siebelApiService.updateServiceRequestFields(pkg.srId, {
         'ICM BCSC DID': bcscDid,
       });
+
+      const primaryMember =
+        await this.householdService.findPrimaryApplicant(applicationPackageId);
+      if (primaryMember && !primaryMember.prospectId) {
+        await this.applicationPackageQueueService.enqueueProspectCreation(
+          applicationPackageId,
+          bcscDid,
+          primaryMember.householdMemberId,
+          pkg.srId,
+        );
+      }
     }
   }
 
@@ -319,6 +332,17 @@ export class ApplicationPackageService {
     this.logger.info(
       { applicationPackageId: dto.applicationPackageId, userId: dto.userId },
       'Application package soft-cancelled successfully',
+    );
+  }
+
+  async markPackageWithdrawn(applicationPackageId: string): Promise<void> {
+    await this.applicationPackageModel.updateOne(
+      { applicationPackageId: { $eq: applicationPackageId } },
+      { $set: { status: ApplicationPackageStatus.WITHDRAWN } },
+    );
+    this.logger.info(
+      { applicationPackageId },
+      'Application package marked withdrawn via ICM Resolution',
     );
   }
 
@@ -951,81 +975,39 @@ export class ApplicationPackageService {
         applicationPackage.userId,
       );
 
+      const isKinship =
+        applicationPackage.subtype === ApplicationPackageSubType.OOC;
+
+      const primaryHouseholdMember = allHouseholdMembers.find(
+        (member) => member.relationshipToPrimary === RelationshipToPrimary.Self,
+      );
+
+      const kinshipNeedsProspect =
+        isKinship && !primaryHouseholdMember?.prospectId;
+
       // if this is a Kinship application or
       // if the primary applicant has updated their BCSC application since the referral stage,
       // we will create a new prospect record for them
       // so that the information will flow through to ICM
-      if (primaryApplicant.bcsc_update_pending) {
+      if (kinshipNeedsProspect || primaryApplicant.bcsc_update_pending) {
         try {
-          this.logger.info(
+          await this.prospectService.createKeyPlayerProspect(
+            primaryApplicant,
+            serviceRequestId,
             {
-              applicationPackageId,
-              userId: applicationPackage.userId,
+              householdMemberId: primaryHouseholdMember?.householdMemberId,
             },
-            'BCSC update pending - creating new prospect for primary applicant in ICM',
           );
 
-          const { firstName, middleName } = this.userUtil.firstAndMiddleName(
-            primaryApplicant.first_name,
-          );
-
-          const newPrimaryProspectResponse =
-            (await this.siebelApiService.createProspect({
-              ServiceRequestId: serviceRequestId,
-              IcmBcscDid: primaryApplicant.bc_services_card_id,
-              FirstName: firstName,
-              MiddleName: middleName,
-              LastName: this.userUtil.toTitleCase(primaryApplicant.last_name),
-              DateofBirth: formatDateForSiebel(primaryApplicant.dateOfBirth),
-              StreetAddress: primaryApplicant.street_address,
-              City: primaryApplicant.city,
-              Prov: primaryApplicant.region,
-              PostalCode: primaryApplicant.postal_code,
-              EmailAddress: primaryApplicant.email,
-              HomePhone: primaryApplicant.home_phone || '',
-              AlternatePhone: primaryApplicant.alternate_phone || '',
-              Gender:
-                this.userUtil.sexToGenderType(primaryApplicant.sex) ||
-                GenderTypes.Unspecified,
-              Relationship: 'Key player',
-              ApplicantFlag: 'Y',
-            })) as { items?: { Id?: string } };
-
-          const newProspectId = newPrimaryProspectResponse?.items?.Id;
-
-          if (!newProspectId) {
-            throw new Error('Failed to get prospect ID from Siebel response');
+          if (primaryApplicant.bcsc_update_pending) {
+            await this.userService.updateUser(applicationPackage.userId, {
+              bcsc_update_pending: false,
+            });
           }
-
-          const primaryHouseholdMember = allHouseholdMembers.find(
-            (member) =>
-              member.relationshipToPrimary == RelationshipToPrimary.Self,
-          );
-
-          if (primaryHouseholdMember) {
-            await this.householdService.updateHouseholdMember(
-              primaryHouseholdMember.householdMemberId,
-              { prospectId: newProspectId },
-            );
-          }
-
-          // TO DO: Create Re-Prospect Activity
-
-          await this.userService.updateUser(applicationPackage.userId, {
-            bcsc_update_pending: false,
-          });
-
-          this.logger.info(
-            { applicationPackageId },
-            'New prospect created for primary applicant and bcsc_update_pending cleared',
-          );
         } catch (error) {
           this.logger.error(
-            {
-              error,
-              applicationPackageId,
-            },
-            'Failed to re-prospect primary applicant - submission continues',
+            { error, applicationPackageId },
+            'Failed to create key-player prospect - submission continues',
           );
         }
       }

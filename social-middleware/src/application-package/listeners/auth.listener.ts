@@ -252,6 +252,18 @@ export class AuthListener implements OnModuleInit {
         );
 
         if (existingPackage) {
+          const resolution = sr['Resolution'] as string;
+
+          if (resolution === 'Withdrawn') {
+            this.logger.info(
+              `Service request ${srId} resolved as Withdrawn — marking application package ${existingPackage.applicationPackageId} for deletion`,
+            );
+            await this.applicationPackageService.markPackageWithdrawn(
+              existingPackage.applicationPackageId,
+            );
+            continue;
+          }
+
           this.logger.info(
             `Application package found for srId: ${srId} srStage:${srStage}, applicationPackage stage: ${existingPackage.srStage}`,
           );
