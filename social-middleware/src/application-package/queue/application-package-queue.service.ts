@@ -111,6 +111,84 @@ export class ApplicationPackageQueueService {
   }
 
   /**
+   * Enqueue submission of a specific form, attached to an existing service request
+   */
+
+  async enqueueFormResubmission(applicationFormId: string): Promise<void> {
+    await this.applicationPackageQueue.add(
+      'resubmit-form',
+      { applicationFormId },
+      {
+        jobId: `resubmit-form-${applicationFormId}`,
+        attempts: 12,
+        backoff: {
+          type: 'exponential',
+          delay: 30000,
+        },
+        removeOnComplete: 100,
+        removeOnFail: false,
+      },
+    );
+
+    this.logger.info(
+      { applicationFormId },
+      'Enqueued form for ICM resubmission',
+    );
+  }
+
+  /**
+   * Enqueue an ICM cancellation notification when Siebel is unreachable at cancel time
+   */
+  async enqueueCancellationNotification(
+    applicationPackageId: string,
+    srId: string,
+  ): Promise<void> {
+    await this.applicationPackageQueue.add(
+      'notify-cancellation',
+      { applicationPackageId, srId },
+      {
+        jobId: `notify-cancellation-${applicationPackageId}`,
+        attempts: 12,
+        backoff: {
+          type: 'exponential',
+          delay: 30000,
+        },
+        removeOnComplete: 100,
+        removeOnFail: false,
+      },
+    );
+
+    this.logger.info(
+      { applicationPackageId, srId },
+      'Enqueued ICM cancellation notification (Siebel unreachable)',
+    );
+  }
+
+  async enqueueProspectCreation(
+    applicationPackageId: string,
+    bcscDid: string,
+    householdMemberId: string,
+    srId: string,
+  ): Promise<void> {
+    await this.applicationPackageQueue.add(
+      'create-prospect',
+      { applicationPackageId, bcscDid, householdMemberId, srId },
+      {
+        jobId: `create-prospect-${applicationPackageId}`,
+        attempts: 12,
+        backoff: { type: 'exponential', delay: 30000 },
+        removeOnComplete: 100,
+        removeOnFail: false,
+      },
+    );
+
+    this.logger.info(
+      { applicationPackageId, householdMemberId, srId },
+      'Enqueued prospect creation for kinship redemption',
+    );
+  }
+
+  /**
    * Enqueue referral submission to Siebel/ICM
    * Creates SR, Prospect for Primary Applicant, and sets Referral Stage on SR to trigger Activity Plan
    */

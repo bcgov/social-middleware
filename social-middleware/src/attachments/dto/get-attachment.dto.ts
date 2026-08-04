@@ -45,4 +45,8 @@ export class GetAttachmentDto {
 
   @ApiProperty()
   updatedAt!: Date;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  sentToICMAt?: Date | null;
 }

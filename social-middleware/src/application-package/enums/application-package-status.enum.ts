@@ -11,8 +11,10 @@ export enum ApplicationPackageStatus {
 }
 
 export enum ServiceRequestStage {
+  NEW = '',
   REFERRAL = 'Referral',
   APPLICATION = 'Application',
   SCREENING = 'Screening',
   ASSESSMENT = 'Assessment',
+  COMPLETED = 'Completed',
 }

@@ -18,7 +18,7 @@ import {
   ApiResponse,
   ApiBearerAuth,
 } from '@nestjs/swagger';
-import { ApplicationPackageService } from './application-package.service';
+import { ApplicationPackageService } from './services/application-package.service';
 import { ApplicationPackageStatus } from './enums/application-package-status.enum';
 import { SubmitReferralRequestDto } from './dto/submit-referral-request.dto';
 import { CreateApplicationPackageDto } from './dto/create-application-package.dto';
@@ -30,6 +30,11 @@ import { Request } from 'express';
 import { ApplicationPackage } from './schema/application-package.schema';
 import { ApplicationForm } from '../application-form/schemas/application-form.schema';
 import { PinoLogger } from 'nestjs-pino';
+import { AttachmentType } from 'src/attachments/enums/attachment-types.enum';
+import { AccessCodeType } from 'src/household/enums/access-code-type.enum';
+import { AccessCodeService } from 'src/household/services/access-code.service';
+import { UserService } from 'src/auth/user.service';
+import { SiebelApiService } from 'src/siebel/siebel-api.service';
 
 @ApiBearerAuth()
 @ApiTags('Application Package')
@@ -38,6 +43,9 @@ import { PinoLogger } from 'nestjs-pino';
 export class ApplicationPackageController {
   constructor(
     private readonly applicationPackageService: ApplicationPackageService,
+    private readonly accessCodeService: AccessCodeService,
+    private readonly userService: UserService,
+    private readonly siebelApiService: SiebelApiService,
     private readonly sessionUtil: SessionUtil,
     private readonly logger: PinoLogger,
   ) {}
@@ -478,5 +486,96 @@ export class ApplicationPackageController {
       applicationPackageId,
       userId,
     );
+  }
+
+  @Post(':applicationPackageId/submit-documents-to-icm')
+  @UseGuards(SessionAuthGuard)
+  @ApiOperation({
+    summary: 'Submit pending documents to ICM',
+    description:
+      'Uploads all pending (not yet ICM-submitted) attachments for a given member and document type to Siebel.',
+  })
+  @ApiResponse({
+    status: 200,
+    schema: {
+      type: 'object',
+      properties: {
+        success: { type: 'boolean' },
+        attachmentsUploaded: { type: 'number' },
+      },
+    },
+  })
+  async submitDocumentsToICM(
+    @Param('applicationPackageId', new ParseUUIDPipe())
+    applicationPackageId: string,
+    @Body() body: { householdMemberId?: string | null; attachmentType: string },
+    @Req() request: Request,
+  ): Promise<{ success: boolean; attachmentsUploaded: number }> {
+    const userId = this.sessionUtil.extractUserIdFromRequest(request);
+    return this.applicationPackageService.submitDocumentsToICM(
+      applicationPackageId,
+      body.householdMemberId ?? null,
+      body.attachmentType as AttachmentType,
+      userId,
+    );
+  }
+
+  @Post('access-code/redeem')
+  @ApiOperation({ summary: 'Redeem an access code' })
+  async redeemAccessCode(
+    @Body(new ValidationPipe({ whitelist: true, transform: true }))
+    dto: { accessCode: string },
+    @Req() request: Request,
+  ): Promise<{
+    success: boolean;
+    type?: AccessCodeType;
+    householdMemberId?: string;
+    applicationPackageId?: string;
+    message: string;
+  }> {
+    const userId = this.sessionUtil.extractUserIdFromRequest(request);
+
+    const user = await this.userService.findOne(userId);
+    if (!user) {
+      return { success: false, message: 'User not found' };
+    }
+
+    const result = await this.accessCodeService.associateUserWithAccessCode(
+      dto.accessCode,
+      userId,
+      { lastName: user.last_name, dateOfBirth: user.dateOfBirth },
+    );
+
+    if (!result.success) {
+      return {
+        success: false,
+        message: result.error ?? 'Failed to redeem access code',
+      };
+    }
+
+    if (
+      result.type === AccessCodeType.NEW_APPLICATION &&
+      result.applicationPackageId
+    ) {
+      try {
+        await this.applicationPackageService.activateNewApplication(
+          result.applicationPackageId,
+          userId,
+          user.bc_services_card_id,
+        );
+      } catch (error) {
+        this.logger.error(
+          { error, applicationPackageId: result.applicationPackageId },
+          'Failed to trigger APPLICATION stage after NEW_APPLICATION redemption',
+        );
+      }
+    }
+    return {
+      success: true,
+      type: result.type,
+      applicationPackageId: result.applicationPackageId,
+      householdMemberId: result.householdMemberId ?? undefined,
+      message: 'Access code redeemed successfully',
+    };
   }
 }

@@ -11,6 +11,7 @@ import { UserInfo } from '../interfaces/user-info.interface';
 import { User } from '../schemas/user.schema';
 import { TokenBlacklistService } from '../services/token-blacklist.service';
 import { UserPayload } from '../../common/interfaces';
+import { UnauthorizedException } from '@nestjs/common';
 
 export abstract class BaseAuthStrategy {
   protected readonly jwtSecret: string;
@@ -73,6 +74,10 @@ export abstract class BaseAuthStrategy {
       }
     }
 
+    if (typeof userInfo.sub !== 'string') {
+      throw new UnauthorizedException('Invalid subject claim');
+    }
+
     // Validate address object
     if (
       !userInfo.address ||
@@ -88,7 +93,7 @@ export abstract class BaseAuthStrategy {
 
     // Validate email format
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(userInfo.email)) {
+    if (!emailRegex.test(userInfo.email as string)) {
       throw new Error('Invalid user info: invalid email format');
     }
   }
@@ -119,11 +124,15 @@ export abstract class BaseAuthStrategy {
     };
 
     this.logger.info('Finding or creating user...');
-    const user = await this.userService.findOrCreate(userData);
-    this.logger.info({ id: user.id, email: user.email }, 'User persisted');
+    //const user = await this.userService.findOrCreate(userData);
+    const { user, changed } = await this.userService.findCreateOrSync(userData);
+    this.logger.info(
+      { id: user.id, email: user.email },
+      `User persisted with ${changed ? 'changes' : 'no changes'}`,
+    );
 
     await this.userService.updateLastLogin(user.id);
-    await this.authService.login(user, userData);
+    await this.authService.login(user, userData, changed);
 
     const sessionToken = this.createSessionToken(userInfo, user);
     this.setSessionCookie(res, sessionToken);

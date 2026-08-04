@@ -12,4 +12,5 @@ export interface UserProfileResponse {
   gender?: string;
   previous_first_name?: string;
   previous_last_name?: string;
+  resource_case_active_date?: Date;
 }

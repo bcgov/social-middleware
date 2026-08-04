@@ -12,7 +12,12 @@ import {
   ApplicationPackage,
   ApplicationPackageDocument,
 } from '../schema/application-package.schema';
-import { ApplicationPackageService } from '../application-package.service';
+import {
+  //ApplicationPackageSubType,
+  //ApplicationPackageSubSubType,
+  getDefaultSrStage,
+} from '../enums/application-package-subtypes.enum';
+import { ApplicationPackageService } from '../services/application-package.service';
 import { ApplicationPackageStatus } from '../enums/application-package-status.enum';
 import { formatDateForSiebel } from '../../common/utils/date.util';
 import { SubmissionStatus } from '../enums/submission-status.enum';
@@ -33,11 +38,11 @@ import {
   ApplicationFormType,
   getFormIdForFormType,
 } from '../../application-form/enums/application-form-types.enum';
+import { ProspectService } from '../services/prospect.service';
 import { SiebelApiService } from '../../siebel/siebel-api.service';
 import { ConfigService } from '@nestjs/config';
 import { UserService } from '../../auth/user.service';
 import { UserUtil } from '../../common/utils/user.util';
-import { GenderTypes } from '../../household/enums/gender-types.enum';
 import { NotificationService } from '../../notifications/services/notification.service';
 
 @Injectable()
@@ -54,6 +59,7 @@ export class ApplicationPackageProcessor {
     private readonly siebelApiService: SiebelApiService,
     private readonly configService: ConfigService,
     private readonly notificationService: NotificationService,
+    private readonly prospectService: ProspectService,
     private readonly userUtil: UserUtil,
     @InjectPinoLogger(ApplicationPackageProcessor.name)
     private readonly logger: PinoLogger,
@@ -125,7 +131,7 @@ export class ApplicationPackageProcessor {
       ]);
       const queuedPackageIds = new Set(
         queuedJobs
-          .filter((j) => j.name === 'submission')
+          .filter((j) => j != null && j.name === 'submission')
           .map(
             (j) =>
               (j.data as { applicationPackageId: string }).applicationPackageId,
@@ -261,6 +267,36 @@ export class ApplicationPackageProcessor {
       );
 
       if (incompletePrimaryForms.length > 0) {
+        // Self-heal a known status glitch: the package was submitted but the
+        // applicant's Prior Contact Check is stuck in DRAFT. If it's the only
+        // remaining incomplete primary form, correct the status to COMPLETE and let
+        // the next scan retry. (Not a content check — a social worker will catch a
+        // genuinely-incomplete form on review and request resubmission.)
+        const lone = incompletePrimaryForms[0];
+        if (
+          incompletePrimaryForms.length === 1 &&
+          lone.type === ApplicationFormType.PCCCONSENT
+        ) {
+          this.logger.warn(
+            {
+              applicationPackageId,
+              applicationFormId: lone.applicationFormId,
+              previousStatus: lone.status,
+            },
+            'Correcting stuck primary PCC consent form from DRAFT to COMPLETE; deferring for retry',
+          );
+
+          await this.applicationFormService.updateFormStatus(
+            lone.applicationFormId,
+            ApplicationFormStatus.COMPLETE,
+          );
+
+          return {
+            isComplete: false,
+            status: ApplicationPackageStatus.CONSENT,
+          };
+        }
+
         this.logger.info(
           {
             applicationPackageId,
@@ -271,7 +307,6 @@ export class ApplicationPackageProcessor {
         );
         return { isComplete: false, status: ApplicationPackageStatus.CONSENT };
       }
-
       // Validate household information completion
       const householdValidation =
         await this.householdService.validateHouseholdCompletion(
@@ -358,6 +393,151 @@ export class ApplicationPackageProcessor {
     }
   }
 
+  @Process('notify-cancellation')
+  async handleCancellationNotification(
+    job: Job<{ applicationPackageId: string; srId: string }>,
+  ): Promise<{ success: boolean }> {
+    const { applicationPackageId, srId } = job.data;
+
+    const appPackage = await this.applicationPackageModel
+      .findOne({ applicationPackageId })
+      .lean()
+      .exec();
+
+    if (!appPackage?.srId) {
+      this.logger.warn(
+        { applicationPackageId, srId },
+        'No application package/srId found for cancellation notification job; skipping',
+      );
+      return { success: false };
+    }
+
+    const srDetails = await this.siebelApiService.getIcmServiceRequestById(
+      appPackage.srId,
+    );
+
+    if (!srDetails) {
+      this.logger.warn(
+        { applicationPackageId, srId },
+        'Service Request not found in ICM during queued cancellation notification; skipping',
+      );
+      return { success: false };
+    }
+
+    await this.siebelApiService.createSRNotification(srId, {
+      serviceRequestNumber: srDetails['Service Request Number']!,
+      owner: srDetails['Assigned To Id']!,
+    });
+
+    if (this.configService.get<string>('OCT2027_RELEASE_ENABLED') === 'true') {
+      await this.siebelApiService.updateServiceRequestFields(appPackage.srId, {
+        Resolution: 'Withdrawn',
+        'CP Outcome':
+          'Withdrawn via portal on ' + formatDateForSiebel(new Date()),
+        'ICM CGA Resolution Decision Date': formatDateForSiebel(new Date()),
+      });
+    }
+
+    return { success: true };
+  }
+
+  /**
+   * Process submit individual form to attachment on SR
+   * Idempotent - can be safely retried
+   */
+
+  @Process('resubmit-form')
+  async handleFormResubmission(
+    job: Job<{ applicationFormId: string }>,
+  ): Promise<{ success: boolean }> {
+    const { applicationFormId } = job.data;
+
+    this.logger.info(
+      { jobId: job.id, applicationFormId },
+      'Processing form resubmission to Siebel',
+    );
+
+    const form =
+      await this.applicationFormService.findOneById(applicationFormId);
+    if (!form) {
+      this.logger.warn(
+        { applicationFormId },
+        'Form not found for resubmission - removing stale job',
+      );
+      return { success: false };
+    }
+
+    if (!form.formData) {
+      this.logger.warn(
+        { applicationFormId },
+        'Form has no data - skipping ICM attachment',
+      );
+      return { success: false };
+    }
+
+    const applicationPackage = await this.applicationPackageModel
+      .findOne({ applicationPackageId: form.applicationPackageId })
+      .lean()
+      .exec();
+
+    if (!applicationPackage?.srId) {
+      throw new InternalServerErrorException(
+        `No Siebel SR ID found for package ${form.applicationPackageId}`,
+      );
+    }
+
+    const formId = getFormIdForFormType(form.type);
+    const xmlHierarchy =
+      await this.applicationFormService.convertFormDataToXml(applicationFormId);
+
+    // Append applicant name to consent form filenames, matching original submission behaviour
+    let fileName = form.type as string;
+    if (
+      (form.type === ApplicationFormType.DISCLOSURECONSENT ||
+        form.type === ApplicationFormType.PCCCONSENT) &&
+      form.userId
+    ) {
+      const memberUser = await this.userService.findOne(form.userId);
+      if (memberUser) {
+        const { firstName } = this.userUtil.firstAndMiddleName(
+          memberUser.first_name,
+        );
+        fileName = `${firstName}_${this.userUtil.toTitleCase(memberUser.last_name)}-${form.type}`;
+      }
+    }
+    // prefix all re-submitted forms with today's date
+    //const now = new Date();
+    //const datePrefix = `${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}-${now.getFullYear()}`;
+    //fileName = `${datePrefix}-${fileName}`;
+    fileName = `AMENDED-${fileName}`;
+
+    const attachmentResult = (await this.siebelApiService.createFormAttachment(
+      applicationPackage.srId,
+      {
+        fileName: fileName,
+        template: formId,
+        xmlHierarchy,
+        fileContent: form.formData,
+      },
+    )) as { items: { Id: string } };
+
+    await this.applicationFormService.saveSiebelAttachmentId(
+      applicationFormId,
+      attachmentResult.items?.Id,
+    );
+
+    this.logger.info(
+      {
+        applicationFormId,
+        srId: applicationPackage.srId,
+        attachmentId: attachmentResult.items?.Id,
+      },
+      'Form resubmission to Siebel complete',
+    );
+
+    return { success: true };
+  }
+
   /**
    * Process referral submission to Siebel
    * Idempotent - can be safely retried
@@ -425,6 +605,7 @@ export class ApplicationPackageProcessor {
         Status: 'Open',
         Priority: '3-Standard',
         Type: 'Caregiver Application',
+        //'ICM Stage': getDefaultSrStage(pkg.subtype),
         'SR Sub Type': pkg.subtype,
         'SR Sub Sub Type': pkg.subsubtype,
         'ICM BCSC DID': primaryUser.bc_services_card_id,
@@ -484,51 +665,18 @@ export class ApplicationPackageProcessor {
         'Step 2: Creating prospect in Siebel for primary applicant',
       );
 
-      const { firstName, middleName } = this.userUtil.firstAndMiddleName(
-        primaryUser.first_name,
-      );
-
-      const primaryUserProspectPayload = {
-        ServiceRequestId: srId,
-        IcmBcscDid: primaryUser.bc_services_card_id,
-        FirstName: firstName,
-        MiddleName: middleName,
-        LastName: this.userUtil.toTitleCase(primaryUser.last_name),
-        DateofBirth: formatDateForSiebel(primaryUser.dateOfBirth),
-        StreetAddress: primaryUser.street_address,
-        City: primaryUser.city,
-        Prov: primaryUser.region,
-        PostalCode: primaryUser.postal_code,
-        EmailAddress: dto.email || primaryApplicant.email || '',
-        HomePhone: dto.home_phone ?? primaryApplicant.homePhone ?? '',
-        AlternatePhone:
-          dto.alternate_phone || primaryApplicant.alternatePhone || '',
-        Gender:
-          this.userUtil.sexToGenderType(primaryUser.sex) ||
-          GenderTypes.Unspecified,
-        Relationship: 'Key player',
-        ApplicantFlag: 'Y',
-      };
-
-      const siebelProspectResponse =
-        (await this.siebelApiService.createProspect(
-          primaryUserProspectPayload,
-        )) as { items?: { Id?: string } };
-
-      prospectId = siebelProspectResponse?.items?.Id;
-
-      if (!prospectId) {
-        this.logger.error(
-          { siebelProspectResponse },
-          'Failed to create prospect',
-        );
-        throw new InternalServerErrorException('Failed to create prospect');
-      }
-
-      // Save prospect ID to household member
-      await this.householdService.updateHouseholdMember(
-        primaryApplicant.householdMemberId,
-        { prospectId },
+      prospectId = await this.prospectService.createKeyPlayerProspect(
+        primaryUser,
+        srId,
+        {
+          householdMemberId: primaryApplicant.householdMemberId,
+          contact: {
+            email: dto.email || primaryApplicant.email,
+            homePhone: dto.home_phone ?? primaryApplicant.homePhone,
+            alternatePhone:
+              dto.alternate_phone || primaryApplicant.alternatePhone,
+          },
+        },
       );
 
       this.logger.info(
@@ -577,7 +725,7 @@ export class ApplicationPackageProcessor {
 
       const attachmentResult =
         (await this.siebelApiService.createFormAttachment(srId, {
-          fileName: indigenousForm.type as string,
+          fileName: indigenousForm.type,
           template: formId,
           xmlHierarchy: xmlHierarchy,
           fileContent: indigenousForm.formData,
@@ -617,7 +765,10 @@ export class ApplicationPackageProcessor {
       'Step 3: Updating service request stage to Referral',
     );
 
-    await this.siebelApiService.updateServiceRequestStage(srId, 'Referral');
+    await this.siebelApiService.updateServiceRequestStage(
+      srId,
+      getDefaultSrStage(pkg.subtype),
+    );
 
     this.logger.info(
       { applicationPackageId, srId },
@@ -631,6 +782,33 @@ export class ApplicationPackageProcessor {
     );
 
     return { srId };
+  }
+
+  // create a keyplayer prospect, usually because we redeemed an access code
+  @Process('create-prospect')
+  async handleProspectCreation(
+    job: Job<{
+      applicationPackageId: string;
+      bcscDid: string;
+      householdMemberId: string;
+      srId: string;
+    }>,
+  ): Promise<void> {
+    const { applicationPackageId, bcscDid, householdMemberId, srId } = job.data;
+
+    const member = await this.householdService.findById(householdMemberId);
+    if (member?.prospectId) {
+      this.logger.info(
+        { applicationPackageId, householdMemberId },
+        'Prospect already exists — skipping',
+      );
+      return;
+    }
+
+    const user = await this.userService.findByBcServicesCardId(bcscDid);
+    await this.prospectService.createKeyPlayerProspect(user, srId, {
+      householdMemberId,
+    });
   }
 
   /**
@@ -681,6 +859,14 @@ export class ApplicationPackageProcessor {
           submissionStatus: SubmissionStatus.PENDING,
         },
       );
+
+      if (!applicationPackage.userId) {
+        this.logger.warn(
+          { applicationPackageId },
+          'Package has no userId, this is required for submission',
+        );
+        return { success: false };
+      }
 
       // Call the existing submission logic
 

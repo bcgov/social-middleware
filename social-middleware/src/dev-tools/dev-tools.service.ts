@@ -27,7 +27,7 @@ import {
 } from '../application-form/schemas/form-parameters.schema';
 import { HouseholdService } from '../household/services/household.service';
 import { ApplicationPackageStatus } from '../application-package/enums/application-package-status.enum';
-import { ApplicationPackageService } from '../application-package/application-package.service';
+import { ApplicationPackageService } from '../application-package/services/application-package.service';
 import { ServiceRequestStage } from '../application-package/enums/application-package-status.enum';
 
 @Injectable()

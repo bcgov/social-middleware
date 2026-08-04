@@ -24,6 +24,7 @@ import { ApplicationFormsController } from './application-form.controller';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { SessionUtil } from '../common/utils/session.util';
 import { NotificationModule } from '../notifications/notification.module';
+import { BullModule } from '@nestjs/bull';
 
 @Module({
   imports: [
@@ -37,6 +38,7 @@ import { NotificationModule } from '../notifications/notification.module';
     AuthModule, // For UserService dependency
     HouseholdModule,
     NotificationModule,
+    BullModule.registerQueue({ name: 'applicationPackageQueue' }),
   ],
   exports: [ApplicationFormService, AccessCodeService, MongooseModule], // Export so other modules can use it
   controllers: [ApplicationFormsController],

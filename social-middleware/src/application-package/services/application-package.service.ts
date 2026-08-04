@@ -9,46 +9,57 @@ import {
 import { InjectModel } from '@nestjs/mongoose';
 import { v4 as uuidv4 } from 'uuid';
 import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
-import { ApplicationPackage } from './schema/application-package.schema';
+import { ApplicationPackage } from '../schema/application-package.schema';
 import {
   ApplicationPackageStatus,
   ServiceRequestStage,
-} from './enums/application-package-status.enum';
-import { ApplicationForm } from '../application-form/schemas/application-form.schema';
-import { ApplicationFormService } from '../application-form/services/application-form.service';
+} from '../enums/application-package-status.enum';
+import { ApplicationForm } from '../../application-form/schemas/application-form.schema';
+import { ApplicationFormService } from '../../application-form/services/application-form.service';
 import {
   ApplicationFormType,
   getFormIdForFormType,
-} from '../application-form/enums/application-form-types.enum';
-import { ApplicationPackageQueueService } from './queue/application-package-queue.service';
-import { SubmitReferralRequestDto } from './dto/submit-referral-request.dto';
-import { CreateApplicationPackageDto } from './dto/create-application-package.dto';
-import { UpdateApplicationPackageDto } from './dto/update-application-package.dto';
-import { CancelApplicationPackageDto } from './dto/cancel-application-package.dto';
+  getReferralRecipe,
+  getApplicationFormRecipe,
+} from '../../application-form/enums/application-form-types.enum';
+import { ApplicationPackageQueueService } from '../queue/application-package-queue.service';
+import { SubmitReferralRequestDto } from '../dto/submit-referral-request.dto';
+import { CreateApplicationPackageDto } from '../dto/create-application-package.dto';
+import { UpdateApplicationPackageDto } from '../dto/update-application-package.dto';
+import { CancelApplicationPackageDto } from '../dto/cancel-application-package.dto';
 
-import { HouseholdService } from '../household/services/household.service';
-import { AccessCodeService } from '../household/services/access-code.service';
-import { UserService } from '../auth/user.service';
+import { HouseholdService } from '../../household/services/household.service';
+import { AccessCodeService } from '../../household/services/access-code.service';
+import { UserService } from '../../auth/user.service';
 import { ConfigService } from '@nestjs/config';
-import { UserUtil } from '../common/utils/user.util';
-import { calculateAge } from '../common/utils/age.util';
-import { formatDateForSiebel } from '../common/utils/date.util';
+import { UserUtil } from '../../common/utils/user.util';
+import { calculateAge } from '../../common/utils/age.util';
+import { formatDateForSiebel } from '../../common/utils/date.util';
 import { Model } from 'mongoose';
 import {
   getApplicantFlag,
   RelationshipToPrimary,
-} from '../household/enums/relationship-to-primary.enum';
-import { SiebelApiService } from '../siebel/siebel-api.service';
+} from '../../household/enums/relationship-to-primary.enum';
+import {
+  SiebelApiService,
+  SiebelApiError,
+} from '../../siebel/siebel-api.service';
 //import { ReferralState } from './enums/application-package-subtypes.enum';
-import { ValidateHouseholdCompletionDto } from './dto/validate-application-package.dto';
+import { ValidateHouseholdCompletionDto } from '../dto/validate-application-package.dto';
 //import { CreateApplicationFormDto } from '../application-form/dto/create-application-form.dto';
-import { HouseholdMembersDocument } from '../household/schemas/household-members.schema';
-import { ApplicationFormStatus } from '../application-form/enums/application-form-status.enum';
-import { AttachmentsService } from '../attachments/attachments.service';
-import { NotificationService } from '../notifications/services/notification.service';
+import { HouseholdMembersDocument } from '../../household/schemas/household-members.schema';
+import { ApplicationFormStatus } from '../../application-form/enums/application-form-status.enum';
+import { AttachmentsService } from '../../attachments/attachments.service';
+import { NotificationService } from '../../notifications/services/notification.service';
 
-import { AttachmentType } from '../attachments/enums/attachment-types.enum';
-import { GenderTypes } from '../household/enums/gender-types.enum';
+import {
+  AttachmentType,
+  AttachmentCategoryMap,
+} from '../../attachments/enums/attachment-types.enum';
+import { GenderTypes } from '../../household/enums/gender-types.enum';
+import { UUID } from 'crypto';
+import { ApplicationPackageSubType } from '../enums/application-package-subtypes.enum';
+import { ProspectService } from './prospect.service';
 
 /*
 interface SiebelServiceRequestResponse {
@@ -60,6 +71,7 @@ interface SiebelServiceRequestResponse {
 */
 @Injectable()
 export class ApplicationPackageService {
+  private readonly TEST_KINSHIP: boolean;
   constructor(
     @InjectModel(ApplicationPackage.name)
     private applicationPackageModel: Model<ApplicationPackage>,
@@ -73,9 +85,13 @@ export class ApplicationPackageService {
     private readonly applicationPackageQueueService: ApplicationPackageQueueService,
     private readonly notificationService: NotificationService,
     private readonly attachmentsService: AttachmentsService,
+    private readonly prospectService: ProspectService,
     @InjectPinoLogger(ApplicationFormService.name)
     private readonly logger: PinoLogger,
-  ) {}
+  ) {
+    this.TEST_KINSHIP =
+      (this.configService.get<string>('TEST_KINSHIP') || 'false') === 'true';
+  }
 
   // create a new application package, which includes creating the initial referral form
   // and the primary household member
@@ -97,6 +113,7 @@ export class ApplicationPackageService {
       throw new BadRequestException(`userId is not provided`);
     }
 
+    // create the initial package model
     const initialPackage = new this.applicationPackageModel({
       applicationPackageId: uuidv4(),
       userId: userId,
@@ -107,7 +124,7 @@ export class ApplicationPackageService {
 
     const appPackage = await initialPackage.save();
 
-    // the primary applicant is the first household member
+    // the primary applicant is the first household member that we need to also create
     const user = await this.userService.findOne(userId);
 
     const primaryHouseholdMemberDto = {
@@ -125,105 +142,234 @@ export class ApplicationPackageService {
       primaryHouseholdMemberDto,
     );
 
-    // create referral as the first application Form
-    const referralDto = {
-      applicationPackageId: appPackage.applicationPackageId,
-      formId: getFormIdForFormType(ApplicationFormType.REFERRAL),
-      userId: userId,
-      householdMemberId: primaryHouseholdMember.householdMemberId,
-      type: ApplicationFormType.REFERRAL,
-      formParameters: {},
-    };
+    // create any referral forms that should be created to get moving
+    const referralForms = getReferralRecipe(dto.subtype, dto.subsubtype);
 
-    const referral =
-      await this.applicationFormService.createApplicationForm(referralDto);
+    for (const formType of referralForms) {
+      await this.createApplicationPackageForm(
+        appPackage.applicationPackageId as UUID,
+        userId as UUID,
+        primaryHouseholdMember.householdMemberId as UUID,
+        formType,
+      );
+    }
 
-    this.logger.info(
-      {
-        applicationPackageId: appPackage.applicationPackageId,
-        referralApplicationFormId: referral.applicationFormId,
-      },
-      'Created referral form for application package',
-    );
+    if (this.TEST_KINSHIP && dto.subtype === ApplicationPackageSubType.OOC) {
+      await this.submitReferralRequest(
+        appPackage.applicationPackageId,
+        userId,
+        {},
+      );
+    }
 
-    // create indigenous as the 2nd application Form; part of the referral package
-    const indigenousDto = {
-      applicationPackageId: appPackage.applicationPackageId,
-      formId: getFormIdForFormType(ApplicationFormType.INDIGENOUS),
-      userId: userId,
-      householdMemberId: primaryHouseholdMember.householdMemberId,
-      type: ApplicationFormType.INDIGENOUS,
-      formParameters: {},
-    };
-
-    const indigenous =
-      await this.applicationFormService.createApplicationForm(indigenousDto);
-
-    this.logger.info(
-      {
-        applicationPackageId: appPackage.applicationPackageId,
-        referralApplicationFormId: indigenous.applicationFormId,
-      },
-      'Created indigenous form for application package',
-    );
     return appPackage;
   }
 
-  // cancel an application package, which includes deleting all associated forms,
-  // household members, and access codes
-  // only allowed if the package is in DRAFT or IN_PROGRESS status
+  // when a NEW_APPLICATION access code is redeemed,
+  // update the application package and the SR to move them into the APPLICATION stage
+  async activateNewApplication(
+    applicationPackageId: string,
+    userId: string,
+    bcscDid: string,
+  ): Promise<void> {
+    const pkg = await this.getApplicationPackage(applicationPackageId, userId);
+    await this.updateApplicationPackageStage(
+      pkg,
+      ServiceRequestStage.APPLICATION,
+    );
+    if (pkg.srId) {
+      await this.siebelApiService.updateServiceRequestStage(
+        pkg.srId,
+        ServiceRequestStage.APPLICATION,
+      );
+      await this.siebelApiService.updateServiceRequestFields(pkg.srId, {
+        'ICM BCSC DID': bcscDid,
+      });
+
+      const primaryMember =
+        await this.householdService.findPrimaryApplicant(applicationPackageId);
+      if (primaryMember && !primaryMember.prospectId) {
+        await this.applicationPackageQueueService.enqueueProspectCreation(
+          applicationPackageId,
+          bcscDid,
+          primaryMember.householdMemberId,
+          pkg.srId,
+        );
+      }
+    }
+  }
+
+  async createApplicationPackageForm(
+    applicationPackageId: UUID,
+    userId: UUID,
+    householdMemberId: UUID,
+    applicationFormType: ApplicationFormType,
+  ): Promise<void> {
+    const formDto = {
+      applicationPackageId: applicationPackageId,
+      formId: getFormIdForFormType(applicationFormType),
+      userId: userId,
+      householdMemberId: householdMemberId,
+      type: applicationFormType,
+      formParameters: {},
+    };
+
+    const form =
+      await this.applicationFormService.createApplicationForm(formDto);
+
+    this.logger.info(
+      {
+        applicationPackageId: applicationPackageId,
+        type: applicationFormType,
+        formApplicationFormId: form.applicationFormId,
+      },
+      `Created ${applicationFormType} form for application package`,
+    );
+  }
+
+  // mark an application package as cancelled
+  // create a notification in ICM to notify staff that an application has been cancelled
+  // application will be deleted on next log in
   async cancelApplicationPackage(
     dto: CancelApplicationPackageDto,
   ): Promise<void> {
-    try {
-      // Delete all application forms for this package
-      await this.applicationFormService.deleteByApplicationPackageId(
-        dto.applicationPackageId,
-      );
+    // find the application package
+    const appPackage = await this.applicationPackageModel
+      .findOne({
+        userId: { $eq: dto.userId },
+        applicationPackageId: { $eq: dto.applicationPackageId },
+      })
+      .exec();
 
-      // Delete all screening access codes associated with this package
-      await this.accessCodeService.deleteByApplicationPackageId(
-        dto.applicationPackageId,
-      );
-      // Delete all household members for this package
-      await this.householdService.deleteAllMembersByApplicationPackageId(
-        dto.applicationPackageId,
-      );
-
-      // find and delete the application package
-      const appPackage = await this.applicationPackageModel
-        .findOneAndDelete({
-          userId: { $eq: dto.userId },
-          applicationPackageId: { $eq: dto.applicationPackageId },
-        })
-        .exec();
-
-      if (!appPackage) {
-        throw new NotFoundException(
-          'Application package not found or access denied',
-        );
-      }
-      this.logger.info(
-        { applicationPackageId: dto.applicationPackageId, userId: dto.userId },
-        'Application package cancelled successfully',
-      );
-    } catch (error) {
-      if (error instanceof NotFoundException) {
-        throw error; // Re-throw NotFoundException
-      }
-
-      this.logger.error(
-        {
-          error,
-          applicationPackageId: dto.applicationPackageId,
-          userId: dto.userId,
-        },
-        'Failed to cancel application package',
-      );
-      throw new InternalServerErrorException(
-        'Failed to cancel application package',
+    // if not found, nothing to do
+    if (!appPackage) {
+      throw new NotFoundException(
+        'Application package not found or access denied',
       );
     }
+
+    // if there is a service request ID on the application package, we can notify staff about it;
+    // otherwise it hasn't been sent in yet
+    if (appPackage.srId) {
+      try {
+        // get the current details of the service request
+        const srDetails = await this.siebelApiService.getIcmServiceRequestById(
+          appPackage.srId,
+        );
+        // if we didn't find the service request, then there is a data issue..
+        if (!srDetails) {
+          // expected in dev/test when environments/DBs are out of sync with ICM
+          this.logger.warn(
+            {
+              applicationPackageId: dto.applicationPackageId,
+              srId: appPackage.srId,
+            },
+            'Service Request not found in ICM; skipping notification and proceeding with local cancellation',
+          );
+        } else {
+          // create a service request notification assigned to the service request assignee
+          await this.siebelApiService.createSRNotification(appPackage.srId, {
+            serviceRequestNumber: srDetails['Service Request Number']!,
+            owner: srDetails['Assigned To Id']!,
+          });
+
+          // reflect the cancellation on the SR itself
+          if (
+            this.configService.get<string>('OCT2027_RELEASE_ENABLED') === 'true'
+          ) {
+            await this.siebelApiService.updateServiceRequestFields(
+              appPackage.srId,
+              {
+                Resolution: 'Withdrawn',
+                'CP Outcome':
+                  'Withdrawn via portal on ' + formatDateForSiebel(new Date()),
+                'ICM CGA Resolution Decision Date': formatDateForSiebel(
+                  new Date(),
+                ),
+              },
+            );
+          }
+        }
+      } catch (error) {
+        const isConnectivityFailure =
+          error instanceof SiebelApiError &&
+          (error.status === undefined ||
+            (error.status === 403 &&
+              error.message.includes('IP address not allowed')));
+
+        if (isConnectivityFailure) {
+          this.logger.warn(
+            {
+              applicationPackageId: dto.applicationPackageId,
+              srId: appPackage.srId,
+            },
+            'Siebel unreachable during cancellation; queuing notification for retry',
+          );
+          await this.applicationPackageQueueService.enqueueCancellationNotification(
+            dto.applicationPackageId,
+            appPackage.srId,
+          );
+        } else {
+          this.logger.error(
+            {
+              error,
+              applicationPackageId: dto.applicationPackageId,
+              srId: appPackage.srId,
+            },
+            'Failed to fetch Service Request or create ICM notification during cancellation',
+          );
+
+          throw new InternalServerErrorException(
+            'Failed to cancel application package',
+          );
+        }
+      }
+    }
+
+    appPackage.status = ApplicationPackageStatus.WITHDRAWN;
+    await appPackage.save();
+
+    this.logger.info(
+      { applicationPackageId: dto.applicationPackageId, userId: dto.userId },
+      'Application package soft-cancelled successfully',
+    );
+  }
+
+  async markPackageWithdrawn(applicationPackageId: string): Promise<void> {
+    await this.applicationPackageModel.updateOne(
+      { applicationPackageId: { $eq: applicationPackageId } },
+      { $set: { status: ApplicationPackageStatus.WITHDRAWN } },
+    );
+    this.logger.info(
+      { applicationPackageId },
+      'Application package marked withdrawn via ICM Resolution',
+    );
+  }
+
+  async deleteWithdrawnPackages(userId: string): Promise<void> {
+    const withdrawn = await this.applicationPackageModel
+      .find({ userId, status: ApplicationPackageStatus.WITHDRAWN })
+      .select('applicationPackageId')
+      .lean();
+
+    if (withdrawn.length === 0) return;
+    const packageIds = withdrawn.map((p) => p.applicationPackageId);
+
+    for (const applicationPackageId of packageIds) {
+      await this.applicationFormService.deleteByApplicationPackageId(
+        applicationPackageId,
+      );
+      await this.accessCodeService.deleteByApplicationPackageId(
+        applicationPackageId,
+      );
+      await this.householdService.deleteAllMembersByApplicationPackageId(
+        applicationPackageId,
+      );
+    }
+
+    await this.applicationPackageModel.deleteMany({
+      applicationPackageId: { $in: packageIds },
+    });
   }
 
   async updateApplicationPackage(
@@ -359,118 +505,117 @@ export class ApplicationPackageService {
         (applicationPackage.srStage === ServiceRequestStage.REFERRAL ||
           applicationPackage.srStage == null)
       ) {
-        // Idempotency check: if ABOUTME already exists, forms were already created
-        const existingForms =
-          await this.applicationFormService.getApplicationFormByHouseholdId(
-            primaryApplicantMember.householdMemberId,
-          );
-        const formsAlreadyCreated = existingForms.some(
-          (f) => f.type === ApplicationFormType.ABOUTME,
-        );
+        // atomically claim the transition. $in:[REFERRAL, null] also matches a
+        // missing field. Only ONE concurrent caller (either instance) will match,
+        // so only one caller proceeds to create forms.
 
-        if (formsAlreadyCreated) {
+        const claimed = await this.applicationPackageModel
+          .findOneAndUpdate(
+            {
+              applicationPackageId: applicationPackage.applicationPackageId,
+              srStage: { $in: [ServiceRequestStage.REFERRAL, null] },
+            },
+            {
+              $set: {
+                srStage: ServiceRequestStage.APPLICATION,
+                status: ApplicationPackageStatus.APPLICATION,
+                updatedAt: new Date(),
+              },
+            },
+            { new: false },
+          )
+          .lean()
+          .exec();
+
+        if (!claimed) {
           this.logger.warn(
             { applicationPackageId: applicationPackage.applicationPackageId },
-            'Application forms already exist for this package — skipping creation (duplicate stage transition)',
-          );
-        } else {
-          // create aboutme as the first application Form
-          const aboutMeDto = {
-            applicationPackageId: applicationPackage.applicationPackageId,
-            formId: getFormIdForFormType(ApplicationFormType.ABOUTME),
-            userId: applicationPackage.userId,
-            householdMemberId: primaryApplicantMember.householdMemberId,
-            type: ApplicationFormType.ABOUTME,
-            formParameters: {},
-          };
-          await this.applicationFormService.createApplicationForm(aboutMeDto);
-
-          // note, household is handled differently from the other forms;
-          // we use the applicationForm table to track the status of the household data,
-          // but there is no actual form to fill out; the data is collected
-          // via the household API endpoints
-
-          const householdDto = {
-            applicationPackageId: applicationPackage.applicationPackageId,
-            formId: getFormIdForFormType(ApplicationFormType.HOUSEHOLD),
-            userId: applicationPackage.userId,
-            householdMemberId: primaryApplicantMember.householdMemberId,
-            type: ApplicationFormType.HOUSEHOLD,
-            formParameters: {},
-          };
-          await this.applicationFormService.createApplicationForm(householdDto);
-
-          const childrenDto = {
-            applicationPackageId: applicationPackage.applicationPackageId,
-            formId: getFormIdForFormType(ApplicationFormType.CHILDREN),
-            userId: applicationPackage.userId,
-            householdMemberId: primaryApplicantMember.householdMemberId,
-            type: ApplicationFormType.CHILDREN,
-            formParameters: {},
-          };
-          await this.applicationFormService.createApplicationForm(childrenDto);
-
-          const placementDto = {
-            applicationPackageId: applicationPackage.applicationPackageId,
-            formId: getFormIdForFormType(ApplicationFormType.PLACEMENT),
-            userId: applicationPackage.userId,
-            householdMemberId: primaryApplicantMember.householdMemberId,
-            type: ApplicationFormType.PLACEMENT,
-            formParameters: {},
-          };
-
-          await this.applicationFormService.createApplicationForm(placementDto);
-
-          // references is the fourth form
-          const referencesDto = {
-            applicationPackageId: applicationPackage.applicationPackageId,
-            formId: getFormIdForFormType(ApplicationFormType.REFERENCES),
-            userId: applicationPackage.userId,
-            householdMemberId: primaryApplicantMember.householdMemberId,
-            type: ApplicationFormType.REFERENCES,
-            formParameters: {},
-          };
-
-          await this.applicationFormService.createApplicationForm(
-            referencesDto,
+            'Stage transition already claimed by another instance -- skipping form creation',
           );
 
-          // consent is the final form
-          const disclosureConsentDto = {
-            applicationPackageId: applicationPackage.applicationPackageId,
-            formId: getFormIdForFormType(ApplicationFormType.DISCLOSURECONSENT),
-            userId: applicationPackage.userId,
-            householdMemberId: primaryApplicantMember.householdMemberId,
-            type: ApplicationFormType.DISCLOSURECONSENT,
-            formParameters: {},
-          };
-          await this.applicationFormService.createApplicationForm(
-            disclosureConsentDto,
+          const current = await this.applicationPackageModel
+            .findOne({
+              applicationPackageId: applicationPackage.applicationPackageId,
+            })
+            .lean()
+            .exec();
+
+          if (!current) {
+            throw new NotFoundException('Application package not found');
+          }
+          return current;
+        }
+        // we won the claim -> create forms exactly once
+        try {
+          const applicationFormRecipe = getApplicationFormRecipe(
+            applicationPackage.subtype,
+            applicationPackage.subsubtype,
           );
 
-          // consent is the final form
-          const pccConsentDto = {
-            applicationPackageId: applicationPackage.applicationPackageId,
-            formId: getFormIdForFormType(ApplicationFormType.PCCCONSENT),
-            userId: applicationPackage.userId,
-            householdMemberId: primaryApplicantMember.householdMemberId,
-            type: ApplicationFormType.PCCCONSENT,
-            formParameters: {},
-          };
-          await this.applicationFormService.createApplicationForm(
-            pccConsentDto,
-          );
+          // guard the revert-then-retry path: skip form types already created
+          // on a prior partial run. Race-free here because the atomic claim
+          // serializes this block (no concurrent caller, retry is sequential)
+
+          const existingForms =
+            await this.applicationFormService.getApplicationFormByHouseholdId(
+              primaryApplicantMember.householdMemberId,
+            );
+
+          const existingTypes = new Set(existingForms.map((f) => f.type));
+
+          for (const type of applicationFormRecipe) {
+            if (existingTypes.has(type)) {
+              continue; // skip existing types
+            }
+            await this.createApplicationPackageForm(
+              applicationPackage.applicationPackageId as UUID,
+              applicationPackage.userId as UUID,
+              primaryApplicantMember.householdMemberId as UUID,
+              type,
+            );
+          }
 
           // send notification that the application can be accessed
-          if (primaryApplicantMember.email) {
-            // they will 100% have an email, it's just that not all household-members have an email.
+          if (
+            primaryApplicantMember.email &&
+            applicationPackage.subtype === ApplicationPackageSubType.FCH // we don't notify kinship because they just redeemed an access code
+          ) {
             await this.notificationService.sendApplicationReady(
               primaryApplicantMember.email,
               applicantName,
             );
           }
+        } catch (err) {
+          // we already flipped the stage; revert so a retry can re-claim and finish
+          await this.applicationPackageModel.updateOne(
+            {
+              applicationPackageId: applicationPackage.applicationPackageId,
+            },
+            {
+              $set: {
+                srStage: applicationPackage.srStage ?? null,
+                status: applicationPackage.status,
+              },
+            },
+          );
+          throw err;
         }
+
+        // stage/status already set by the claim - return here
+        const updated = await this.applicationPackageModel
+          .findOne({
+            applicationPackageId: applicationPackage.applicationPackageId,
+          })
+          .lean()
+          .exec();
+
+        if (!updated) {
+          throw new NotFoundException('Application package not found');
+        }
+        return updated;
       }
+
+      // ---- All other transitions (e.g. SCREENING) fall through to here ----
 
       // update the applicationPackage sr Stage to match the service request
       const updateObject: Partial<ApplicationPackage> = {
@@ -670,20 +815,27 @@ export class ApplicationPackageService {
       throw new BadRequestException('Referral already submitted');
     }
 
-    // verify all non-referral forms are complete before submitting
-    const forms = await this.applicationFormService.findByPackageAndUser(
-      applicationPackageId,
-      userId,
+    const referralRecipe = getReferralRecipe(
+      applicationPackage.subtype,
+      applicationPackage.subsubtype,
     );
-    const incompleteForms = forms.filter(
-      (f) =>
-        f.type !== ApplicationFormType.REFERRAL &&
-        f.status !== ApplicationFormStatus.COMPLETE,
-    );
-    if (incompleteForms.length > 0) {
-      throw new BadRequestException(
-        `Cannot submit referral - ${incompleteForms.length} form(s) are incomplete`,
+    if (referralRecipe.length > 0) {
+      // verify all referral forms are complete before submitting
+      const forms = await this.applicationFormService.findByPackageAndUser(
+        applicationPackageId,
+        userId,
       );
+
+      const incompleteForms = forms.filter(
+        (f) =>
+          f.type !== ApplicationFormType.REFERRAL &&
+          f.status !== ApplicationFormStatus.COMPLETE,
+      );
+      if (incompleteForms.length > 0) {
+        throw new BadRequestException(
+          `Cannot submit referral - ${incompleteForms.length} form(s) are incomplete`,
+        );
+      }
     }
 
     // Update status immediately so frontend knows it's been requested
@@ -717,7 +869,7 @@ export class ApplicationPackageService {
     // Enqueue the submission - fire and forget so we don't block the response
     await this.applicationPackageQueueService
       .enqueueReferralSubmission(applicationPackageId, userId, dto)
-      .catch((error) =>
+      .catch((error: unknown) =>
         this.logger.error(
           { error, applicationPackageId },
           'Failed to enqueue referral submission - will be picked up by scheduler',
@@ -789,7 +941,7 @@ export class ApplicationPackageService {
       const serviceRequestId = applicationPackage.srId?.trim();
 
       // if there is no service request id, we cannot continue
-      if (serviceRequestId.length == 0) {
+      if (!serviceRequestId || serviceRequestId.length == 0) {
         throw new BadRequestException('No service request ID, cannot continue');
       }
 
@@ -812,11 +964,56 @@ export class ApplicationPackageService {
         };
       }
 
+      if (!applicationPackage.userId) {
+        throw new InternalServerErrorException(
+          'Cannot submit application package: no user associated',
+        );
+      }
+
+      // locate the primary applicant
       const primaryApplicant = await this.userService.findOne(
         applicationPackage.userId,
       );
-      // We will create payloads for every other household-member
-      // filter out the primary applicant (they were created on the initial submission)
+
+      const isKinship =
+        applicationPackage.subtype === ApplicationPackageSubType.OOC;
+
+      const primaryHouseholdMember = allHouseholdMembers.find(
+        (member) => member.relationshipToPrimary === RelationshipToPrimary.Self,
+      );
+
+      const kinshipNeedsProspect =
+        isKinship && !primaryHouseholdMember?.prospectId;
+
+      // if this is a Kinship application or
+      // if the primary applicant has updated their BCSC application since the referral stage,
+      // we will create a new prospect record for them
+      // so that the information will flow through to ICM
+      if (kinshipNeedsProspect || primaryApplicant.bcsc_update_pending) {
+        try {
+          await this.prospectService.createKeyPlayerProspect(
+            primaryApplicant,
+            serviceRequestId,
+            {
+              householdMemberId: primaryHouseholdMember?.householdMemberId,
+            },
+          );
+
+          if (primaryApplicant.bcsc_update_pending) {
+            await this.userService.updateUser(applicationPackage.userId, {
+              bcsc_update_pending: false,
+            });
+          }
+        } catch (error) {
+          this.logger.error(
+            { error, applicationPackageId },
+            'Failed to create key-player prospect - submission continues',
+          );
+        }
+      }
+
+      // Now we will create payloads for every other household-member
+      // filter out the primary applicant
       const nonPrimaryHouseholdMembers = allHouseholdMembers.filter(
         (member) => member.relationshipToPrimary != RelationshipToPrimary.Self,
       );
@@ -938,30 +1135,6 @@ export class ApplicationPackageService {
         }
       }
 
-      /*
-      try {
-        // update the service request stage to Screening
-        this.logger.info(
-          { applicationPackageId, serviceRequestId },
-          'Updating service request stage to Screening',
-        );
-
-        //await this.siebelApiService.updateServiceRequestStage(
-        //  serviceRequestId,
-        //  'Screening',
-        //);
-      } catch (error) {
-        this.logger.error(
-          {
-            error,
-            applicationPackageId,
-            serviceRequestId,
-          },
-          'Failed to update service request stage to Screening',
-        );
-      }
-      */
-
       // Subsequent submission: get ALL forms for the package (all users)
       const allApplicationForms =
         await this.applicationFormService.findAllByApplicationPackageId(
@@ -971,7 +1144,10 @@ export class ApplicationPackageService {
         // already submitted these forms
         (form) =>
           form.type !== ApplicationFormType.REFERRAL &&
-          form.type !== ApplicationFormType.INDIGENOUS,
+          !(
+            form.type === ApplicationFormType.INDIGENOUS &&
+            form.siebelAttachmentId
+          ),
       );
       this.logger.info(
         {
@@ -1295,37 +1471,79 @@ export class ApplicationPackageService {
     applicationPackageId: string,
     userId: string,
   ): Promise<{ status: ApplicationPackageStatus }> {
-    try {
-      this.logger.info(
-        { applicationPackageId, userId },
-        'Attempting to lock application package',
+    this.logger.info(
+      { applicationPackageId, userId },
+      'Attempting to lock application package',
+    );
+
+    // Verify ownership
+    const applicationPackage = await this.applicationPackageModel
+      .findOne({ applicationPackageId, userId })
+      .lean();
+
+    if (!applicationPackage) {
+      throw new NotFoundException(
+        `Application package ${applicationPackageId} not found or not owned by user, will not lock.`,
       );
+    }
 
-      // Verify ownership
-      const applicationPackage = await this.applicationPackageModel
-        .findOne({ applicationPackageId, userId })
+    // If already past Application, return current status idempotently
+    if (applicationPackage.status !== ApplicationPackageStatus.APPLICATION) {
+      this.logger.warn(
+        { applicationPackageId, status: applicationPackage.status },
+        'Lock called on package not in Application status — returning current status',
+      );
+      return { status: applicationPackage.status };
+    }
+
+    // validate household completion
+    const householdValidation =
+      await this.householdService.validateHouseholdCompletion(
+        applicationPackageId,
+        applicationPackage.hasPartner,
+        applicationPackage.hasHousehold,
+      );
+    if (!householdValidation.isComplete) {
+      //household data is incomplete
+      throw new BadRequestException(`Household data is incomplete`);
+    }
+
+    // Atomically transition APPLICATION → CONSENT (or SUBMITTED if no screening).
+    // Uses the status as a condition so only one concurrent request wins.
+    const claimed = await this.applicationPackageModel.findOneAndUpdate(
+      {
+        applicationPackageId,
+        userId,
+        status: ApplicationPackageStatus.APPLICATION,
+      },
+      {
+        $set: {
+          status: ApplicationPackageStatus.CONSENT,
+          updatedAt: new Date(),
+        },
+      },
+      { returnDocument: 'before' },
+    );
+
+    if (!claimed) {
+      // A concurrent request already claimed the lock — return current status
+      this.logger.warn(
+        { applicationPackageId },
+        'Lock already claimed by concurrent request — returning current status',
+      );
+      const current = await this.applicationPackageModel
+        .findOne({ applicationPackageId })
         .lean();
-
-      if (!applicationPackage) {
+      if (!current) {
         throw new NotFoundException(
-          `Application package ${applicationPackageId} not found or not owned by user, will not lock.`,
+          `Application package ${applicationPackageId} not found`,
         );
       }
-      // validate household completion
-      const householdValidation =
-        await this.householdService.validateHouseholdCompletion(
-          applicationPackageId,
-          applicationPackage.hasPartner,
-          applicationPackage.hasHousehold,
-        );
-      if (!householdValidation.isComplete) {
-        //household data is incomplete
-        throw new BadRequestException( // TODO: what is the right ERROR??
-          `Household data is incomplete`,
-        );
-      }
+      return { status: current.status };
+    }
 
-      // check if there are non-self household members who are adults (require screenings)
+    // check if there are non-self household members who are adults (require screenings)
+    try {
       const allHouseholdMembers =
         await this.householdService.findAllHouseholdMembers(
           applicationPackageId,
@@ -1352,13 +1570,11 @@ export class ApplicationPackageService {
           nonSelfAdultMembers,
         );
 
-        await this.applicationPackageModel.findOneAndUpdate(
+        this.logger.info(
           { applicationPackageId },
-          {
-            status: ApplicationPackageStatus.CONSENT,
-            updatedAt: new Date(),
-          },
+          'Application locked — screening workflow generated, status set to Consent',
         );
+
         return {
           status: ApplicationPackageStatus.CONSENT,
         };
@@ -1383,6 +1599,16 @@ export class ApplicationPackageService {
         };
       }
     } catch (error) {
+      // Roll back the status so the user can retry
+      await this.applicationPackageModel.findOneAndUpdate(
+        { applicationPackageId },
+        {
+          $set: {
+            status: ApplicationPackageStatus.APPLICATION,
+            updatedAt: new Date(),
+          },
+        },
+      );
       this.logger.error(
         { error, applicationPackageId, userId },
         'Error locking the application package',
@@ -1602,6 +1828,92 @@ export class ApplicationPackageService {
       success: true,
       attachmentsUploaded: uploadedCount,
     };
+  }
+  async submitDocumentsToICM(
+    applicationPackageId: string,
+    householdMemberId: string | null,
+    attachmentType: AttachmentType,
+    userId: string,
+  ): Promise<{ success: boolean; attachmentsUploaded: number }> {
+    this.logger.info(
+      { applicationPackageId, householdMemberId, attachmentType, userId },
+      'Starting document submission to ICM',
+    );
+
+    const applicationPackage = (await this.applicationPackageModel
+      .findOne({ applicationPackageId })
+      .lean()
+      .exec()) as ApplicationPackage;
+
+    if (!applicationPackage) {
+      throw new NotFoundException(
+        `Application package ${applicationPackageId} not found`,
+      );
+    }
+
+    if (!applicationPackage.srId) {
+      throw new BadRequestException(
+        'Service request not created yet — cannot submit documents to ICM',
+      );
+    }
+
+    const allAttachments =
+      await this.attachmentsService.findByApplicationPackageId(
+        applicationPackageId,
+        userId,
+      );
+
+    const pending = allAttachments.filter(
+      (att) =>
+        att.attachmentType === attachmentType &&
+        att.householdMemberId === householdMemberId &&
+        !att.icmAttachmentId,
+    );
+
+    if (pending.length === 0) {
+      return { success: true, attachmentsUploaded: 0 };
+    }
+
+    const category = AttachmentCategoryMap[attachmentType] ?? 'Other';
+    let uploadedCount = 0;
+
+    for (const attachment of pending) {
+      try {
+        const fullAttachment = await this.attachmentsService.findById(
+          attachment.attachmentId,
+        );
+
+        if (!fullAttachment?.fileData) {
+          this.logger.warn(
+            { attachmentId: attachment.attachmentId },
+            'Skipping attachment with no file content',
+          );
+          continue;
+        }
+
+        await this.siebelApiService.createAttachment(applicationPackage.srId, {
+          fileName: fullAttachment.fileName,
+          fileContent: fullAttachment.fileData,
+          fileType: fullAttachment.fileType,
+          category,
+          description: attachmentType,
+        });
+
+        await this.attachmentsService.saveIcmAttachmentId(
+          attachment.attachmentId,
+          `submitted-${Date.now()}`,
+        );
+
+        uploadedCount++;
+      } catch (err) {
+        this.logger.error(
+          { attachmentId: attachment.attachmentId, err },
+          'Failed to upload attachment to ICM',
+        );
+      }
+    }
+
+    return { success: true, attachmentsUploaded: uploadedCount };
   }
 
   async validateHouseholdCompletion(

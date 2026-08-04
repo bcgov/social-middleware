@@ -5,7 +5,12 @@ import { firstValueFrom } from 'rxjs';
 import { AxiosError } from 'axios';
 import { SiebelAuthService } from './siebel-auth.service';
 import { PinoLogger } from 'nestjs-pino';
-//import { Builder } from 'xml2js';
+import {
+  CaregiverTypeItem,
+  CaregiverTypesResponse,
+  IcmContactDetail,
+} from './dto/caregiver-type-response.dto';
+import { IcmCaregiverType } from './enums/icm-caregiver-type.enum';
 
 interface SiebelContactResponse {
   Id?: string;
@@ -18,12 +23,48 @@ export interface SiebelSRResponse {
   Id?: string;
   'ICM BCSC DID'?: string;
   'ICM Stage'?: string;
+  'Primary Contact Id'?: string;
+  Resolution?: string;
   [key: string]: unknown;
+}
+
+export interface CreateNotificationData {
+  serviceRequestNumber: string;
+  owner: string;
 }
 
 export interface SiebelSRsResponse {
   items: SiebelSRResponse[];
   [key: string]: unknown;
+}
+
+export interface SiebelSRDetail {
+  Id?: string;
+  'Service Request Number'?: string;
+  'Assigned To Id'?: string;
+  'Assigned To'?: string;
+  Status?: string;
+  'ICM Stage'?: string;
+  Resolution?: string;
+  [key: string]: unknown;
+}
+
+export interface SiebelResourceCase {
+  Id: string;
+  Status: string;
+  'Created Date': string;
+  'Reopened Date': string;
+  [key: string]: unknown;
+}
+
+export class SiebelApiError extends Error {
+  constructor(
+    message: string,
+    public readonly status?: number,
+  ) {
+    super(message);
+    this.name = 'SiebelApiError';
+  }
 }
 @Injectable()
 export class SiebelApiService {
@@ -89,11 +130,22 @@ export class SiebelApiService {
         const items = Array.isArray(result.items)
           ? result.items
           : [result.items];
-        this.logger.error(
-          { bcscId, count: items.length },
-          'Multiple contacts found for BCSC ID - ICM BCSC DID should be unique',
-        );
-        throw new Error(`Duplicate ICM contacts for BCSC ID: ${bcscId}`);
+
+        if (items.length > 1) {
+          this.logger.error(
+            { bcscId, count: items.length },
+            'Multiple contacts found for BCSC ID - ICM BCSC DID should be unique',
+          );
+          throw new Error(`Duplicate ICM contacts for BCSC ID: ${bcscId}`);
+        }
+
+        if (items.length === 0) {
+          this.logger.info({ bcscId }, 'No contact found for BCSC DID');
+          return null;
+        }
+
+        this.logger.info({ bcscId }, 'Contact found for BCSC ID');
+        return result;
       }
 
       if (!result.Id) {
@@ -104,6 +156,11 @@ export class SiebelApiService {
       this.logger.info({ bcscId }, 'Contact found for BCSC ID');
       return result;
     } catch (error) {
+      // if they've never logged in before, we don't expect to find a value
+      if (error instanceof SiebelApiError && error.status === 404) {
+        this.logger.info({ bcscId }, 'No contact found for BCSC ID');
+        return null;
+      }
       this.logger.error(
         { error, bcscId },
         'Failed to search for contact by BCSC ID',
@@ -114,16 +171,13 @@ export class SiebelApiService {
 
   async getServiceRequestsByBcscId(bcscId: string): Promise<SiebelSRsResponse> {
     const endpoint = '/ServiceRequest/ServiceRequest';
-    //const encodedBcscId = encodeURIComponent(bcscId); // get around special characters
 
     const params = {
       searchspec: `[ICM BCSC DID]='${bcscId}' AND [SR Type]='Caregiver Application'`,
-      fields: 'Id, ICM Stage',
+      fields: 'Id, ICM Stage, Resolution',
       ViewMode: 'Organization',
       ChildLinks: 'None',
       PageSize: 100,
-      //'ICM BCSC DID': bcscId,
-      //'SR Type': 'Caregiver Application',
     };
 
     const rawResponse = await this.get<{
@@ -159,15 +213,14 @@ export class SiebelApiService {
       if (error instanceof AxiosError) {
         const errorData = error.response?.data as unknown;
 
-        this.logger.error(
-          {
-            endpoint,
-            params,
-            status: error.response?.status,
-            errorData,
-          },
-          'GET request failed',
-        );
+        if (error.response?.status === 404) {
+          this.logger.debug({ endpoint, params }, 'Resource not found (404)');
+        } else {
+          this.logger.error(
+            { endpoint, params, status: error.response?.status, errorData },
+            'GET request failed',
+          );
+        }
 
         throw this.handleError(error, errorData);
       }
@@ -177,6 +230,53 @@ export class SiebelApiService {
     }
   }
 
+  /*
+  async createCaregiverApplicationSR(
+    subtype: ApplicationPackageSubType,
+    subsubtype: ApplicationPackageSubSubType,
+    bcscDID: string,
+    contactId?: string,
+    activityId?: string,
+  ): Promise<{ srId: string }> {
+    const nodeEnv = this.configService.get<string>('NODE_ENV', 'development');
+    const envSuffix = nodeEnv.toLowerCase().includes('prod') ? '' : nodeEnv;
+
+    const srPayload = {
+      Id: 'NULL',
+      Status: 'Open',
+      Priority: '3-Standard',
+      Type: 'Caregiver Application',
+      'SR Sub Type': subtype,
+      'SR Sub Sub Type': subsubtype,
+      'ICM BCSC DID': bcscDID,
+      'Service Office': 'XRA',
+      'Comm Method': 'Client Portal',
+      Memo: `Created By ${envSuffix} Portal`,
+    };
+
+    const siebelResponse = await this.createServiceRequest(srPayload);
+
+    if (!siebelResponse) {
+      throw new InternalServerErrorException(
+        'Failed to create service request',
+      );
+    }
+
+    const srId = (siebelResponse as { items?: { Id?: string } })?.items?.Id;
+
+    if (!srId) {
+      this.logger.error(
+        { siebelResponse },
+        'No service request ID in response',
+      );
+      throw new InternalServerErrorException(
+        'Failed to get service request ID from Siebel',
+      );
+    }
+
+    return { srId };
+  }
+*/
   async createServiceRequest(serviceRequestData: unknown) {
     const endpoint = '/ServiceRequest/ServiceRequest';
     try {
@@ -248,7 +348,6 @@ export class SiebelApiService {
 
     try {
       return await this.put(endpoint, fields, params);
-      //return await this.put(endpoint, fields);
     } catch (error) {
       this.logger.error(
         { error, serviceRequestId, fields },
@@ -314,125 +413,6 @@ export class SiebelApiService {
     return await this.put(endpoint, payload);
   }
 
-  /*
-  async createForm(attachmentData, formData: string) {
-    const endpoint = '/ICM REST Forms Upsert/DT Form Instance Orbeon Revise/';
-    const payload = {};
-
-    const decodedFormData = JSON.parse(
-      Buffer.from(formData, 'base64').toString('utf-8'),
-    ) as {
-      data: Record<string, unknown>;
-      form_definition: {
-        data: {
-          items?: unknown[];
-        };
-        elements?: unknown[];
-      };
-    };
-*/
-  /**
-   * Apply Kiln Version
-   * Kiln V1 uses data: { items: []}
-   * Kiln V2 uses dataSources []
-   */
-  /*
-    const kilnVersion = Object.keys(
-      decodedFormData.form_definition.data,
-    ).includes('items')
-      ? 1
-      : 2;
-
-    const formDefinitionItems =
-      kilnVersion === 1
-        ? decodedFormData.form_definition.data.items
-        : decodedFormData.form_definition.elements; // This is the field info for form items
-
-    // dateItemsId : This will contain all of the IDs of the date fields
-    // checkboxItemsId : This will contain all of the IDs of the checkbox fields
-    const { dateItemsId, checkboxItemsId, textInfoFields } = this.getFormIds(
-      formDefinitionItems || [],
-    );
-
-    // note: skipped form exceptions for now..
-
-    // Transform the data for XML
-    const simplifiedData = this.fixJSONValuesForXML(
-      decodedFormData.data,
-      dateItemsId,
-      checkboxItemsId,
-      textInfoFields,
-      kilnVersion,
-    );
-
-    // Generate XML Hierarchy
-    const builder = new Builder({
-      xmldec: { version: '1.0' },
-      renderOpts: { pretty: false },
-      rootName: 'root',
-    });
-
-    const xmlHierarchy = builder.buildObject(simplifiedData);
-    if (isFormException) {
-      // If any forms with the correct version (TODO) have been listed as exceptions, then proceed with their form exceptions
-      // If the root needs a differernt name, apply it here. Otherwise use the default "root"
-      if (
-        propertyExists(dictionary, formId, 'rootName') &&
-        propertyNotEmpty(dictionary, formId, 'rootName')
-      ) {
-        builder = new xml2js.Builder({
-          xmldec: { version: '1.0' },
-          renderOpts: { pretty: false },
-          rootName: dictionary[formId]['rootName'],
-        });
-      } else {
-        builder = new xml2js.Builder({
-          xmldec: { version: '1.0' },
-          renderOpts: { pretty: false },
-        });
-      }
-
-      let wrapperJson = truncatedKeysSaveData;
-      // If subRoots exist, wrap the sub-roots around the JSON where the last array object will be closest to JSON and first array object will be closest to root/rootName
-      if (
-        propertyExists(dictionary, formId, 'subRoots') &&
-        propertyNotEmpty(dictionary, formId, 'subRoots')
-      ) {
-        wrapperJson = {};
-        let tempJson = {};
-        const subRootLength = dictionary[formId]['subRoots'].length;
-        for (i = subRootLength; i > 0; i = i - 1) {
-          if (i === subRootLength) {
-            tempJson[dictionary[formId]['subRoots'][i - 1]] =
-              truncatedKeysSaveData;
-          } else {
-            wrapperJson[dictionary[formId]['subRoots'][i - 1]] = tempJson;
-            tempJson = wrapperJson;
-            wrapperJson = {};
-          }
-        }
-        wrapperJson = tempJson;
-      }
-      saveJson['XML Hierarchy'] = builder.buildObject(wrapperJson);
-    } else {
-      builder = new xml2js.Builder({
-        xmldec: { version: '1.0' },
-        renderOpts: { pretty: false },
-      });
-      saveJson['XML Hierarchy'] = builder.buildObject(truncatedKeysSaveData);
-    }
-    //let url = buildUrlWithParams('SIEBEL_ICM_API_HOST', 'fwd/v1.0/data/DT Form Instance Thin/DT Form Instance Thin/' + attachment_id + '/', '');
-    const xml = saveJson['XML Hierarchy'];
-    const xmlSize = Buffer.byteLength(xml, 'utf8'); // size in bytes
-
-    console.log('XML Hierarchy:', xml);
-    console.log('XML Hierarchy length (chars):', xml.length);
-    console.log('XML Hierarchy size (bytes):', xmlSize);
-
-    return await this.put(endpoint, payload);
-  }
-*/
-
   async createProspect(prospectData: {
     ServiceRequestId: string;
     IcmBcscDid: string;
@@ -479,6 +459,102 @@ export class SiebelApiService {
     return await this.put(endpoint, payload);
   }
 
+  async createSRNotification(
+    serviceRequestId: string,
+    activityData: CreateNotificationData,
+  ) {
+    const endpoint = '/Activities/Activities';
+
+    const payload = {
+      Id: 'NULL',
+      Type: 'Notification',
+      'ICM Sub Type': 'Action Required',
+      Description: `Caregiver Applicant has cancelled their application (${activityData.serviceRequestNumber})`,
+      Priority: '3-Standard',
+      Status: 'Open',
+      'Action By': 'Staff',
+      'Activity SR Id': serviceRequestId,
+      'Primary Owner Id': activityData.owner,
+    };
+
+    this.logger.debug(
+      `Creating notification activity for Service Request: ${serviceRequestId}`,
+    );
+    return await this.put(endpoint, payload);
+  }
+
+  async getIcmContactById(contactId: string): Promise<IcmContactDetail | null> {
+    const endpoint = `/ICMContact/ICMContact/${contactId}`;
+    const params = {
+      fields: 'Id,First Name,Last Name,Birth Date,Primary Email',
+      ChildLinks: 'None',
+      ViewMode: 'Organization',
+    };
+
+    try {
+      return await this.get<IcmContactDetail>(endpoint, params);
+    } catch (error) {
+      if (error instanceof SiebelApiError && error.status === 404) {
+        return null;
+      }
+      throw error;
+    }
+  }
+
+  async getIcmServiceRequestById(srId: string): Promise<SiebelSRDetail | null> {
+    const endpoint = `/ServiceRequest/ServiceRequest/${srId}`;
+    const params = {
+      fields:
+        'Id, Service Request Number, Assigned To Id, Assigned To, Status, ICM Stage, Resolution',
+      ChildLinks: 'None',
+      ViewMode: 'Organization',
+    };
+    try {
+      return await this.get<SiebelSRDetail>(endpoint, params);
+    } catch (error) {
+      if (error instanceof SiebelApiError && error.status === 404) {
+        return null;
+      }
+      throw error;
+    }
+  }
+
+  async getOpenResourceCasesByContactId(
+    contactId: string,
+  ): Promise<SiebelResourceCase[]> {
+    const endpoint = '/Cases/Case';
+    const params = {
+      SearchSpec: `([Key Player Id] = '${contactId}' AND [Type] = 'Resource' AND [Status] = 'Open')`,
+      ViewMode: 'Catalog',
+      fields: 'Id,Status,Created Date,Reopened Date',
+      ChildLinks: 'None',
+    };
+
+    try {
+      const result = await this.get<{
+        items?: SiebelResourceCase | SiebelResourceCase[];
+        Id?: string;
+        [key: string]: unknown;
+      }>(endpoint, params);
+
+      if (result.items) {
+        return Array.isArray(result.items) ? result.items : [result.items];
+      }
+
+      // single result returned directly without items wrapper
+      if (result.Id) {
+        return [result as unknown as SiebelResourceCase];
+      }
+
+      return [];
+    } catch (error) {
+      if (error instanceof SiebelApiError && error.status === 404) {
+        return [];
+      }
+      throw error;
+    }
+  }
+
   async put<T>(
     endpoint: string,
     data?: unknown,
@@ -522,24 +598,95 @@ export class SiebelApiService {
     }
   }
 
-  private handleError(error: AxiosError, errorData: unknown): Error {
+  async getActiveCaregiverType(
+    contactId: string,
+    caregiverType: IcmCaregiverType,
+  ): Promise<CaregiverTypeItem | null> {
+    const endpoint = `/ICMContact/ICMContact/${contactId}/CaregiverTypes`;
+    const params = {
+      //SearchSpec: `([Caregiver Type] = '${caregiverType}')`,
+      ChildLinks: 'None',
+      ViewMode: 'Organization',
+    };
+
+    try {
+      const raw = await this.get<CaregiverTypesResponse>(endpoint, params);
+      const items: CaregiverTypeItem[] = raw.items
+        ? Array.isArray(raw.items)
+          ? raw.items
+          : [raw.items]
+        : (raw as unknown as CaregiverTypeItem).Id
+          ? [raw as unknown as CaregiverTypeItem]
+          : [];
+      const active = items.find(
+        (item) => item['Caregiver Type'] === caregiverType && !item['End Date'],
+      );
+      return active ?? null;
+    } catch (error) {
+      if (error instanceof SiebelApiError && error.status === 404) {
+        return null;
+      }
+      throw error;
+    }
+  }
+
+  async getNewKinshipSRsForProspectiveCaregivers(): Promise<
+    SiebelSRResponse[]
+  > {
+    const params = {
+      SearchSpec: `([SR Type]='Caregiver Application' AND [SR Sub Type]='Kinship' AND [ICM Stage]='Referral' AND [Primary Contact Id] <> '' AND [Primary Contact Id] <> 'No Match Row Id')`,
+      fields: 'Id,Primary Contact Id,ICM Stage,SR Sub Type',
+      ViewMode: 'Organization',
+      ChildLinks: 'None',
+    };
+
+    const result = await this.get<SiebelSRsResponse>(
+      '/ServiceRequest/ServiceRequest',
+      params,
+    );
+
+    const srs: SiebelSRResponse[] = result.items
+      ? Array.isArray(result.items)
+        ? result.items
+        : [result.items]
+      : [];
+
+    const matched = await Promise.all(
+      srs.map(async (sr) => {
+        const contactId = sr['Primary Contact Id'];
+        if (!contactId) return null;
+        const caregiverType = await this.getActiveCaregiverType(
+          contactId,
+          IcmCaregiverType.PROSPECTIVE_CAREGIVER,
+        );
+        return caregiverType ? sr : null;
+      }),
+    );
+
+    return matched.filter((sr): sr is SiebelSRResponse => sr !== null);
+  }
+
+  private handleError(error: AxiosError, errorData: unknown): SiebelApiError {
+    const upstreamMessage = (errorData as { message?: string })?.message;
     if (error.response?.status === 401) {
-      return new Error(
-        'Unauthorized: Check your Siebel credentials and trusted username',
+      return new SiebelApiError(
+        upstreamMessage ||
+          'Unauthorized: Check your Siebel credentials and trusted username',
+        401,
       );
     }
 
     if (error.response?.status === 403) {
-      return new Error(
-        'Forbidden: Insufficient permissions or blacklisted user',
+      return new SiebelApiError(
+        upstreamMessage ||
+          'Forbidden: Insufficient permissions or blacklisted user',
+        403,
       );
     }
 
     const message =
-      (errorData as { message?: string })?.message ||
-      error.message ||
-      'Siebel API request failed';
+      upstreamMessage || error.message || 'Siebel API request failed';
 
-    return new Error(message);
+    return new SiebelApiError(message, error.response?.status);
   }
 }

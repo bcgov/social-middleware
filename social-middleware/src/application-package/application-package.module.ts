@@ -6,10 +6,10 @@ import {
   ApplicationPackage,
   ApplicationPackageSchema,
 } from 'src/application-package/schema/application-package.schema';
-import { ApplicationPackageService } from './application-package.service';
+import { ApplicationPackageService } from './services/application-package.service';
 import { ApplicationPackageController } from './application-package.controller';
 import { ApplicationPackageQueueModule } from './queue/application-package-queue.module';
-import { ApplicationPackageSchedulerService } from './application-package-scheduler.service';
+import { ApplicationPackageSchedulerService } from './services/application-package-scheduler.service';
 import { ApplicationFormModule } from '../application-form/application-form.module';
 import { SiebelModule } from '../siebel/siebel.module';
 import { CommonModule } from '../common/common.module';
@@ -18,7 +18,10 @@ import { AttachmentsModule } from '../attachments/attachments.module';
 import { NotificationModule } from '../notifications/notification.module';
 import { IcmStageProcessor } from './queue/icm-stage.processor';
 import { IcmStageQueueModule } from './queue/icm-stage-queue.module';
-import { IcmStageSchedulerService } from './icm-stage-scheduler.service';
+import { IcmStageSchedulerService } from './services/icm-stage-scheduler.service';
+import { CaregiverInvitationService } from './services/caregiver-invitation.service';
+import { BcscSyncService } from './services/bcsc-sync.service';
+import { ProspectService } from './services/prospect.service';
 
 @Module({
   imports: [
@@ -38,11 +41,19 @@ import { IcmStageSchedulerService } from './icm-stage-scheduler.service';
   controllers: [ApplicationPackageController],
   providers: [
     ApplicationPackageService,
+    ProspectService,
     AuthListener,
     ApplicationPackageSchedulerService,
+    BcscSyncService,
+    CaregiverInvitationService,
     IcmStageSchedulerService,
     IcmStageProcessor,
   ],
-  exports: [ApplicationPackageService, ApplicationFormModule, HouseholdModule],
+  exports: [
+    ApplicationPackageService,
+    ApplicationFormModule,
+    HouseholdModule,
+    ProspectService,
+  ],
 })
 export class ApplicationPackageModule {}

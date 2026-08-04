@@ -4,9 +4,10 @@ import {
   NotFoundException,
   InternalServerErrorException,
 } from '@nestjs/common';
-import { ApplicationPackageProcessor } from './application-package.processor';
+import { ApplicationPackageProcessor } from '../queue/application-package.processor';
 import { ApplicationPackage } from '../schema/application-package.schema';
-import { ApplicationPackageService } from '../application-package.service';
+import { ApplicationPackageService } from '../services/application-package.service';
+import { ProspectService } from '../services/prospect.service';
 import { ApplicationPackageStatus } from '../enums/application-package-status.enum';
 import { SubmissionStatus } from '../enums/submission-status.enum';
 import { ApplicationFormService } from '../../application-form/services/application-form.service';
@@ -78,11 +79,16 @@ describe('ApplicationPackageProcessor', () => {
     createFormAttachment: jest.fn(),
     updateServiceRequestStage: jest.fn(),
   };
+  const mockProspectService = { createKeyPlayerProspect: jest.fn() };
   const mockNotificationService = {
     sendReferralRequested: jest.fn(),
   };
   const mockUserUtil = {
     sexToGenderType: jest.fn().mockReturnValue('M'),
+    firstAndMiddleName: jest
+      .fn()
+      .mockReturnValue({ firstName: 'Jane', middleName: '' }),
+    toTitleCase: jest.fn((s: string) => s),
   };
   const mockLogger = {
     info: jest.fn(),
@@ -115,6 +121,7 @@ describe('ApplicationPackageProcessor', () => {
         { provide: HouseholdService, useValue: mockHouseholdService },
         { provide: UserService, useValue: mockUserService },
         { provide: SiebelApiService, useValue: mockSiebelApiService },
+        { provide: ProspectService, useValue: mockProspectService },
         {
           provide: ConfigService,
           useValue: { get: jest.fn().mockReturnValue('development') },
@@ -421,9 +428,10 @@ describe('ApplicationPackageProcessor', () => {
       mockSiebelApiService.createServiceRequest.mockResolvedValue({
         items: { Id: 'sr-001' },
       });
-      mockSiebelApiService.createProspect.mockResolvedValue({
-        items: { Id: 'prospect-001' },
-      });
+      mockProspectService.createKeyPlayerProspect.mockResolvedValue(
+        'prospect-001',
+      );
+
       mockSiebelApiService.updateServiceRequestStage.mockResolvedValue({});
       mockHouseholdService.updateHouseholdMember.mockResolvedValue({});
       mockApplicationFormService.findByPackageAndUser.mockResolvedValue([]);
@@ -503,7 +511,9 @@ describe('ApplicationPackageProcessor', () => {
         createMockJob('submit-referral', referralJobData),
       );
 
-      expect(mockSiebelApiService.createProspect).not.toHaveBeenCalled();
+      expect(
+        mockProspectService.createKeyPlayerProspect,
+      ).not.toHaveBeenCalled();
     });
   });
 
@@ -551,6 +561,7 @@ describe('ApplicationPackageProcessor', () => {
       });
       mockApplicationPackageService.submitApplicationPackage.mockResolvedValue({
         serviceRequestId: 'sr-001',
+        isComplete: true,
       });
 
       const result = await processor.handleSubmission(

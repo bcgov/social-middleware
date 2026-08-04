@@ -33,7 +33,7 @@
     "@nestjs/platform-express": "^11.1.19",
     "@nestjs/schedule": "^6.0.1",
     "@nestjs/swagger": "^11.4.1",
-    "axios": "^1.10.0",
+    "axios": "^1.16.0",
     "bull": "^4.16.5",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.2",
@@ -99,7 +99,16 @@
       "^src/(.*)$": "<rootDir>/$1"
     },
     "collectCoverageFrom": [
-      "**/*.(t|j)s"
+      "**/*.(t|j)s",
+      "!**/*.dto.ts",
+      "!**/*.schema.ts",
+      "!**/*.enum.ts",
+      "!**/*.module.ts",
+      "!**/*.interface.ts",
+      "!**/*.decorator.ts",
+      "!**/*.spec.ts",
+      "!**/main.ts"
+  
     ],
     "coverageDirectory": "../coverage",
     "testEnvironment": "node"

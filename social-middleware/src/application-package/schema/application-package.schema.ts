@@ -18,8 +18,8 @@ export class ApplicationPackage {
   @Prop({ required: true, unique: true })
   applicationPackageId!: string;
 
-  @Prop({ required: true })
-  userId!: string;
+  @Prop({ required: false })
+  userId?: string;
 
   @Prop({
     required: true,
@@ -34,6 +34,12 @@ export class ApplicationPackage {
     default: ApplicationPackageSubSubType.FCH,
   })
   subsubtype!: ApplicationPackageSubSubType;
+
+  @Prop({ required: false })
+  contactId?: string;
+
+  @Prop({ required: false })
+  activityId?: string;
 
   @Prop({ required: false })
   srId!: string;
