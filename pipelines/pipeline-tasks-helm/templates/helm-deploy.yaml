@@ -23,6 +23,9 @@ spec:
     - description: Name of image tag.
       name: IMAGE_TAG
       type: string
+    - description: Target namespace for deployment.
+      name: NAMESPACE
+      type: string
     - default: 'docker.io/lachlanevenson/k8s-helm:v3.10.2'
       description: Specify a specific helm image
       name: HELM_IMAGE
@@ -32,7 +35,7 @@ spec:
       name: helm-deploy
       resources: {}
       script: |
-        /usr/local/bin/helm upgrade --install $(params.HELM_RELEASE) --set image.tag=$(params.IMAGE_TAG) -f $(params.HELM_DIR)/$(params.HELM_VALUES) $(params.HELM_DIR) --namespace f6e00d-$(params.IMAGE_TAG)
+        /usr/local/bin/helm upgrade --install $(params.HELM_RELEASE) --set image.tag=$(params.IMAGE_TAG) -f $(params.HELM_DIR)/$(params.HELM_VALUES) $(params.HELM_DIR) --namespace $(params.NAMESPACE)
       workingDir: $(workspaces.source.path)
   workspaces:
     - name: source
