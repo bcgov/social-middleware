@@ -288,7 +288,7 @@ The project includes:
 - Unit tests for services and controllers
 - Test configuration with Jest
 - Coverage reporting
-- E2E testing setup
+- E2E testing setup.
 
 Run tests:
 ```bash
