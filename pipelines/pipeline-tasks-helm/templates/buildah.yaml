@@ -79,7 +79,7 @@ spec:
           mountPath: /var/lib/containers
 
     - name: trivy-scan
-      image: docker.io/aquasec/trivy
+      image: ghcr.io/aquasecurity/trivy:0.69.3
       script: |
         trivy image $(params.IMAGE_REGISTRY)/$(params.IMAGE):$(params.IMAGE_TAG)
       workingDir: $(workspaces.source.path)
