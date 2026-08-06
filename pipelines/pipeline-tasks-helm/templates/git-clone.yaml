@@ -81,7 +81,7 @@ spec:
       description: The image providing the git-init binary that this Task runs.
       type: string
       # default: "gcr.io/tekton-releases/github.com/tektoncd/pipeline/cmd/git-init:v0.21.0"
-      default: "docker.io/michaelin/github-cli:latest"
+      default: "docker.io/michaelin/github-cli:v2.0.0"
       # default: "alpine/git:v2.26.2"
     - name: userHome
       description: |
@@ -169,7 +169,7 @@ spec:
         # echo ${CHECKOUT_DIR}
         # echo ${PARAM_REVISION}
 
-        NOTE that if we use PAT, the url must be HTTPS not ssh
+        # NOTE that if we use PAT, the url must be HTTPS not ssh
         gh repo clone ${PARAM_URL} ${CHECKOUT_DIR} -- --branch ${PARAM_REVISION}
 
         cd "${CHECKOUT_DIR}"
