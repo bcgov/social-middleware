@@ -80,9 +80,10 @@ spec:
     - name: gitInitImage
       description: The image providing the git-init binary that this Task runs.
       type: string
-      # default: "gcr.io/tekton-releases/github.com/tektoncd/pipeline/cmd/git-init:v0.21.0"
-      default: "docker.io/michaelin/github-cli:v2.0.0"
-      # default: "alpine/git:v2.26.2"
+      # The script uses plain `git` with the PAT in the clone URL, so this only
+      # needs a git binary -- no GitHub CLI. Pinned so the implied
+      # imagePullPolicy is IfNotPresent rather than Always.
+      default: "alpine/git:2.54.0"
     - name: userHome
       description: |
         Absolute path to the user's home directory. Set this explicitly if you are running the image as a non-root user or have overridden
@@ -137,13 +138,6 @@ spec:
       script: |
         #!/usr/bin/env sh
 
-        # git login
-        echo "GH CLI Auth"
-        echo $PARAM_GITHUB_PAT > token.txt
-        gh auth login --with-token < token.txt
-        rm token.txt
-        gh auth status
-
         cleandir() {
           # Delete any existing contents of the repo directory if it exists.
           #
@@ -170,7 +164,10 @@ spec:
         # echo ${PARAM_REVISION}
 
         # NOTE that if we use PAT, the url must be HTTPS not ssh
-        gh repo clone ${PARAM_URL} ${CHECKOUT_DIR} -- --branch ${PARAM_REVISION}
+        git clone https://x-access-token:${PARAM_GITHUB_PAT}@${PARAM_URL#https://} \
+          "${CHECKOUT_DIR}" \
+           --branch "${PARAM_REVISION}" \
+           --depth "${PARAM_DEPTH}"
 
         cd "${CHECKOUT_DIR}"
         RESULT_SHA="$(git rev-parse HEAD)"
