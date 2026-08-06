@@ -15,7 +15,7 @@ spec:
       type: string
   steps:
     - name: reroll-deployment
-      image: 'openshift/origin-cli:latest' 
+      image: 'quay.io/openshift/origin-cli:4.18'
       script: |
         #!/bin/bash
         echo "Re-rolling deployment: $(params.deploymentName) in namespace: $(params.namespace)"
