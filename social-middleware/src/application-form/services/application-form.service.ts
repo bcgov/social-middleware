@@ -325,6 +325,15 @@ export class ApplicationFormService {
       }
 
       const formId = getFormIdForFormType(applicationForm.type);
+      if (!formId) {
+        this.logger.error(
+          { applicationFormId, type: applicationForm.type },
+          'No formId mapping for application form type — likely a stale/renamed label',
+        );
+        throw new InternalServerErrorException(
+          `Unrecognized form type "${applicationForm.type}" for ${applicationFormId}`,
+        );
+      }
       const formAccessToken = uuidv4();
 
       await new this.formParametersModel({
@@ -342,7 +351,7 @@ export class ApplicationFormService {
 
       return formAccessToken;
     } catch (error) {
-      if (error instanceof NotFoundException) throw error;
+      if (error instanceof HttpException) throw error;
       this.logger.error(
         { error, applicationFormId },
         'Failed to create new form access token',
