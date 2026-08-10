@@ -612,8 +612,16 @@ describe('ApplicationFormService', () => {
   // ─── newFormAccessToken ───────────────────────────────────────────────────
 
   describe('newFormAccessToken', () => {
-    it('creates a new parameter record reusing existing form config', async () => {
-      formParametersModel.findOne.mockReturnValue(q(baseParams));
+    type CreatedParams = {
+      applicationFormId: string;
+      type: FormType;
+      formId: string;
+      formAccessToken: string;
+      formParameters: { formId: string; language: string };
+    };
+
+    it('regenerates form parameters from the application form and returns a token', async () => {
+      applicationFormModel.findOne.mockReturnValue(q(baseForm)); // type ABOUTME -> CF0040
 
       const token = await service.newFormAccessToken({
         applicationFormId: 'form-001',
@@ -621,29 +629,61 @@ describe('ApplicationFormService', () => {
 
       expect(typeof token).toBe('string');
       expect(token.length).toBeGreaterThan(0);
+
+      // exactly one FormParameters record is created...
       expect(mockSave).toHaveBeenCalledTimes(1);
-    });
+      expect(formParametersModel).toHaveBeenCalledTimes(1);
 
-    it('creates a new parameter record from dto when none exists', async () => {
-      formParametersModel.findOne.mockReturnValue(q(null));
-
-      const token = await service.newFormAccessToken({
+      // ...built from the durable ApplicationForm, with the canonical formId
+      const created = (formParametersModel as jest.Mock).mock
+        .calls[0][0] as CreatedParams;
+      expect(created).toMatchObject({
         applicationFormId: 'form-001',
         type: FormType.New,
         formId: 'CF0040',
-        formParameters: { language: 'en' },
+        formAccessToken: token,
+        formParameters: { formId: 'CF0040', language: 'en' },
       });
-
-      expect(typeof token).toBe('string');
-      expect(mockSave).toHaveBeenCalledTimes(1);
     });
 
-    it('throws InternalServerErrorException when no existing params and dto is incomplete', async () => {
-      formParametersModel.findOne.mockReturnValue(q(null));
+    it('derives from the form type and ignores any DTO metadata', async () => {
+      applicationFormModel.findOne.mockReturnValue(q(baseForm)); // ABOUTME -> CF0040
+
+      await service.newFormAccessToken({
+        applicationFormId: 'form-001',
+        type: FormType.Edit,
+        formId: 'SHOULD-BE-IGNORED',
+        formParameters: { language: 'fr' },
+      });
+
+      const created = (formParametersModel as jest.Mock).mock
+        .calls[0][0] as CreatedParams;
+      expect(created.type).toBe(FormType.New);
+      expect(created.formId).toBe('CF0040');
+      expect(created.formParameters).toEqual({
+        formId: 'CF0040',
+        language: 'en',
+      });
+    });
+
+    it('throws NotFoundException when the application form does not exist', async () => {
+      applicationFormModel.findOne.mockReturnValue(q(null));
+
+      await expect(
+        service.newFormAccessToken({ applicationFormId: 'missing' }),
+      ).rejects.toThrow(NotFoundException);
+      expect(mockSave).not.toHaveBeenCalled();
+    });
+
+    it('throws and does not persist when the form type has no formId mapping (stale/renamed label)', async () => {
+      applicationFormModel.findOne.mockReturnValue(
+        q({ ...baseForm, type: 'Adults in household' }), // legacy label, absent from FormId map
+      );
 
       await expect(
         service.newFormAccessToken({ applicationFormId: 'form-001' }),
       ).rejects.toThrow(InternalServerErrorException);
+      expect(mockSave).not.toHaveBeenCalled();
     });
   });
 
