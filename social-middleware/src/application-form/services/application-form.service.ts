@@ -310,61 +310,45 @@ export class ApplicationFormService {
   }
 
   async newFormAccessToken(dto: NewTokenDto): Promise<string> {
-    this.logger.debug('Passed applicationFormIdX:', dto.applicationFormId);
+    const { applicationFormId } = dto;
 
     try {
-      // Get the latest form parameters for this application
-      const latestFormParameters = await this.formParametersModel
-        .findOne({ applicationFormId: { $eq: dto.applicationFormId } })
-        .sort({ createdAt: -1 })
+      const applicationForm = await this.applicationFormModel
+        .findOne({ applicationFormId: { $eq: applicationFormId } })
         .lean()
         .exec();
 
+      if (!applicationForm) {
+        throw new NotFoundException(
+          `Application form ${applicationFormId} not found`,
+        );
+      }
+
+      const formId = getFormIdForFormType(applicationForm.type);
       const formAccessToken = uuidv4();
 
-      if (latestFormParameters) {
-        // Reuse existing parameters but with new token
-        this.logger.info('Re-using form parameters');
-        const formParamters = new this.formParametersModel({
-          applicationFormId: dto.applicationFormId,
-          type: latestFormParameters.type,
-          formId: latestFormParameters.formId,
-          formAccessToken: formAccessToken,
-          formParameters: latestFormParameters.formParameters, // Reuse existing
-        });
-        await formParamters.save();
-      } else {
-        // Create new parameters using the dto
-        this.logger.info('Creating new form parameters');
-        if (dto.type && dto.formId && dto.formParameters) {
-          const formParamters = new this.formParametersModel({
-            applicationFormId: dto.applicationFormId,
-            type: dto.type,
-            formId: dto.formId,
-            formAccessToken: formAccessToken,
-            formParameters: dto.formParameters, // Reuse existing
-          });
-          await formParamters.save();
-        } else {
-          this.logger.error('Cannot create new token without form meta data');
-          throw new InternalServerErrorException(
-            'Failed to create new form access token',
-          );
-        }
-      }
+      await new this.formParametersModel({
+        applicationFormId,
+        type: FormType.New,
+        formId,
+        formAccessToken,
+        formParameters: { formId, language: 'en' },
+      }).save();
+
+      this.logger.info(
+        { applicationFormId, formId },
+        'Generated new form parameters and access token',
+      );
+
       return formAccessToken;
     } catch (error) {
-      if (error instanceof NotFoundException) {
-        // Re-throw NotFoundException (from the !formParameters check)
-        throw error;
-      }
-      // Log and handle unexpected database errors
+      if (error instanceof NotFoundException) throw error;
       this.logger.error(
-        { error },
-        `Error generating formAccessToken for application: ${dto.applicationFormId}`,
+        { error, applicationFormId },
+        'Failed to create new form access token',
       );
       throw new InternalServerErrorException(
-        'Failed to generate form access token',
+        'Failed to create new form access token',
       );
     }
   }
