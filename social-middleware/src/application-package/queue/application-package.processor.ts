@@ -424,10 +424,22 @@ export class ApplicationPackageProcessor {
       return { success: false };
     }
 
-    await this.siebelApiService.createSRNotification(srId, {
-      serviceRequestNumber: srDetails['Service Request Number']!,
-      owner: srDetails['Assigned To Id']!,
-    });
+    if (!srDetails['Assigned To Id']) {
+      this.logger.warn(
+        {
+          srId: srDetails['Service Request Number'],
+          assignedToId: srDetails['Assigned To Id'],
+          serviceOfficeId: srDetails['Service Office Id'],
+        },
+        'SR missing owner or office id; cancellation notification would default to the API user/org — skipping',
+      );
+    } else {
+      await this.siebelApiService.createSRNotification(srId, {
+        serviceRequestNumber: srDetails['Service Request Number']!,
+        owner: srDetails['Assigned To Id'],
+        // officeId: srDetails['Service Office Id'],
+      });
+    }
 
     if (this.configService.get<string>('OCT2027_RELEASE_ENABLED') === 'true') {
       await this.siebelApiService.updateServiceRequestFields(appPackage.srId, {
