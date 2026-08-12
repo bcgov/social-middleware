@@ -267,20 +267,19 @@ export class ApplicationPackageService {
             'Service Request not found in ICM; skipping notification and proceeding with local cancellation',
           );
         } else {
-          if (!srDetails['Assigned To Id']) {
+          if (!srDetails['Assigned To'] || !srDetails['Assigned To Id']) {
             this.logger.warn(
               {
                 srId: appPackage.srId,
-                assignedToId: srDetails['Assigned To Id'],
-                serviceOfficeId: srDetails['Service Office Id'],
               },
-              'SR missing owner or office id; cancellation notification would default to the API user/org — skipping',
+              'SR is unassigned; skipping',
             );
           } else {
             // create a service request notification assigned to the service request assignee
             await this.siebelApiService.createSRNotification(appPackage.srId, {
               serviceRequestNumber: srDetails['Service Request Number']!,
               owner: srDetails['Assigned To Id'],
+              assignedTo: srDetails['Assigned To'],
               //officeId: srDetails['Service Office Id'],
             });
           }

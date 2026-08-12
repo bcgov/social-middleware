@@ -424,20 +424,20 @@ export class ApplicationPackageProcessor {
       return { success: false };
     }
 
-    if (!srDetails['Assigned To Id']) {
+    if (!srDetails['Assigned To'] || !srDetails['Assigned To Id']) {
       this.logger.warn(
         {
-          srId: srDetails['Service Request Number'],
-          assignedToId: srDetails['Assigned To Id'],
-          serviceOfficeId: srDetails['Service Office Id'],
+          srId: appPackage.srId,
         },
-        'SR missing owner or office id; cancellation notification would default to the API user/org — skipping',
+        'SR is unassigned; skipping',
       );
     } else {
-      await this.siebelApiService.createSRNotification(srId, {
+      // create a service request notification assigned to the service request assignee
+      await this.siebelApiService.createSRNotification(appPackage.srId, {
         serviceRequestNumber: srDetails['Service Request Number']!,
         owner: srDetails['Assigned To Id'],
-        // officeId: srDetails['Service Office Id'],
+        assignedTo: srDetails['Assigned To'],
+        //officeId: srDetails['Service Office Id'],
       });
     }
 

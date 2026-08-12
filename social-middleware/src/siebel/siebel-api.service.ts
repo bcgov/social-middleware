@@ -32,6 +32,7 @@ export interface CreateNotificationData {
   serviceRequestNumber: string;
   owner: string; // SR Assigned to Id
   description?: string; // custom notification description
+  assignedTo?: string;
   //officeId: string; // Service Office Id
 }
 
@@ -90,12 +91,14 @@ export class SiebelApiService {
     this.logger.setContext(SiebelApiService.name);
   }
 
-  private async getHeaders(): Promise<Record<string, string>> {
+  private async getHeaders(
+    trustedUsernameOverride?: string,
+  ): Promise<Record<string, string>> {
     const accessToken = await this.siebelAuthService.getAccessToken();
 
     return {
       Authorization: `Bearer ${accessToken}`,
-      'X-ICM-TrustedUsername': this.trustedUsername,
+      'X-ICM-TrustedUsername': trustedUsernameOverride ?? this.trustedUsername,
       'Content-Type': 'application/json',
       Accept: 'application/json',
       'Accept-Encoding': 'identity',
@@ -487,7 +490,12 @@ export class SiebelApiService {
     this.logger.debug(
       `Creating notification activity for Service Request: ${serviceRequestId}`,
     );
-    return await this.put(endpoint, payload);
+    return await this.put(
+      endpoint,
+      payload,
+      undefined,
+      activityData.assignedTo,
+    );
   }
 
   async getIcmContactById(contactId: string): Promise<IcmContactDetail | null> {
@@ -512,7 +520,7 @@ export class SiebelApiService {
     const endpoint = `/ServiceRequest/ServiceRequest/${srId}`;
     const params = {
       fields:
-        'Id, Service Request Number, Assigned To Id, Assigned To, Status, ICM Stage, Resolution, Service Office',
+        'Id, Service Request Number, Assigned To Id, Assigned To, Status, ICM Stage, Resolution, Service Office, Assigned To',
       ChildLinks: 'None',
       ViewMode: 'Organization',
     };
@@ -566,9 +574,10 @@ export class SiebelApiService {
     endpoint: string,
     data?: unknown,
     params?: Record<string, any>,
+    trustedUsernameOverride?: string,
   ): Promise<T> {
     try {
-      const headers = await this.getHeaders();
+      const headers = await this.getHeaders(trustedUsernameOverride);
       const url = `${this.baseUrl}${endpoint}`;
 
       const response = await firstValueFrom(
