@@ -30,7 +30,9 @@ export interface SiebelSRResponse {
 
 export interface CreateNotificationData {
   serviceRequestNumber: string;
-  owner: string;
+  owner: string; // SR Assigned to Id
+  description?: string; // custom notification description
+  //officeId: string; // Service Office Id
 }
 
 export interface SiebelSRsResponse {
@@ -46,6 +48,8 @@ export interface SiebelSRDetail {
   Status?: string;
   'ICM Stage'?: string;
   Resolution?: string;
+  'Service Office'?: string;
+  'Service Office Id'?: string;
   [key: string]: unknown;
 }
 
@@ -469,12 +473,15 @@ export class SiebelApiService {
       Id: 'NULL',
       Type: 'Notification',
       'ICM Sub Type': 'Action Required',
-      Description: `Caregiver Applicant has cancelled their application (${activityData.serviceRequestNumber})`,
+      Description:
+        activityData.description ??
+        `Caregiver Applicant has cancelled their application (${activityData.serviceRequestNumber})`,
       Priority: '3-Standard',
       Status: 'Open',
       'Action By': 'Staff',
       'Activity SR Id': serviceRequestId,
       'Primary Owner Id': activityData.owner,
+      //'Service Office Id': activityData.officeId,
     };
 
     this.logger.debug(
@@ -505,7 +512,7 @@ export class SiebelApiService {
     const endpoint = `/ServiceRequest/ServiceRequest/${srId}`;
     const params = {
       fields:
-        'Id, Service Request Number, Assigned To Id, Assigned To, Status, ICM Stage, Resolution',
+        'Id, Service Request Number, Assigned To Id, Assigned To, Status, ICM Stage, Resolution, Service Office',
       ChildLinks: 'None',
       ViewMode: 'Organization',
     };
