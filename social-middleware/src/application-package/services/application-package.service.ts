@@ -267,12 +267,23 @@ export class ApplicationPackageService {
             'Service Request not found in ICM; skipping notification and proceeding with local cancellation',
           );
         } else {
-          // create a service request notification assigned to the service request assignee
-          await this.siebelApiService.createSRNotification(appPackage.srId, {
-            serviceRequestNumber: srDetails['Service Request Number']!,
-            owner: srDetails['Assigned To Id']!,
-          });
-
+          if (!srDetails['Assigned To Id']) {
+            this.logger.warn(
+              {
+                srId: appPackage.srId,
+                assignedToId: srDetails['Assigned To Id'],
+                serviceOfficeId: srDetails['Service Office Id'],
+              },
+              'SR missing owner or office id; cancellation notification would default to the API user/org — skipping',
+            );
+          } else {
+            // create a service request notification assigned to the service request assignee
+            await this.siebelApiService.createSRNotification(appPackage.srId, {
+              serviceRequestNumber: srDetails['Service Request Number']!,
+              owner: srDetails['Assigned To Id'],
+              //officeId: srDetails['Service Office Id'],
+            });
+          }
           // reflect the cancellation on the SR itself
           if (
             this.configService.get<string>('OCT2027_RELEASE_ENABLED') === 'true'
@@ -1916,7 +1927,151 @@ export class ApplicationPackageService {
     return { success: true, attachmentsUploaded: uploadedCount };
   }
 
-  async validateHouseholdCompletion(
+  async submitTrainingCertificates(
+    applicationPackageId: string,
+    userId: string,
+  ): Promise<{
+    success: boolean;
+    attachmentsUploaded: number;
+    notificationSent: boolean;
+  }> {
+    this.logger.info(
+      { applicationPackageId, userId },
+      'Starting training certificate submission to ICM',
+    );
+
+    const applicationPackage = (await this.applicationPackageModel
+      .findOne({ applicationPackageId })
+      .lean()
+      .exec()) as ApplicationPackage;
+
+    if (!applicationPackage) {
+      throw new NotFoundException(
+        `Application package ${applicationPackageId} not found`,
+      );
+    }
+
+    if (!applicationPackage.srId) {
+      throw new BadRequestException(
+        'Service request not created yet — cannot submit training certificates',
+      );
+    }
+
+    const allAttachments =
+      await this.attachmentsService.findByApplicationPackageId(
+        applicationPackageId,
+        userId,
+      );
+
+    const pending = allAttachments.filter(
+      (att) =>
+        att.attachmentType === AttachmentType.TRAINING_CERTIFICATE &&
+        !att.icmAttachmentId,
+    );
+
+    if (pending.length === 0) {
+      throw new BadRequestException(
+        'No training certificate attachments found to submit',
+      );
+    }
+
+    const category =
+      AttachmentCategoryMap[AttachmentType.TRAINING_CERTIFICATE] ?? 'Training';
+    let uploadedCount = 0;
+
+    for (const attachment of pending) {
+      try {
+        const fullAttachment = await this.attachmentsService.findById(
+          attachment.attachmentId,
+        );
+
+        if (!fullAttachment?.fileData) {
+          this.logger.warn(
+            { attachmentId: attachment.attachmentId },
+            'Skipping attachment with no file content',
+          );
+          continue;
+        }
+
+        await this.siebelApiService.createAttachment(applicationPackage.srId, {
+          fileName: fullAttachment.fileName,
+          fileContent: fullAttachment.fileData,
+          fileType: fullAttachment.fileType,
+          category,
+          description: AttachmentType.TRAINING_CERTIFICATE,
+        });
+
+        await this.attachmentsService.saveIcmAttachmentId(
+          attachment.attachmentId,
+          `submitted-${Date.now()}`,
+        );
+
+        uploadedCount++;
+      } catch (err) {
+        this.logger.error(
+          { attachmentId: attachment.attachmentId, err },
+          'Failed to upload training certificate to ICM',
+        );
+        throw new InternalServerErrorException(
+          'Failed to upload training certificate to ICM',
+        );
+      }
+    }
+
+    let notificationSent = false;
+    try {
+      const srDetails = await this.siebelApiService.getIcmServiceRequestById(
+        applicationPackage.srId,
+      );
+
+      if (!srDetails) {
+        this.logger.warn(
+          { srId: applicationPackage.srId },
+          'Service Request not found in ICM; skipping notification',
+        );
+      } else if (!srDetails['Assigned To Id']) {
+        this.logger.warn(
+          { srId: applicationPackage.srId },
+          'SR missing owner; notification would default to the API user/org — skipping',
+        );
+      } else {
+        await this.siebelApiService.createSRNotification(applicationPackage.srId, {
+          serviceRequestNumber: srDetails['Service Request Number']!,
+          owner: srDetails['Assigned To Id'],
+          description: `Caregiver Applicant has submitted training certificate(s) (${srDetails['Service Request Number']})`,
+        });
+        notificationSent = true;
+      }
+    } catch (error) {
+      const isConnectivityFailure =
+        error instanceof SiebelApiError &&
+        (error.status === undefined ||
+          (error.status === 403 &&
+            error.message.includes('IP address not allowed')));
+      if (isConnectivityFailure) {
+        this.logger.warn(
+          { srId: applicationPackage.srId, error },
+          'Siebel connectivity failure; skipping notification — certificates were uploaded',
+        );
+      } else {
+        this.logger.error(
+          { srId: applicationPackage.srId, error },
+          'Failed to create SR notification for training certificates',
+        );
+      }
+    }
+
+    this.logger.info(
+      { applicationPackageId, uploadedCount, notificationSent },
+      'Training certificates submitted',
+    );
+
+    return {
+      success: true,
+      attachmentsUploaded: uploadedCount,
+      notificationSent,
+    };
+  }
     applicationPackageId: string,
     userId: string,
   ): Promise<ValidateHouseholdCompletionDto> {
