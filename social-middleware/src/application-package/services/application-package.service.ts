@@ -2035,11 +2035,14 @@ export class ApplicationPackageService {
           'SR missing owner; notification would default to the API user/org — skipping',
         );
       } else {
-        await this.siebelApiService.createSRNotification(applicationPackage.srId, {
-          serviceRequestNumber: srDetails['Service Request Number']!,
-          owner: srDetails['Assigned To Id'],
-          description: `Caregiver Applicant has submitted training certificate(s) (${srDetails['Service Request Number']})`,
-        });
+        await this.siebelApiService.createSRNotification(
+          applicationPackage.srId,
+          {
+            serviceRequestNumber: srDetails['Service Request Number']!,
+            owner: srDetails['Assigned To Id'],
+            description: `Caregiver Applicant has submitted training certificate(s) (${srDetails['Service Request Number']})`,
+          },
+        );
         notificationSent = true;
       }
     } catch (error) {
@@ -2061,6 +2064,12 @@ export class ApplicationPackageService {
       }
     }
 
+    await this.applicationPackageModel.findOneAndUpdate(
+      { applicationPackageId },
+      { $set: { hasTrainingCertificates: true, updatedAt: new Date() } },
+      { new: true },
+    );
+
     this.logger.info(
       { applicationPackageId, uploadedCount, notificationSent },
       'Training certificates submitted',
@@ -2072,6 +2081,8 @@ export class ApplicationPackageService {
       notificationSent,
     };
   }
+
+  async validateHouseholdCompletion(
     applicationPackageId: string,
     userId: string,
   ): Promise<ValidateHouseholdCompletionDto> {
