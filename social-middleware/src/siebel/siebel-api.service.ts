@@ -623,6 +623,7 @@ export class SiebelApiService {
       //SearchSpec: `([Caregiver Type] = '${caregiverType}')`,
       ChildLinks: 'None',
       ViewMode: 'Organization',
+      PageSize: '100', // unlikely, but to enable in testing environment
     };
 
     try {
@@ -654,8 +655,10 @@ export class SiebelApiService {
       fields: 'Id,Primary Contact Id,ICM Stage,SR Sub Type',
       ViewMode: 'Organization',
       ChildLinks: 'None',
+      PageSize: '100',
     };
 
+    // get 100 Kinship Applications in the Referral Stage with a Primary Contact
     const result = await this.get<SiebelSRsResponse>(
       '/ServiceRequest/ServiceRequest',
       params,
