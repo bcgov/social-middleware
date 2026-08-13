@@ -424,10 +424,22 @@ export class ApplicationPackageProcessor {
       return { success: false };
     }
 
-    await this.siebelApiService.createSRNotification(srId, {
-      serviceRequestNumber: srDetails['Service Request Number']!,
-      owner: srDetails['Assigned To Id']!,
-    });
+    if (!srDetails['Assigned To'] || !srDetails['Assigned To Id']) {
+      this.logger.warn(
+        {
+          srId: appPackage.srId,
+        },
+        'SR is unassigned; skipping',
+      );
+    } else {
+      // create a service request notification assigned to the service request assignee
+      await this.siebelApiService.createSRNotification(appPackage.srId, {
+        serviceRequestNumber: srDetails['Service Request Number']!,
+        owner: srDetails['Assigned To Id'],
+        assignedTo: srDetails['Assigned To'],
+        //officeId: srDetails['Service Office Id'],
+      });
+    }
 
     if (this.configService.get<string>('OCT2027_RELEASE_ENABLED') === 'true') {
       await this.siebelApiService.updateServiceRequestFields(appPackage.srId, {

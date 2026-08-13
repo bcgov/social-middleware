@@ -520,6 +520,49 @@ export class ApplicationPackageController {
     );
   }
 
+  @Post(':applicationPackageId/submit-training-certificates')
+  @UseGuards(SessionAuthGuard)
+  @ApiOperation({
+    summary: 'Submit training certificates to ICM and notify social worker',
+    description:
+      'Uploads all pending training certificate attachments to Siebel and creates a notification activity for the assigned social worker.',
+  })
+  @ApiResponse({
+    status: 200,
+    schema: {
+      type: 'object',
+      properties: {
+        success: { type: 'boolean' },
+        attachmentsUploaded: { type: 'number' },
+        notificationSent: { type: 'boolean' },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 400,
+    description:
+      'No training certificates found or service request not created',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Application package not found',
+  })
+  async submitTrainingCertificates(
+    @Param('applicationPackageId', new ParseUUIDPipe())
+    applicationPackageId: string,
+    @Req() request: Request,
+  ): Promise<{
+    success: boolean;
+    attachmentsUploaded: number;
+    notificationSent: boolean;
+  }> {
+    const userId = this.sessionUtil.extractUserIdFromRequest(request);
+    return this.applicationPackageService.submitTrainingCertificates(
+      applicationPackageId,
+      userId,
+    );
+  }
+
   @Post('access-code/redeem')
   @ApiOperation({ summary: 'Redeem an access code' })
   async redeemAccessCode(

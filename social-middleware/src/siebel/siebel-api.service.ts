@@ -30,7 +30,10 @@ export interface SiebelSRResponse {
 
 export interface CreateNotificationData {
   serviceRequestNumber: string;
-  owner: string;
+  owner: string; // SR Assigned to Id
+  description?: string; // custom notification description
+  assignedTo?: string;
+  //officeId: string; // Service Office Id
 }
 
 export interface SiebelSRsResponse {
@@ -46,6 +49,8 @@ export interface SiebelSRDetail {
   Status?: string;
   'ICM Stage'?: string;
   Resolution?: string;
+  'Service Office'?: string;
+  'Service Office Id'?: string;
   [key: string]: unknown;
 }
 
@@ -86,12 +91,14 @@ export class SiebelApiService {
     this.logger.setContext(SiebelApiService.name);
   }
 
-  private async getHeaders(): Promise<Record<string, string>> {
+  private async getHeaders(
+    trustedUsernameOverride?: string,
+  ): Promise<Record<string, string>> {
     const accessToken = await this.siebelAuthService.getAccessToken();
 
     return {
       Authorization: `Bearer ${accessToken}`,
-      'X-ICM-TrustedUsername': this.trustedUsername,
+      'X-ICM-TrustedUsername': trustedUsernameOverride ?? this.trustedUsername,
       'Content-Type': 'application/json',
       Accept: 'application/json',
       'Accept-Encoding': 'identity',
@@ -469,18 +476,26 @@ export class SiebelApiService {
       Id: 'NULL',
       Type: 'Notification',
       'ICM Sub Type': 'Action Required',
-      Description: `Caregiver Applicant has cancelled their application (${activityData.serviceRequestNumber})`,
+      Description:
+        activityData.description ??
+        `Caregiver Applicant has cancelled their application (${activityData.serviceRequestNumber})`,
       Priority: '3-Standard',
       Status: 'Open',
       'Action By': 'Staff',
       'Activity SR Id': serviceRequestId,
       'Primary Owner Id': activityData.owner,
+      //'Service Office Id': activityData.officeId,
     };
 
     this.logger.debug(
       `Creating notification activity for Service Request: ${serviceRequestId}`,
     );
-    return await this.put(endpoint, payload);
+    return await this.put(
+      endpoint,
+      payload,
+      undefined,
+      activityData.assignedTo,
+    );
   }
 
   async getIcmContactById(contactId: string): Promise<IcmContactDetail | null> {
@@ -505,7 +520,7 @@ export class SiebelApiService {
     const endpoint = `/ServiceRequest/ServiceRequest/${srId}`;
     const params = {
       fields:
-        'Id, Service Request Number, Assigned To Id, Assigned To, Status, ICM Stage, Resolution',
+        'Id, Service Request Number, Assigned To Id, Assigned To, Status, ICM Stage, Resolution, Service Office, Assigned To',
       ChildLinks: 'None',
       ViewMode: 'Organization',
     };
@@ -559,9 +574,10 @@ export class SiebelApiService {
     endpoint: string,
     data?: unknown,
     params?: Record<string, any>,
+    trustedUsernameOverride?: string,
   ): Promise<T> {
     try {
-      const headers = await this.getHeaders();
+      const headers = await this.getHeaders(trustedUsernameOverride);
       const url = `${this.baseUrl}${endpoint}`;
 
       const response = await firstValueFrom(
@@ -607,6 +623,7 @@ export class SiebelApiService {
       //SearchSpec: `([Caregiver Type] = '${caregiverType}')`,
       ChildLinks: 'None',
       ViewMode: 'Organization',
+      PageSize: '100', // unlikely, but to enable in testing environment
     };
 
     try {
@@ -638,8 +655,10 @@ export class SiebelApiService {
       fields: 'Id,Primary Contact Id,ICM Stage,SR Sub Type',
       ViewMode: 'Organization',
       ChildLinks: 'None',
+      PageSize: '100',
     };
 
+    // get 100 Kinship Applications in the Referral Stage with a Primary Contact
     const result = await this.get<SiebelSRsResponse>(
       '/ServiceRequest/ServiceRequest',
       params,
