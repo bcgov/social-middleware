@@ -372,7 +372,7 @@ export class AccessCodeService {
     applicationPackageId: string,
   ): Promise<void> {
     await this.screeningAccessCodeModel
-      .deleteMany({ parentApplicationId: applicationPackageId })
+      .deleteMany({ applicationPackageId: applicationPackageId })
       .exec();
   }
 }

@@ -544,3 +544,51 @@ describe('AccessCodeService - resendOrCreateAccessCode', () => {
     expect(result.isNew).toBe(true);
   });
 });
+
+// ─── deleteByApplicationPackageId ─────────────────────────────────────────────
+
+describe('AccessCodeService - deleteByApplicationPackageId', () => {
+  let service: AccessCodeService;
+
+  const mockDeleteMany = jest.fn();
+
+  beforeEach(async () => {
+    jest.clearAllMocks();
+    mockDeleteMany.mockResolvedValue({ deletedCount: 2 });
+
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        AccessCodeService,
+        {
+          provide: getModelToken(ScreeningAccessCode.name),
+          useValue: {
+            findOne: jest.fn(),
+            findByIdAndUpdate: jest.fn(),
+            deleteMany: mockDeleteMany,
+          },
+        },
+        { provide: getModelToken(ApplicationPackage.name), useValue: {} },
+        { provide: getModelToken(ApplicationForm.name), useValue: {} },
+        { provide: HouseholdService, useValue: mockHouseholdService },
+        { provide: PinoLogger, useValue: mockLogger },
+      ],
+    }).compile();
+
+    service = module.get<AccessCodeService>(AccessCodeService);
+  });
+
+  it('calls deleteMany with applicationPackageId (not parentApplicationId)', async () => {
+    await service.deleteByApplicationPackageId('pkg-001');
+
+    expect(mockDeleteMany).toHaveBeenCalledWith({
+      applicationPackageId: 'pkg-001',
+    });
+  });
+
+  it('does not use the wrong field name parentApplicationId', async () => {
+    await service.deleteByApplicationPackageId('pkg-001');
+
+    const callArg = mockDeleteMany.mock.calls[0][0] as Record<string, unknown>;
+    expect(callArg).not.toHaveProperty('parentApplicationId');
+  });
+});
