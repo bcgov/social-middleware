@@ -11,7 +11,7 @@ import {
 } from '../schema/application-package.schema';
 import { AuthModule } from '../../auth/auth.module';
 import { SiebelModule } from '../../siebel/siebel.module';
-import { NotificationModule } from '../../notifications/notification.module';
+//import { NotificationModule } from '../../notifications/notification.module';
 import { CommonModule } from '../../common/common.module';
 
 @Module({
@@ -48,7 +48,7 @@ import { CommonModule } from '../../common/common.module';
     ]),
     AuthModule,
     SiebelModule,
-    NotificationModule,
+    //NotificationModule,
     CommonModule,
     forwardRef(() => ApplicationPackageModule),
   ],

@@ -185,7 +185,7 @@ export class CaregiverInvitationService {
           firstName: contact['First Name'],
           lastName: contact['Last Name'],
           dateOfBirth,
-          email: 'Tim.Gunderson@gov.bc.ca', //contact['Primary Email'],
+          email: contact['Primary Email'],
           contactId,
           srId,
           subtype: ApplicationPackageSubType.OOC,
