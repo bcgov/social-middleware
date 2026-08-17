@@ -5,7 +5,7 @@ import {
   OnQueueFailed,
 } from '@nestjs/bull';
 import { Job } from 'bull';
-import { Injectable } from '@nestjs/common';
+import { HttpException, Injectable } from '@nestjs/common';
 import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
 import { ChesService } from '../services/ches.service';
 import { SendEmailDto } from '../dto/send-email.dto';
@@ -39,7 +39,26 @@ export class NotificationProcessor {
 
       return { messages: result.messages };
     } catch (error) {
-      this.logger.error({ jobId: job.id, error }, 'Failed to send email');
+      const status = this.extractErrorStatus(error);
+
+      // retryable: 5xx, 429 (rate limited), or network errors (no status)
+      // non-retryable: 4xx (except 429) - bad recipient, malformed payload, auth.
+
+      const retryable = !status || status === 429 || status >= 500;
+
+      if (!retryable) {
+        this.logger.warn(
+          { jobId: job.id, status, error: (error as Error).message },
+          'Non-retryable error - discarding job',
+        );
+        void job.discard();
+      } else {
+        this.logger.warn(
+          { jobId: job.id, status, attemptsMade: job.attemptsMade },
+          'Retryable error - will retry',
+        );
+      }
+
       throw error;
     }
   }
@@ -64,5 +83,23 @@ export class NotificationProcessor {
       },
       'Email job failed',
     );
+  }
+
+  private extractErrorStatus(error: unknown): number | undefined {
+    if (error instanceof HttpException) {
+      return error.getStatus();
+    }
+    if (
+      error != null &&
+      typeof error === 'object' &&
+      'response' in error &&
+      error.response != null &&
+      typeof error.response === 'object' &&
+      'status' in error.response &&
+      typeof error.response.status === 'number'
+    ) {
+      return error.response.status;
+    }
+    return undefined;
   }
 }

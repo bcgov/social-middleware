@@ -148,6 +148,8 @@ export class CaregiverInvitationService {
       const srId = sr.Id!;
       const contactId = sr['Primary Contact Id']!;
 
+      //this.logger.debug({ srId: srId, contactId: contactId });
+
       try {
         const contact =
           await this.siebelApiService.getIcmContactById(contactId);

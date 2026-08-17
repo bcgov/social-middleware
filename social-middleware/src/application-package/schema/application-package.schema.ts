@@ -74,6 +74,9 @@ export class ApplicationPackage {
   @Prop({ required: false, default: false })
   hasMedicalAssessment!: boolean;
 
+  @Prop({ required: false, default: false })
+  hasTrainingCertificates!: boolean;
+
   @Prop({ required: false, default: () => Date() })
   createdAt!: Date;
 

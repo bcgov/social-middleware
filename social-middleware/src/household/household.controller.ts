@@ -476,8 +476,8 @@ export class HouseholdController {
 
     const { accessCode, expiresAt, isNew } =
       await this.accessCodeService.resendOrCreateAccessCode(
-        applicationPackageId,
         householdMemberId,
+        applicationPackageId,
       );
 
     await this.householdService.incrementResendTracking(householdMemberId);

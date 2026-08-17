@@ -264,7 +264,7 @@ export class AccessCodeService {
     attemptCount: number;
   } | null> {
     try {
-      this.logger.info(
+      this.logger.debug(
         { householdMemberId },
         'Fetching latest access code for household member',
       );
@@ -372,7 +372,7 @@ export class AccessCodeService {
     applicationPackageId: string,
   ): Promise<void> {
     await this.screeningAccessCodeModel
-      .deleteMany({ parentApplicationId: applicationPackageId })
+      .deleteMany({ applicationPackageId: applicationPackageId })
       .exec();
   }
 }
