@@ -36,8 +36,11 @@ export class ChesService {
   private async getAccessToken(): Promise<string> {
     const now = Date.now();
 
-    // Return cached token if still valid (with 5 min buffer)
-    if (this.accessToken && this.tokenExpiry > now + 5 * 60 * 1000) {
+    // Return cached token if still valid (with 1 min buffer)
+    // the buffer must be smaller than the token lifetime (~ 5 minutes)
+    // or the cache condition can never be satisfied and a new token is fetched
+    // on every sendEmail
+    if (this.accessToken && this.tokenExpiry > now + 60 * 1000) {
       return this.accessToken;
     }
 

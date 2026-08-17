@@ -1,7 +1,7 @@
 import {
   Processor,
   Process,
-  OnQueueCompleted,
+  //OnQueueCompleted,
   OnQueueFailed,
 } from '@nestjs/bull';
 import { Job } from 'bull';
@@ -91,8 +91,8 @@ export class IcmStageProcessor {
         const searchSpec =
           '(' + chunk.map((srId) => `[Id]='${srId}'`).join(' OR ') + ')';
 
-        this.logger.info(
-          { chunkIndex: i + 1, totalChunks: chunks.length, searchSpec },
+        this.logger.debug(
+          { chunkIndex: i + 1, totalChunks: chunks.length },
           'Processing chunk',
         );
 
@@ -117,10 +117,10 @@ export class IcmStageProcessor {
           // push the array of items to the collection of all stages to analyze
           allStages.push(...items);
 
-          this.logger.info(
-            { chunkIndex: i + 1, itemsReceived: items.length },
-            'Chunk processed successfully',
-          );
+          //this.logger.debug(
+          //  { chunkIndex: i + 1, itemsReceived: items.length },
+          //  'Chunk processed successfully',
+          //);
         } catch (error) {
           this.logger.error(
             {
@@ -205,10 +205,10 @@ export class IcmStageProcessor {
     }
   }
 
-  @OnQueueCompleted()
-  onCompleted(job: Job, result: unknown) {
-    this.logger.info({ jobId: job.id, result }, 'ICM stage check completed');
-  }
+  //@OnQueueCompleted()
+  //onCompleted(job: Job, result: unknown) {
+  //  this.logger.info({ jobId: job.id, result }, 'ICM stage check completed');
+  // }
 
   @OnQueueFailed()
   onFailed(job: Job, error: Error) {

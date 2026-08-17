@@ -264,7 +264,7 @@ export class AccessCodeService {
     attemptCount: number;
   } | null> {
     try {
-      this.logger.info(
+      this.logger.debug(
         { householdMemberId },
         'Fetching latest access code for household member',
       );

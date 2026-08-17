@@ -214,7 +214,7 @@ export class SiebelApiService {
         this.httpService.get<T>(url, { headers, params }),
       );
 
-      this.logger.debug({ endpoint, params }, 'GET request successful');
+      this.logger.trace({ endpoint, params }, 'GET request successful');
       return response.data;
     } catch (error: unknown) {
       if (error instanceof AxiosError) {
