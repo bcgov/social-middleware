@@ -148,6 +148,8 @@ export class CaregiverInvitationService {
       const srId = sr.Id!;
       const contactId = sr['Primary Contact Id']!;
 
+      //this.logger.debug({ srId: srId, contactId: contactId });
+
       try {
         const contact =
           await this.siebelApiService.getIcmContactById(contactId);
@@ -183,7 +185,7 @@ export class CaregiverInvitationService {
           firstName: contact['First Name'],
           lastName: contact['Last Name'],
           dateOfBirth,
-          email: contact['Primary Email'],
+          email: 'Tim.Gunderson@gov.bc.ca', //contact['Primary Email'],
           contactId,
           srId,
           subtype: ApplicationPackageSubType.OOC,
