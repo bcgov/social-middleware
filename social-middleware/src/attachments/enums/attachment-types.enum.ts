@@ -11,7 +11,7 @@ export enum AttachmentType {
   PCCCONSENT = 'Consent for Prior Contact Check',
   PROOF_OF_RESIDENCE = 'Proof of Residence',
   REFERENCE_LETTER = 'Reference Letter',
-  TRAINING_CERTIFICATE = 'Training Certificate',
+  TRAINING_CERTIFICATE = 'PRIDE Certificate',
 }
 
 // meta data for attachments in ICM
@@ -22,7 +22,7 @@ export const AttachmentCategoryMap: Partial<Record<AttachmentType, string>> = {
   [AttachmentType.PCCCONSENT]: 'Consent',
   [AttachmentType.ABOUTSPOUSE]: 'Application & Request',
   [AttachmentType.OTHER]: 'Other Assessment',
-  [AttachmentType.TRAINING_CERTIFICATE]: 'Training',
+  [AttachmentType.TRAINING_CERTIFICATE]: 'Documentation',
 };
 
 export enum AllowedFileType {
