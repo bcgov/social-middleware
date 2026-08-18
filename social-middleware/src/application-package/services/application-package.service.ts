@@ -1944,12 +1944,13 @@ export class ApplicationPackageService {
       .lean()
       .exec()) as ApplicationPackage;
 
+    // does the application package exist?
     if (!applicationPackage) {
       throw new NotFoundException(
         `Application package ${applicationPackageId} not found`,
       );
     }
-
+    // does it have a service request ID
     if (!applicationPackage.srId) {
       throw new BadRequestException(
         'Service request not created yet — cannot submit training certificates',
@@ -1967,7 +1968,7 @@ export class ApplicationPackageService {
         att.attachmentType === AttachmentType.TRAINING_CERTIFICATE &&
         !att.icmAttachmentId,
     );
-
+    // we didn't upload a training certificate..
     if (pending.length === 0) {
       throw new BadRequestException(
         'No training certificate attachments found to submit',
@@ -2028,7 +2029,7 @@ export class ApplicationPackageService {
           { srId: applicationPackage.srId },
           'Service Request not found in ICM; skipping notification',
         );
-      } else if (!srDetails['Assigned To Id']) {
+      } else if (!srDetails['Assigned To Id'] || !srDetails['Assigned To']) {
         this.logger.warn(
           { srId: applicationPackage.srId },
           'SR missing owner; notification would default to the API user/org — skipping',
@@ -2039,7 +2040,8 @@ export class ApplicationPackageService {
           {
             serviceRequestNumber: srDetails['Service Request Number']!,
             owner: srDetails['Assigned To Id'],
-            description: `Caregiver Applicant has submitted training certificate(s) (${srDetails['Service Request Number']})`,
+            description: `Caregiver Applicant has submitted PRIDE training certificate(s) (${srDetails['Service Request Number']})`,
+            assignedTo: srDetails['Assigned To'],
           },
         );
         notificationSent = true;
