@@ -178,14 +178,7 @@ export class ApplicationPackageService {
       ServiceRequestStage.APPLICATION,
     );
     if (pkg.srId) {
-      await this.siebelApiService.updateServiceRequestStage(
-        pkg.srId,
-        ServiceRequestStage.APPLICATION,
-      );
-      await this.siebelApiService.updateServiceRequestFields(pkg.srId, {
-        'ICM BCSC DID': bcscDid,
-      });
-
+      // we create the prospect prior to updating the application stage so the activity plan can run.
       const primaryMember =
         await this.householdService.findPrimaryApplicant(applicationPackageId);
       if (primaryMember && !primaryMember.prospectId) {
@@ -196,6 +189,13 @@ export class ApplicationPackageService {
           pkg.srId,
         );
       }
+      await this.siebelApiService.updateServiceRequestStage(
+        pkg.srId,
+        ServiceRequestStage.APPLICATION,
+      );
+      await this.siebelApiService.updateServiceRequestFields(pkg.srId, {
+        'ICM BCSC DID': bcscDid,
+      });
     }
   }
 
