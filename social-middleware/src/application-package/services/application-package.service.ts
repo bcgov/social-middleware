@@ -2083,6 +2083,151 @@ export class ApplicationPackageService {
     };
   }
 
+  async submitInServiceTraining(userId: string): Promise<{
+    success: boolean;
+    attachmentsUploaded: number;
+    notificationSent: boolean;
+  }> {
+    this.logger.info(
+      { userId },
+      'Starting in-service training certificate submission to ICM',
+    );
+
+    const user = await this.userService.findOne(userId);
+    if (!user?.resource_case_id) {
+      throw new BadRequestException(
+        'No active resource case found for this user',
+      );
+    }
+
+    const resourceCaseId = user.resource_case_id;
+
+    const allAttachments = await this.attachmentsService.findByResourceCaseId(
+      resourceCaseId,
+      userId,
+    );
+
+    const pending = allAttachments.filter(
+      (att) =>
+        att.attachmentType === AttachmentType.IN_SERVICE_TRAINING_CERTIFICATE &&
+        !att.icmAttachmentId,
+    );
+
+    if (pending.length === 0) {
+      throw new BadRequestException(
+        'No in-service training certificate attachments found to submit',
+      );
+    }
+
+    const category =
+      AttachmentCategoryMap[AttachmentType.IN_SERVICE_TRAINING_CERTIFICATE] ??
+      'Training';
+    let uploadedCount = 0;
+
+    for (const attachment of pending) {
+      try {
+        const fullAttachment = await this.attachmentsService.findById(
+          attachment.attachmentId,
+        );
+
+        if (!fullAttachment?.fileData) {
+          this.logger.warn(
+            { attachmentId: attachment.attachmentId },
+            'Skipping attachment with no file content',
+          );
+          continue;
+        }
+
+        await this.siebelApiService.createCaseAttachment(resourceCaseId, {
+          fileName: fullAttachment.fileName,
+          fileContent: fullAttachment.fileData,
+          fileType: fullAttachment.fileType,
+          category,
+          description: AttachmentType.IN_SERVICE_TRAINING_CERTIFICATE,
+        });
+
+        await this.attachmentsService.saveIcmAttachmentId(
+          attachment.attachmentId,
+          `submitted-${Date.now()}`,
+        );
+
+        uploadedCount++;
+      } catch (err) {
+        this.logger.error(
+          { attachmentId: attachment.attachmentId, err },
+          'Failed to upload in-service training certificate to ICM',
+        );
+        throw new InternalServerErrorException(
+          'Failed to upload in-service training certificate to ICM',
+        );
+      }
+    }
+
+    let notificationSent = false;
+    try {
+      if (!user.contact_id) {
+        this.logger.warn(
+          { userId },
+          'User has no contact_id; skipping notification',
+        );
+      } else {
+        const openCases =
+          await this.siebelApiService.getOpenResourceCasesByContactId(
+            user.contact_id,
+          );
+
+        const matchingCase = openCases.find((c) => c.Id === resourceCaseId);
+
+        if (!matchingCase) {
+          this.logger.warn(
+            { resourceCaseId, contactId: user.contact_id },
+            'Resource case not found in ICM; skipping notification',
+          );
+        } else if (!matchingCase['Assigned To Id']) {
+          this.logger.warn(
+            { resourceCaseId },
+            'Case missing Assigned To Id; notification would default to the API user/org — skipping',
+          );
+        } else {
+          await this.siebelApiService.createCaseNotification(resourceCaseId, {
+            owner: matchingCase['Assigned To Id'],
+            caseNumber: matchingCase['Case Number'],
+            description: `Caregiver has submitted in-service training certificate(s) (${matchingCase['Case Number'] ?? resourceCaseId})`,
+          });
+          notificationSent = true;
+        }
+      }
+    } catch (error) {
+      const isConnectivityFailure =
+        error instanceof SiebelApiError &&
+        (error.status === undefined ||
+          (error.status === 403 &&
+            error.message.includes('IP address not allowed')));
+      if (isConnectivityFailure) {
+        this.logger.warn(
+          { resourceCaseId, error },
+          'Siebel connectivity failure; skipping notification — certificates were uploaded',
+        );
+      } else {
+        this.logger.error(
+          { resourceCaseId, error },
+          'Failed to create case notification for in-service training certificates',
+        );
+      }
+    }
+
+    this.logger.info(
+      { userId, resourceCaseId, uploadedCount, notificationSent },
+      'In-service training certificates submitted',
+    );
+
+    return {
+      success: true,
+      attachmentsUploaded: uploadedCount,
+      notificationSent,
+    };
+  }
+
   async validateHouseholdCompletion(
     applicationPackageId: string,
     userId: string,
