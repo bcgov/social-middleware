@@ -1,4 +1,11 @@
 {{- if or (hasSuffix "-prod" .Release.Namespace) (hasSuffix "-test" .Release.Namespace) }}
+{{- $pod := .Values.mongodb.podlabel }}
+{{- $port := .Values.mongodb.port }}
+{{- $ns := .Release.Namespace }}
+{{- $hosts := list }}
+{{- range $i := until (int .Values.mongodb.replicaSet.replicas) }}
+{{- $hosts = append $hosts (printf "%s-%d.%s.%s.svc.cluster.local:%v" $pod $i $pod $ns $port) }}
+{{- end }}
 apiVersion: batch/v1
 kind: CronJob
 metadata:
@@ -9,6 +16,7 @@ metadata:
     component: backup
 spec:
   schedule: "0 2 * * *"  # Daily at 2 AM
+  timeZone: {{ .Values.mongodb.backup.timeZone | quote }}
   successfulJobsHistoryLimit: 3
   failedJobsHistoryLimit: 3
   concurrencyPolicy: Forbid
@@ -29,16 +37,33 @@ spec:
                 - -c
                 - |
                   set -e
-                  BACKUP_DIR="/backup/$(date +%Y%m%d-%H%M%S)"
-                  echo "Starting MongoDB backup to $BACKUP_DIR"
 
+                  # Each night's dump is filed into exactly one tier, not copied
+                  # into several. The cleanup job then prunes each tier to its
+                  # own depth, which is what makes the retention "rolling".
+                  if [ "$(date -d tomorrow +%d)" = "01" ]; then
+                    TIER=monthly
+                  elif [ "$(date +%u)" = "7" ]; then
+                    TIER=weekly
+                  else
+                    TIER=daily
+                  fi
+
+                  BACKUP_DIR="/backup/$TIER/$(date +%Y%m%d-%H%M%S)"
+                  echo "Starting MongoDB backup to $BACKUP_DIR (tier: $TIER)"
+                  mkdir -p "$BACKUP_DIR"
+
+                  # Addressed as a replica set rather than through the Service so
+                  # that --readPreference is honoured. Backups read from a
+                  # secondary, keeping the dump off the primary that is serving
+                  # the public site.
                   mongodump \
-                    --host={{ .Values.mongodb.podlabel }}.{{ .Release.Namespace }}.svc \
-                    --port={{ .Values.mongodb.port }} \
+                    --host="{{ .Values.mongodb.replicaSet.name }}/{{ join "," $hosts }}" \
                     --username=$MONGODB_USER \
                     --password=$MONGODB_PASSWORD \
                     --authenticationDatabase=admin \
                     --db=$MONGODB_DATABASE \
+                    --readPreference=secondary \
                     --gzip \
                     --out=$BACKUP_DIR \
                     --ssl \
