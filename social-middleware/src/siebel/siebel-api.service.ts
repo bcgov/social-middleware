@@ -29,11 +29,11 @@ export interface SiebelSRResponse {
 }
 
 export interface CreateNotificationData {
-  serviceRequestNumber: string;
-  owner: string; // SR Assigned to Id
+  serviceRequestNumber?: string;
+  caseNumber?: string;
+  owner?: string; // SR Assigned to Id
   description?: string; // custom notification description
   assignedTo?: string;
-  //officeId: string; // Service Office Id
 }
 
 export interface SiebelSRsResponse {
@@ -57,6 +57,8 @@ export interface SiebelSRDetail {
 export interface SiebelResourceCase {
   Id: string;
   Status: string;
+  'Case Number': string;
+  'Assigned To Id'?: string;
   'Created Date': string;
   'Reopened Date': string;
   [key: string]: unknown;
@@ -498,6 +500,64 @@ export class SiebelApiService {
     );
   }
 
+  async createCaseAttachment(
+    caseId: string,
+    attachmentData: {
+      fileName: string;
+      fileContent: string;
+      fileType: string;
+      description: string;
+      category: string;
+    },
+  ) {
+    const endpoint = '/Attachment/Attachment';
+    const payload = {
+      'Case Id': caseId,
+      Id: 'NULL',
+      'Memo Id': 'NULL',
+      'Memo Number': '',
+      Categorie: 'Attachment',
+      Category: attachmentData.category,
+      Status: 'Complete',
+      FileExt: attachmentData.fileType,
+      FileName: attachmentData.fileName,
+      'Attachment Id': attachmentData.fileContent,
+      Description: attachmentData.description,
+    };
+    this.logger.debug(`Creating attachment for Case: ${caseId}`);
+    return await this.put(endpoint, payload);
+  }
+
+  async createCaseNotification(
+    caseId: string,
+    activityData: CreateNotificationData,
+  ) {
+    const endpoint = '/Activities/Activities';
+
+    const payload = {
+      Id: 'NULL',
+      Type: 'Notification',
+      'ICM Sub Type': 'Action Required',
+      Description:
+        activityData.description ??
+        `Caregiver has submitted an in-service training certificate (${activityData.caseNumber ?? caseId})`,
+      Priority: '3-Standard',
+      Status: 'Open',
+      'Action By': 'Staff',
+      'Activity Case Id': caseId,
+      'Primary Owner Id': activityData.owner,
+    };
+
+    this.logger.debug(`Creating notification activity for Case: ${caseId}`);
+
+    return await this.put(
+      endpoint,
+      payload,
+      undefined,
+      activityData.assignedTo,
+    );
+  }
+
   async getIcmContactById(contactId: string): Promise<IcmContactDetail | null> {
     const endpoint = `/ICMContact/ICMContact/${contactId}`;
     const params = {
@@ -541,7 +601,7 @@ export class SiebelApiService {
     const params = {
       SearchSpec: `([Key Player Id] = '${contactId}' AND [Type] = 'Resource' AND [Status] = 'Open')`,
       ViewMode: 'Catalog',
-      fields: 'Id,Status,Created Date,Reopened Date',
+      fields: 'Id,Status,Created Date,Reopened Date,Assigned To Id,Case Number',
       ChildLinks: 'None',
     };
 
