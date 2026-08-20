@@ -10,8 +10,11 @@ export class Attachment {
   @Prop({ required: true, unique: true, type: String, default: uuidv4 })
   attachmentId!: string;
 
-  @Prop({ required: true, type: String })
-  applicationPackageId!: string;
+  @Prop({ required: false, type: String, default: null })
+  applicationPackageId?: string | null;
+
+  @Prop({ required: false, type: String, default: null })
+  resourceCaseId?: string | null;
 
   @Prop({ required: false, type: String, default: null })
   householdMemberId!: string | null;
