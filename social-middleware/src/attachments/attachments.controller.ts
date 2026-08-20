@@ -12,6 +12,7 @@ import {
   ParseUUIDPipe,
   UseGuards,
   ForbiddenException,
+  BadRequestException,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -28,6 +29,7 @@ import { GetAttachmentDto } from './dto/get-attachment.dto';
 import { SessionUtil } from '../common/utils/session.util';
 import { SessionAuthGuard } from '../auth/session-auth.guard';
 import { HouseholdService } from '../household/services/household.service';
+import { UserService } from 'src/auth/user.service';
 
 @ApiBearerAuth()
 @ApiTags('Attachments')
@@ -38,6 +40,7 @@ export class AttachmentsController {
     private readonly attachmentsService: AttachmentsService,
     private readonly sessionUtil: SessionUtil,
     private readonly householdService: HouseholdService, // used to validate ownership
+    private readonly userService: UserService, // used to retrieve case ID
   ) {}
 
   @Post()
@@ -61,6 +64,55 @@ export class AttachmentsController {
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
+  }
+
+  @Post('in-service-training')
+  @ApiOperation({ summary: 'Upload an in-service training certificate' })
+  @ApiBody({ type: CreateAttachmentDto })
+  @ApiResponse({
+    status: 201,
+    description: 'Attachment uploaded successfully',
+  })
+  @ApiResponse({ status: 400, description: 'No active resource case found' })
+  async uploadInServiceTraining(
+    @Body(new ValidationPipe({ whitelist: true, transform: true }))
+    dto: CreateAttachmentDto,
+    @Req() request: Request,
+  ) {
+    const userId = this.sessionUtil.extractUserIdFromRequest(request);
+    const user = await this.userService.findOne(userId);
+    if (!user?.resource_case_id) {
+      throw new BadRequestException(
+        'No active resource case found for this user',
+      );
+    }
+    dto.resourceCaseId = user.resource_case_id;
+    dto.applicationPackageId = undefined;
+    return await this.attachmentsService.create(dto, userId);
+  }
+
+  @Get('in-service-training')
+  @ApiOperation({ summary: 'Get in-service training certificates' })
+  @ApiResponse({
+    status: 200,
+    description: 'Attachments retrieved successfully',
+    type: [GetAttachmentDto],
+  })
+  @ApiResponse({ status: 400, description: 'No active resource case found' })
+  async getInServiceTraining(
+    @Req() request: Request,
+  ): Promise<GetAttachmentDto[]> {
+    const userId = this.sessionUtil.extractUserIdFromRequest(request);
+    const user = await this.userService.findOne(userId);
+    if (!user?.resource_case_id) {
+      throw new BadRequestException(
+        'No active resource case found for this user',
+      );
+    }
+    return await this.attachmentsService.findByResourceCaseId(
+      user.resource_case_id,
+      userId,
+    );
   }
 
   @Get('application-package/:applicationPackageId')
