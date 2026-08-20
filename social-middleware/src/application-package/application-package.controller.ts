@@ -563,6 +563,38 @@ export class ApplicationPackageController {
     );
   }
 
+  @Post('in-service-training/submit')
+  @UseGuards(SessionAuthGuard)
+  @ApiOperation({
+    summary:
+      'Submit in-service training certificates to ICM and notify social worker',
+    description:
+      'Uploads all pending in-service training certificate attachments to Siebel and creates a notification activity for the assigned social worker. Resolves the resource case from the authenticated user session.',
+  })
+  @ApiResponse({
+    status: 200,
+    schema: {
+      type: 'object',
+      properties: {
+        success: { type: 'boolean' },
+        attachmentsUploaded: { type: 'number' },
+        notificationSent: { type: 'boolean' },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'No active resource case or no pending certificates found',
+  })
+  async submitInServiceTraining(@Req() request: Request): Promise<{
+    success: boolean;
+    attachmentsUploaded: number;
+    notificationSent: boolean;
+  }> {
+    const userId = this.sessionUtil.extractUserIdFromRequest(request);
+    return this.applicationPackageService.submitInServiceTraining(userId);
+  }
+
   @Post('access-code/redeem')
   @ApiOperation({ summary: 'Redeem an access code' })
   async redeemAccessCode(
