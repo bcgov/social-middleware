@@ -114,11 +114,11 @@ export class NotificationService {
       from:
         this.configService.get<string>('CHES_FROM_EMAIL') ||
         'noreply@gov.bc.ca',
-      subject: 'Invitation to apply as a Kinship Caregiver',
+      subject: 'Invitation to apply as a Kinship Care Provider',
       body: `
-            <h2>You’ve been identified as a prospective Kinship Caregiver</h2>
+            <h2>You’ve been identified as a prospective Kinship Care Provider</h2>
             <p>Hello ${applicantName},</p>
-            <p>You have been identified as a prospective Kinship Caregiver. As part of the assessment process, the Ministry of Children and Family Development requires a completed application to proceed.</p>
+            <p>You have been identified as a prospective Kinship Care Provider. As part of the assessment process, the Ministry of Children and Family Development requires a completed application to proceed.</p>
             <p>Please sign in to the <a href="${this.frontendUrl}">Foster & Care Provider Portal</a> using your BC Services Card and enter the access code <b>${accessCode}</b> to begin.</p>
             <p>Thank you for providing the information we need to continue your assessment.</p> 
             <p>Thank you,<br>BC Caregiver Registry Team</p>
