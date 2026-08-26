@@ -13,10 +13,15 @@ import {
 } from '../enums/attachment-types.enum';
 
 export class CreateAttachmentDto {
-  @ApiProperty()
+  @ApiProperty({ required: false })
   @IsUUID()
-  @IsNotEmpty()
-  applicationPackageId!: string;
+  @IsOptional()
+  applicationPackageId?: string;
+
+  @ApiProperty({ required: false })
+  @IsString()
+  @IsOptional()
+  resourceCaseId?: string;
 
   @ApiProperty({ required: false })
   @IsString()
