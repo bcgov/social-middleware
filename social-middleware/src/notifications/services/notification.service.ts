@@ -172,9 +172,9 @@ export class NotificationService {
       body: `
               <h2>Application Submitted Successfully</h2>
               <p>Hello ${applicantName},</p>
-              <p>Thank you — all required information for your caregiver application has been received, and it has now been submitted to the Ministry of Children and Family Development for processing.</p> 
-              <p>A social worker will contact you in the coming weeks if they have any questions. You can now complete your Medical Screening form. Please sign in to the <a href="${this.frontendUrl}">Foster & Care Provider Portal</a> for instructions on providing your medical information.</p>
-              <p>Thank you,<br>BC Caregiver Registry Team</p>
+              <p>Thank you — all required information for your caregiver application has been received, and it has now been submitted to the Centralized Services Hub (CSH) for processing.</p> 
+              <p>This process may take some time. If any additional information is needed to complete your initial screening, a Resource Worker will reach out to you. </p>
+              <p>If you have an urgent concern, CSH can be reached at: <a href="mailto:CSH.GeneralEnquiries@gov.bc.ca">CSH.GeneralEnquiries@gov.bc.ca</a></p>
             `,
       bodyType: 'html',
       priority: 'normal',
