@@ -1,16 +1,16 @@
-import { Injectable } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
+import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { firstValueFrom } from 'rxjs';
 import { AxiosError } from 'axios';
-import { SiebelAuthService } from './siebel-auth.service';
 import { PinoLogger } from 'nestjs-pino';
+import { firstValueFrom } from 'rxjs';
 import {
   CaregiverTypeItem,
   CaregiverTypesResponse,
   IcmContactDetail,
 } from './dto/caregiver-type-response.dto';
 import { IcmCaregiverType } from './enums/icm-caregiver-type.enum';
+import { SiebelAuthService } from './siebel-auth.service';
 
 interface SiebelContactResponse {
   Id?: string;
@@ -544,7 +544,7 @@ export class SiebelApiService {
       Priority: '3-Standard',
       Status: 'Open',
       'Action By': 'Staff',
-      'Activity Case Id': caseId,
+      'Case Id': caseId,
       'Primary Owner Id': activityData.owner,
     };
 
