@@ -57,7 +57,8 @@ export interface SiebelSRDetail {
 export interface SiebelResourceCase {
   Id: string;
   Status: string;
-  'Case Number': string;
+  'Case Num': string;
+  'Assigned To': string;
   'Assigned To Id'?: string;
   'Created Date': string;
   'Reopened Date': string;
@@ -601,7 +602,8 @@ export class SiebelApiService {
     const params = {
       SearchSpec: `([Key Player Id] = '${contactId}' AND [Type] = 'Resource' AND [Status] = 'Open')`,
       ViewMode: 'Catalog',
-      fields: 'Id,Status,Created Date,Reopened Date,Assigned To Id,Case Number',
+      fields:
+        'Id,Status,Created Date,Reopened Date,Assigned To Id,Assigned To,Case Num',
       ChildLinks: 'None',
     };
 

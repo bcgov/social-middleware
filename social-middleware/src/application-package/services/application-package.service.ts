@@ -2191,6 +2191,7 @@ export class ApplicationPackageService {
         } else {
           await this.siebelApiService.createCaseNotification(resourceCaseId, {
             owner: matchingCase['Assigned To Id'],
+            assignedTo: matchingCase['Assigned To'],
             caseNumber: matchingCase['Case Num'],
             description: `Caregiver has submitted in-service training certificate(s) (${matchingCase['Case Num'] ?? resourceCaseId})`,
           });
