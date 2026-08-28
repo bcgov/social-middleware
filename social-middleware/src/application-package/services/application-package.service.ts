@@ -7,57 +7,57 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { v4 as uuidv4 } from 'uuid';
 import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
-import { ApplicationPackage } from '../schema/application-package.schema';
+import { v4 as uuidv4 } from 'uuid';
+import {
+  ApplicationFormType,
+  getApplicationFormRecipe,
+  getFormIdForFormType,
+  getReferralRecipe,
+} from '../../application-form/enums/application-form-types.enum';
+import { ApplicationForm } from '../../application-form/schemas/application-form.schema';
+import { ApplicationFormService } from '../../application-form/services/application-form.service';
+import { CancelApplicationPackageDto } from '../dto/cancel-application-package.dto';
+import { CreateApplicationPackageDto } from '../dto/create-application-package.dto';
+import { SubmitReferralRequestDto } from '../dto/submit-referral-request.dto';
+import { UpdateApplicationPackageDto } from '../dto/update-application-package.dto';
 import {
   ApplicationPackageStatus,
   ServiceRequestStage,
 } from '../enums/application-package-status.enum';
-import { ApplicationForm } from '../../application-form/schemas/application-form.schema';
-import { ApplicationFormService } from '../../application-form/services/application-form.service';
-import {
-  ApplicationFormType,
-  getFormIdForFormType,
-  getReferralRecipe,
-  getApplicationFormRecipe,
-} from '../../application-form/enums/application-form-types.enum';
 import { ApplicationPackageQueueService } from '../queue/application-package-queue.service';
-import { SubmitReferralRequestDto } from '../dto/submit-referral-request.dto';
-import { CreateApplicationPackageDto } from '../dto/create-application-package.dto';
-import { UpdateApplicationPackageDto } from '../dto/update-application-package.dto';
-import { CancelApplicationPackageDto } from '../dto/cancel-application-package.dto';
+import { ApplicationPackage } from '../schema/application-package.schema';
 
-import { HouseholdService } from '../../household/services/household.service';
-import { AccessCodeService } from '../../household/services/access-code.service';
-import { UserService } from '../../auth/user.service';
 import { ConfigService } from '@nestjs/config';
-import { UserUtil } from '../../common/utils/user.util';
+import { Model } from 'mongoose';
+import { UserService } from '../../auth/user.service';
 import { calculateAge } from '../../common/utils/age.util';
 import { formatDateForSiebel } from '../../common/utils/date.util';
-import { Model } from 'mongoose';
+import { UserUtil } from '../../common/utils/user.util';
 import {
   getApplicantFlag,
   RelationshipToPrimary,
 } from '../../household/enums/relationship-to-primary.enum';
+import { AccessCodeService } from '../../household/services/access-code.service';
+import { HouseholdService } from '../../household/services/household.service';
 import {
-  SiebelApiService,
   SiebelApiError,
+  SiebelApiService,
 } from '../../siebel/siebel-api.service';
 //import { ReferralState } from './enums/application-package-subtypes.enum';
 import { ValidateHouseholdCompletionDto } from '../dto/validate-application-package.dto';
 //import { CreateApplicationFormDto } from '../application-form/dto/create-application-form.dto';
-import { HouseholdMembersDocument } from '../../household/schemas/household-members.schema';
 import { ApplicationFormStatus } from '../../application-form/enums/application-form-status.enum';
 import { AttachmentsService } from '../../attachments/attachments.service';
+import { HouseholdMembersDocument } from '../../household/schemas/household-members.schema';
 import { NotificationService } from '../../notifications/services/notification.service';
 
+import { UUID } from 'crypto';
 import {
-  AttachmentType,
   AttachmentCategoryMap,
+  AttachmentType,
 } from '../../attachments/enums/attachment-types.enum';
 import { GenderTypes } from '../../household/enums/gender-types.enum';
-import { UUID } from 'crypto';
 import { ApplicationPackageSubType } from '../enums/application-package-subtypes.enum';
 import { ProspectService } from './prospect.service';
 
@@ -2191,8 +2191,8 @@ export class ApplicationPackageService {
         } else {
           await this.siebelApiService.createCaseNotification(resourceCaseId, {
             owner: matchingCase['Assigned To Id'],
-            caseNumber: matchingCase['Case Number'],
-            description: `Caregiver has submitted in-service training certificate(s) (${matchingCase['Case Number'] ?? resourceCaseId})`,
+            caseNumber: matchingCase['Case Num'],
+            description: `Caregiver has submitted in-service training certificate(s) (${matchingCase['Case Num'] ?? resourceCaseId})`,
           });
           notificationSent = true;
         }
