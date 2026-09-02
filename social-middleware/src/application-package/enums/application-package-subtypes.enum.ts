@@ -2,11 +2,12 @@ import { ServiceRequestStage } from './application-package-status.enum';
 
 export enum ApplicationPackageSubType {
   FCH = 'FCH',
-  OOC = 'OOC',
+  OOC = 'Kinship',
   PROSPECTIVE = 'Prospective Caregiver',
 }
 
 export enum ApplicationPackageSubSubType {
+  _BLANK = '',
   FCH = 'FCH',
   RESTRICTEDFCH = 'Restricted FCH',
   CUSTODYTOOTHER = 'Custody to Other (Interim/Temporary)',
