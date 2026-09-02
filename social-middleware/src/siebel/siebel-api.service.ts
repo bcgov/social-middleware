@@ -375,6 +375,7 @@ export class SiebelApiService {
       fileType: string;
       description: string;
       category: string;
+      subCategory?: string;
     },
   ) {
     const endpoint = '/Attachment/Attachment';
@@ -385,6 +386,7 @@ export class SiebelApiService {
       'Memo Number': '',
       Categorie: 'Attachment',
       Category: attachmentData.category,
+      'Sub-Category': attachmentData.subCategory ?? '',
       Status: 'Complete',
       FileExt: attachmentData.fileType,
       FileName: attachmentData.fileName,
@@ -509,6 +511,7 @@ export class SiebelApiService {
       fileType: string;
       description: string;
       category: string;
+      subCategory?: string;
     },
   ) {
     const endpoint = '/Attachment/Attachment';
@@ -519,6 +522,7 @@ export class SiebelApiService {
       'Memo Number': '',
       Categorie: 'Attachment',
       Category: attachmentData.category,
+      'Sub-Category': attachmentData.subCategory ?? '',
       Status: 'Complete',
       FileExt: attachmentData.fileType,
       FileName: attachmentData.fileName,
