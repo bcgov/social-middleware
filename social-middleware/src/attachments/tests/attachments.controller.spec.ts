@@ -1,16 +1,18 @@
-import { Test, TestingModule } from '@nestjs/testing';
 import {
+  BadRequestException,
   ForbiddenException,
   HttpException,
   HttpStatus,
   NotFoundException,
 } from '@nestjs/common';
+import { Test, TestingModule } from '@nestjs/testing';
 import { Request } from 'express';
+import { SessionAuthGuard } from 'src/auth/session-auth.guard';
+import { SessionUtil } from 'src/common/utils/session.util';
+import { HouseholdService } from 'src/household/services/household.service';
+import { UserService } from '../../auth/user.service';
 import { AttachmentsController } from '../attachments.controller';
 import { AttachmentsService } from '../attachments.service';
-import { HouseholdService } from 'src/household/services/household.service';
-import { SessionUtil } from 'src/common/utils/session.util';
-import { SessionAuthGuard } from 'src/auth/session-auth.guard';
 import { AttachmentType } from '../enums/attachment-types.enum';
 
 describe('AttachmentsController', () => {
@@ -33,6 +35,10 @@ describe('AttachmentsController', () => {
     delete: jest.fn(),
   };
 
+  const mockUserService = {
+    findOne: jest.fn(),
+  };
+
   const mockHouseholdService = {
     verifyUserOwnsHouseholdMemberPackage: jest.fn(),
   };
@@ -49,6 +55,7 @@ describe('AttachmentsController', () => {
         { provide: AttachmentsService, useValue: mockAttachmentsService },
         { provide: SessionUtil, useValue: mockSessionUtil },
         { provide: HouseholdService, useValue: mockHouseholdService },
+        { provide: UserService, useValue: mockUserService },
       ],
     })
       .overrideGuard(SessionAuthGuard)
@@ -225,6 +232,39 @@ describe('AttachmentsController', () => {
         controller.downloadAttachment(ATTACHMENT_ID, mockRequest),
       ).rejects.toThrow(
         new HttpException('Attachment not found', HttpStatus.NOT_FOUND),
+      );
+    });
+  });
+
+  describe('uploadInServiceTraining', () => {
+    const dto = {
+      attachmentType: AttachmentType.IN_SERVICE_TRAINING_CERTIFICATE,
+      fileName: 'cert',
+      fileType: 'pdf',
+      fileData: 'base64',
+    };
+
+    it('throws BadRequestException when user has no active resource case', async () => {
+      mockUserService.findOne.mockResolvedValue({ resource_case_id: null });
+      await expect(
+        controller.uploadInServiceTraining(dto as any, mockRequest),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('sets resourceCaseId and calls service', async () => {
+      mockUserService.findOne.mockResolvedValue({ resource_case_id: 'case-1' });
+      mockAttachmentsService.create.mockResolvedValue({
+        attachmentId: ATTACHMENT_ID,
+      });
+
+      await controller.uploadInServiceTraining(dto, mockRequest);
+
+      expect(mockAttachmentsService.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          resourceCaseId: 'case-1',
+          applicationPackageId: undefined,
+        }),
+        USER_ID,
       );
     });
   });
