@@ -2,9 +2,9 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
-import { Attachment, AttachmentDocument } from './schemas/attachment.schema';
 import { CreateAttachmentDto } from './dto/create-attachment.dto';
 import { GetAttachmentDto } from './dto/get-attachment.dto';
+import { Attachment, AttachmentDocument } from './schemas/attachment.schema';
 
 @Injectable()
 export class AttachmentsService {
@@ -131,7 +131,7 @@ export class AttachmentsService {
       icmAttachmentId: attachment.icmAttachmentId,
       createdAt: attachment.createdAt,
       updatedAt: attachment.updatedAt,
-      sentToIcmAt: attachment.sentToICMAt,
+      sentToICMAt: attachment.sentToICMAt,
     }));
   }
 
