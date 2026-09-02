@@ -55,6 +55,7 @@ import { NotificationService } from '../../notifications/services/notification.s
 import { UUID } from 'crypto';
 import {
   AttachmentCategoryMap,
+  AttachmentSubCategoryMap,
   AttachmentType,
 } from '../../attachments/enums/attachment-types.enum';
 import { GenderTypes } from '../../household/enums/gender-types.enum';
@@ -1977,6 +1978,8 @@ export class ApplicationPackageService {
 
     const category =
       AttachmentCategoryMap[AttachmentType.TRAINING_CERTIFICATE] ?? 'Training';
+    const subCategory =
+      AttachmentSubCategoryMap[AttachmentType.TRAINING_CERTIFICATE] ?? '';
     let uploadedCount = 0;
 
     for (const attachment of pending) {
@@ -1998,6 +2001,7 @@ export class ApplicationPackageService {
           fileContent: fullAttachment.fileData,
           fileType: fullAttachment.fileType,
           category,
+          subCategory,
           description: AttachmentType.TRAINING_CERTIFICATE,
         });
 
@@ -2122,6 +2126,11 @@ export class ApplicationPackageService {
     const category =
       AttachmentCategoryMap[AttachmentType.IN_SERVICE_TRAINING_CERTIFICATE] ??
       'Training';
+
+    const subCategory =
+      AttachmentSubCategoryMap[
+        AttachmentType.IN_SERVICE_TRAINING_CERTIFICATE
+      ] ?? '';
     let uploadedCount = 0;
 
     for (const attachment of pending) {
@@ -2143,6 +2152,7 @@ export class ApplicationPackageService {
           fileContent: fullAttachment.fileData,
           fileType: fullAttachment.fileType,
           category,
+          subCategory,
           description: AttachmentType.IN_SERVICE_TRAINING_CERTIFICATE,
         });
 
