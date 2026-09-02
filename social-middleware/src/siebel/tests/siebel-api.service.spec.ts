@@ -1,15 +1,16 @@
-import { Test, TestingModule } from '@nestjs/testing';
 import { HttpService } from '@nestjs/axios';
 import { ConfigService } from '@nestjs/config';
-import { of, throwError } from 'rxjs';
+import { Test, TestingModule } from '@nestjs/testing';
 import { AxiosError } from 'axios';
-import { SiebelApiService, SiebelApiError } from '../siebel-api.service';
-import { SiebelAuthService } from '../siebel-auth.service';
 import { PinoLogger } from 'nestjs-pino';
+import { of, throwError } from 'rxjs';
 import { IcmCaregiverType } from '../enums/icm-caregiver-type.enum';
+import { SiebelApiError, SiebelApiService } from '../siebel-api.service';
+import { SiebelAuthService } from '../siebel-auth.service';
 
 const mockLogger = {
   setContext: jest.fn(),
+  trace: jest.fn(),
   debug: jest.fn(),
   info: jest.fn(),
   warn: jest.fn(),
