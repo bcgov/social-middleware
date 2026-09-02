@@ -37,3 +37,16 @@ export function formatDateForSiebel(dateInput: string | Date): string {
 
   return `${month}/${day}/${year}`;
 }
+
+/**
+ * Returns the current date in mmm-dd-yyyy format (e.g., Sep-02-2026)
+ * @returns Formatted date string in mmm-dd-yyyy format
+ */
+export function getCurrentDateMmmDdYyyy(): string {
+  const date = new Date();
+  const month = date.toLocaleString('en-US', { month: 'short' });
+  const day = String(date.getDate()).padStart(2, '0');
+  const year = date.getFullYear();
+
+  return `${month}-${day}-${year}`;
+}
