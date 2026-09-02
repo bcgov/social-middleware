@@ -1,35 +1,36 @@
 import {
-  Controller,
-  Post,
-  Get,
-  Delete,
-  Param,
+  BadRequestException,
   Body,
-  Req,
+  Controller,
+  Delete,
+  ForbiddenException,
+  Get,
   HttpException,
   HttpStatus,
-  ValidationPipe,
+  Param,
   ParseUUIDPipe,
+  Post,
+  Req,
   UseGuards,
-  ForbiddenException,
-  BadRequestException,
+  ValidationPipe,
 } from '@nestjs/common';
 import {
-  ApiTags,
-  ApiOperation,
-  ApiResponse,
-  ApiParam,
-  ApiBody,
   ApiBearerAuth,
+  ApiBody,
+  ApiOperation,
+  ApiParam,
+  ApiResponse,
+  ApiTags,
 } from '@nestjs/swagger';
 import { Request } from 'express';
+import { UserService } from 'src/auth/user.service';
+import { SessionAuthGuard } from '../auth/session-auth.guard';
+import { getCurrentDateMmmDdYyyy } from '../common/utils/date.util';
+import { SessionUtil } from '../common/utils/session.util';
+import { HouseholdService } from '../household/services/household.service';
 import { AttachmentsService } from './attachments.service';
 import { CreateAttachmentDto } from './dto/create-attachment.dto';
 import { GetAttachmentDto } from './dto/get-attachment.dto';
-import { SessionUtil } from '../common/utils/session.util';
-import { SessionAuthGuard } from '../auth/session-auth.guard';
-import { HouseholdService } from '../household/services/household.service';
-import { UserService } from 'src/auth/user.service';
 
 @ApiBearerAuth()
 @ApiTags('Attachments')
@@ -57,6 +58,7 @@ export class AttachmentsController {
   ) {
     try {
       const userId = this.sessionUtil.extractUserIdFromRequest(request);
+      dto.fileName = `${dto.fileName} [${getCurrentDateMmmDdYyyy()}]`;
       return await this.attachmentsService.create(dto, userId);
     } catch (error) {
       throw new HttpException(
@@ -87,6 +89,7 @@ export class AttachmentsController {
       );
     }
     dto.resourceCaseId = user.resource_case_id;
+    dto.fileName = `${dto.fileName} [${getCurrentDateMmmDdYyyy()}]`;
     dto.applicationPackageId = undefined;
     return await this.attachmentsService.create(dto, userId);
   }
