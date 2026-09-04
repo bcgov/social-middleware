@@ -5,7 +5,11 @@ import { AxiosError } from 'axios';
 import { PinoLogger } from 'nestjs-pino';
 import { of, throwError } from 'rxjs';
 import { IcmCaregiverType } from '../enums/icm-caregiver-type.enum';
-import { SiebelApiError, SiebelApiService } from '../siebel-api.service';
+import {
+  SiebelApiError,
+  SiebelApiService,
+  SiebelCaseContact,
+} from '../siebel-api.service';
 import { SiebelAuthService } from '../siebel-auth.service';
 
 const mockLogger = {
@@ -274,29 +278,71 @@ describe('SiebelApiService - put()', () => {
 // ─── getCaseContacts() ────────────────────────────────────────────────────────
 
 describe('SiebelApiService - getCaseContacts()', () => {
-  it('throws when CASE_CONTACTS_ENDPOINT is not configured', async () => {
-    const httpGet = jest.fn();
-    const service = await makeModule({ get: httpGet }); // no CASE_CONTACTS_ENDPOINT in config
+  it('queries the case contacts child endpoint with the correct params', async () => {
+    const httpGet = jest.fn().mockReturnValue(of({ data: { items: [] } }));
+    const service = await makeModule({ get: httpGet });
 
-    await expect(service.getCaseContacts({})).rejects.toThrow(
-      'CASE_CONTACTS_ENDPOINT configuration is missing',
-    );
-    expect(httpGet).not.toHaveBeenCalled();
-  });
-
-  it('calls the configured endpoint', async () => {
-    const httpGet = jest.fn().mockReturnValue(of({ data: {} }));
-    const service = await makeModule(
-      { get: httpGet },
-      { CASE_CONTACTS_ENDPOINT: '/CaseContacts/Contacts' },
-    );
-
-    await service.getCaseContacts({ query: 'test' });
+    await service.getCaseContacts('1-52XHAQJ');
 
     expect(httpGet).toHaveBeenCalledWith(
-      'https://siebel.example.com/CaseContacts/Contacts',
-      expect.anything(),
+      'https://siebel.example.com/Cases/Case/1-52XHAQJ/Contact',
+      expect.objectContaining({
+        params: {
+          ViewMode: 'Organization',
+          fields: 'Relationship,Last Name,First Name,End Date',
+        },
+      }),
     );
+  });
+
+  it('returns the items array when present', async () => {
+    const contacts: SiebelCaseContact[] = [
+      {
+        Id: '1-52MIU51',
+        Relationship: 'Key player',
+        'First Name': 'Molly',
+        'Last Name': 'Moore',
+        'End Date': '',
+      },
+    ];
+    const httpGet = jest
+      .fn()
+      .mockReturnValue(of({ data: { items: contacts } }));
+    const service = await makeModule({ get: httpGet });
+
+    const result = await service.getCaseContacts('1-52XHAQJ');
+
+    expect(result).toEqual(contacts);
+  });
+
+  it('wraps a single contact returned without the items wrapper', async () => {
+    const contact = { Id: '1-52MIU51', Relationship: 'Key player' };
+    const httpGet = jest.fn().mockReturnValue(of({ data: contact }));
+    const service = await makeModule({ get: httpGet });
+
+    const result = await service.getCaseContacts('1-52XHAQJ');
+
+    expect(result).toEqual([contact]);
+  });
+
+  it('returns an empty array when the response has no items', async () => {
+    const httpGet = jest.fn().mockReturnValue(of({ data: {} }));
+    const service = await makeModule({ get: httpGet });
+
+    const result = await service.getCaseContacts('1-52XHAQJ');
+
+    expect(result).toEqual([]);
+  });
+
+  it('returns an empty array on 404', async () => {
+    const httpGet = jest
+      .fn()
+      .mockReturnValue(throwError(() => createAxiosError(404)));
+    const service = await makeModule({ get: httpGet });
+
+    const result = await service.getCaseContacts('1-52XHAQJ');
+
+    expect(result).toEqual([]);
   });
 });
 
