@@ -1,15 +1,18 @@
+import { ConfigService } from '@nestjs/config';
 import { Test, TestingModule } from '@nestjs/testing';
-import { AuthListener } from '../listeners/auth.listener';
+import { User } from 'src/auth/schemas';
+import { UserService } from '../../auth/user.service';
 import {
   AuthEventsService,
   UserLoggedInEvent,
 } from '../../common/events/auth-events.service';
-import { SiebelApiService } from '../../siebel/siebel-api.service';
+import {
+  SiebelApiService,
+  SiebelCaseContact,
+} from '../../siebel/siebel-api.service';
+import { AuthListener } from '../listeners/auth.listener';
 import { ApplicationPackageService } from '../services/application-package.service';
-import { UserService } from '../../auth/user.service';
 import { BcscSyncService } from '../services/bcsc-sync.service';
-import { User } from 'src/auth/schemas';
-import { ConfigService } from '@nestjs/config';
 
 const mockLogger = {
   setContext: jest.fn(),
@@ -394,6 +397,244 @@ describe('AuthListener — BCSC sync', () => {
 
     expect(mocks.authEventsService.completeUserSync).toHaveBeenCalledWith(
       'user-001',
+    );
+  });
+});
+
+// ─── Non-key player caregiver sync ───────────────────────────────────────────
+
+describe('AuthListener.syncNonKeyPlayerCaregiver', () => {
+  async function triggerLogin(
+    user: User,
+    caseContacts: SiebelCaseContact[] | Error,
+  ) {
+    const userService = {
+      findOne: jest.fn().mockResolvedValue(user),
+      updateUser: jest.fn().mockResolvedValue(user),
+    };
+    const siebelApiService = {
+      getContactByBcscId: jest.fn().mockResolvedValue(null),
+      getOpenResourceCasesByContactId: jest.fn().mockResolvedValue([]),
+      getCaseContacts: jest.fn(),
+      getServiceRequestsByBcscId: jest.fn().mockResolvedValue({ items: [] }),
+    };
+    if (caseContacts instanceof Error) {
+      siebelApiService.getCaseContacts.mockRejectedValue(caseContacts);
+    } else {
+      siebelApiService.getCaseContacts.mockResolvedValue(caseContacts);
+    }
+    const authEventsService = {
+      onUserLoggedIn: jest.fn(),
+      completeUserSync: jest.fn(),
+      emitUserLoggedInEvent: jest.fn(),
+    };
+
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        AuthListener,
+        { provide: AuthEventsService, useValue: authEventsService },
+        { provide: SiebelApiService, useValue: siebelApiService },
+        {
+          provide: ApplicationPackageService,
+          useValue: {
+            getApplicationPackages: jest.fn().mockResolvedValue([]),
+            deleteWithdrawnPackages: jest.fn().mockResolvedValue(undefined),
+          },
+        },
+        { provide: UserService, useValue: userService },
+        { provide: BcscSyncService, useValue: { syncOnLogin: jest.fn() } },
+        {
+          provide: ConfigService,
+          useValue: {
+            get: jest.fn((key: string) =>
+              key === 'TEST_RESOURCE_CASE' ? 'true' : undefined,
+            ),
+          },
+        },
+        { provide: 'PinoLogger:AuthListener', useValue: mockLogger },
+      ],
+    }).compile();
+
+    const listener = module.get<AuthListener>(AuthListener);
+
+    let loginCallback!: (e: UserLoggedInEvent) => void;
+    authEventsService.onUserLoggedIn.mockImplementation(
+      (cb: (e: UserLoggedInEvent) => void) => {
+        loginCallback = cb;
+      },
+    );
+    listener.onModuleInit();
+
+    const done = new Promise<void>((resolve) => {
+      authEventsService.completeUserSync.mockImplementation(() => resolve());
+    });
+    loginCallback(mockUserEvent);
+    await done;
+
+    return { userService, siebelApiService, authEventsService };
+  }
+
+  const activeCaseUser = (overrides: Partial<User> = {}): User =>
+    mockUser({
+      contact_id: 'contact-abc',
+      resource_case_id: 'case-001',
+      resource_case_closed: false,
+      resource_case_last_checked: new Date(),
+      ...overrides,
+    });
+
+  it('stores the matching active Spouse contact', async () => {
+    const { userService } = await triggerLogin(activeCaseUser(), [
+      {
+        Id: '1',
+        Relationship: 'Key player',
+        'First Name': 'Jane',
+        'Last Name': 'Doe',
+        'End Date': '',
+      },
+      {
+        Id: '2',
+        Relationship: 'Spouse',
+        'First Name': 'John',
+        'Last Name': 'Smith',
+        'End Date': '',
+      },
+    ]);
+
+    expect(userService.updateUser).toHaveBeenCalledWith('user-001', {
+      non_key_player_caregiver: {
+        first_name: 'John',
+        last_name: 'Smith',
+        relationship: 'Spouse',
+      },
+    });
+  });
+
+  it('excludes contacts with an end date', async () => {
+    const { userService } = await triggerLogin(activeCaseUser(), [
+      {
+        Id: '2',
+        Relationship: 'Spouse',
+        'First Name': 'John',
+        'Last Name': 'Smith',
+        'End Date': '01/15/2025',
+      },
+    ]);
+
+    expect(userService.updateUser).toHaveBeenCalledWith('user-001', {
+      non_key_player_caregiver: null,
+    });
+  });
+
+  it('excludes contacts with non-caregiver relationships', async () => {
+    const { userService } = await triggerLogin(activeCaseUser(), [
+      {
+        Id: '1',
+        Relationship: 'Key player',
+        'First Name': 'Molly',
+        'Last Name': 'Moore',
+        'End Date': '',
+      },
+      {
+        Id: '2',
+        Relationship: 'Unknown',
+        'First Name': 'Bug',
+        'Last Name': 'Caregiver',
+        'End Date': '',
+      },
+    ]);
+
+    expect(userService.updateUser).toHaveBeenCalledWith('user-001', {
+      non_key_player_caregiver: null,
+    });
+  });
+
+  it('warns and uses the first match when multiple non-key players exist', async () => {
+    const { userService } = await triggerLogin(activeCaseUser(), [
+      {
+        Id: '1',
+        Relationship: 'Spouse',
+        'First Name': 'John',
+        'Last Name': 'Smith',
+        'End Date': '',
+      },
+      {
+        Id: '2',
+        Relationship: 'Common law',
+        'First Name': 'Kim',
+        'Last Name': 'Lee',
+        'End Date': '',
+      },
+    ]);
+
+    expect(mockLogger.warn).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: 'user-001', count: 2 }),
+      expect.stringContaining('Multiple non-key player caregivers'),
+    );
+    expect(userService.updateUser).toHaveBeenCalledWith('user-001', {
+      non_key_player_caregiver: {
+        first_name: 'John',
+        last_name: 'Smith',
+        relationship: 'Spouse',
+      },
+    });
+  });
+
+  it('clears the stored caregiver when the user has no resource case', async () => {
+    const user = mockUser({
+      contact_id: 'contact-abc',
+      resource_case_last_checked: new Date(),
+      non_key_player_caregiver: {
+        first_name: 'John',
+        last_name: 'Smith',
+        relationship: 'Spouse',
+      },
+    });
+    const { userService, siebelApiService } = await triggerLogin(user, []);
+
+    expect(siebelApiService.getCaseContacts).not.toHaveBeenCalled();
+    expect(userService.updateUser).toHaveBeenCalledWith('user-001', {
+      non_key_player_caregiver: null,
+    });
+  });
+
+  it('clears the stored caregiver when the resource case is closed', async () => {
+    const user = activeCaseUser({
+      resource_case_closed: true,
+      non_key_player_caregiver: {
+        first_name: 'John',
+        last_name: 'Smith',
+        relationship: 'Spouse',
+      },
+    });
+    const { userService } = await triggerLogin(user, []);
+
+    expect(userService.updateUser).toHaveBeenCalledWith('user-001', {
+      non_key_player_caregiver: null,
+    });
+  });
+
+  it('does not write when there is no resource case and nothing stored', async () => {
+    const user = mockUser({
+      contact_id: 'contact-abc',
+      resource_case_last_checked: new Date(),
+    });
+    const { userService } = await triggerLogin(user, []);
+
+    expect(userService.updateUser).not.toHaveBeenCalled();
+  });
+
+  it('keeps the existing value and does not block login when the Siebel call fails', async () => {
+    const { userService, authEventsService } = await triggerLogin(
+      activeCaseUser(),
+      new Error('Siebel unavailable'),
+    );
+
+    expect(userService.updateUser).not.toHaveBeenCalled();
+    expect(authEventsService.completeUserSync).toHaveBeenCalledWith('user-001');
+    expect(mockLogger.error).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: 'user-001' }),
+      expect.stringContaining('login not blocked'),
     );
   });
 });
