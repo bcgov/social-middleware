@@ -65,6 +65,15 @@ export interface SiebelResourceCase {
   [key: string]: unknown;
 }
 
+export interface SiebelCaseContact {
+  Id?: string;
+  Relationship?: string;
+  'First Name'?: string;
+  'Last Name'?: string;
+  'End Date'?: string;
+  [key: string]: unknown;
+}
+
 export class SiebelApiError extends Error {
   constructor(
     message: string,
@@ -74,6 +83,7 @@ export class SiebelApiError extends Error {
     this.name = 'SiebelApiError';
   }
 }
+
 @Injectable()
 export class SiebelApiService {
   private readonly baseUrl: string;
@@ -108,12 +118,35 @@ export class SiebelApiService {
     };
   }
 
-  async getCaseContacts(query: any) {
-    const endpoint = this.configService.get<string>('CASE_CONTACTS_ENDPOINT');
-    if (!endpoint) {
-      throw new Error('CASE_CONTACTS_ENDPOINT configuration is missing');
+  async getCaseContacts(caseId: string): Promise<SiebelCaseContact[]> {
+    const endpoint = `/Cases/Case/${caseId}/Contact`;
+    const params = {
+      ViewMode: 'Organization',
+      fields: 'Relationship,Last Name,First Name,End Date',
+    };
+
+    try {
+      const result = await this.get<{
+        items?: SiebelCaseContact | SiebelCaseContact[];
+        Id?: string;
+        [key: string]: unknown;
+      }>(endpoint, params);
+
+      if (result.items) {
+        return Array.isArray(result.items) ? result.items : [result.items];
+      }
+
+      if (result.Id) {
+        return [result];
+      }
+
+      return [];
+    } catch (error) {
+      if (error instanceof SiebelApiError && error.status === 404) {
+        return [];
+      }
+      throw error;
     }
-    return await this.get(endpoint, query);
   }
 
   async getServiceRequests(query: any) {
