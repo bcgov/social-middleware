@@ -1,5 +1,8 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
+import { UserService } from 'src/auth/user.service';
+import { NonKeyPlayerCaregiver, User } from '../../auth/schemas/user.schema';
 import {
   AuthEventsService,
   UserLoggedInEvent,
@@ -7,14 +10,10 @@ import {
 import {
   SiebelApiService,
   SiebelResourceCase,
-  //SiebelSRResponse,
   SiebelSRsResponse,
 } from '../../siebel/siebel-api.service';
-import { ApplicationPackageService } from '../services/application-package.service';
 import { ServiceRequestStage } from '../enums/application-package-status.enum';
-import { UserService } from 'src/auth/user.service';
-import { User } from '../../auth/schemas/user.schema';
-import { ConfigService } from '@nestjs/config';
+import { ApplicationPackageService } from '../services/application-package.service';
 import { BcscSyncService } from '../services/bcsc-sync.service';
 
 // private helper function to compute resouce case active date:
@@ -23,6 +22,7 @@ function resolveActiveCaseDate(c: SiebelResourceCase): Date {
   const created = c['Created Date'] ? new Date(c['Created Date']) : new Date(0);
   return reopened && reopened > created ? reopened : created;
 }
+const NON_KEY_PLAYER_RELATIONSHIPS = ['Partner', 'Spouse', 'Common law'];
 
 @Injectable()
 export class AuthListener implements OnModuleInit {
@@ -61,6 +61,7 @@ export class AuthListener implements OnModuleInit {
       // sync resource case status (requires contact_id to be est)
       if (this.configService.get<string>('TEST_RESOURCE_CASE') === 'true') {
         await this.syncResourceCase(userData);
+        await this.syncNonKeyPlayerCaregiver(userData);
       }
 
       // remove any previously withdrawn application packages
@@ -214,6 +215,83 @@ export class AuthListener implements OnModuleInit {
       this.logger.error(
         { error, userId: userData.userId },
         'Failed to sync resource case - login not blocked',
+      );
+    }
+  }
+
+  private async syncNonKeyPlayerCaregiver(
+    userData: UserLoggedInEvent,
+  ): Promise<void> {
+    try {
+      const user = await this.userService.findOne(userData.userId);
+
+      // if there is no resource case or the case was closed
+      if (!user.resource_case_id || user.resource_case_closed) {
+        // but we found a non key player caregiver
+        if (user.non_key_player_caregiver) {
+          // remove it, because it's invalid now.
+          await this.userService.updateUser(userData.userId, {
+            non_key_player_caregiver: null,
+          });
+        }
+        return;
+      }
+
+      const contacts = await this.siebelApiService.getCaseContacts(
+        user.resource_case_id,
+      );
+
+      const nonKeyPlayers = contacts.filter(
+        (c) =>
+          typeof c.Relationship === 'string' &&
+          NON_KEY_PLAYER_RELATIONSHIPS.includes(c.Relationship) &&
+          !c['End Date'],
+      );
+
+      // there should be 1 or 0; however data can be unusual.
+
+      if (nonKeyPlayers.length > 1) {
+        this.logger.warn(
+          {
+            userId: userData.userId,
+            caseId: user.resource_case_id,
+            count: nonKeyPlayers.length,
+          },
+          'Multiple non-key player caregivers found --using first',
+        );
+      }
+
+      const c = nonKeyPlayers[0];
+      const caregiver: NonKeyPlayerCaregiver | null = c
+        ? {
+            first_name: c['First Name'] ?? '',
+            last_name: c['Last Name'] ?? '',
+            relationship: c.Relationship as string,
+          }
+        : null;
+
+      // store the non_key_player_caregiver object in the user record.
+      await this.userService.updateUser(userData.userId, {
+        non_key_player_caregiver: caregiver,
+      });
+
+      this.logger.info(
+        {
+          userId: userData.userId,
+          caseId: user.resource_case_id,
+          caregiver: caregiver
+            ? `${caregiver.first_name} ${caregiver.last_name} (${caregiver.relationship})`
+            : 'none',
+        },
+        'Non-key player caregiver synced',
+      );
+    } catch (error) {
+      this.logger.error(
+        {
+          error,
+          userId: userData.userId,
+        },
+        'Failed to sync non-key player caregiver - login not blocked',
       );
     }
   }

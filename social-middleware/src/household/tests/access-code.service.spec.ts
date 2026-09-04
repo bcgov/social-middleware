@@ -1,13 +1,13 @@
-import { Test, TestingModule } from '@nestjs/testing';
-import { getModelToken } from '@nestjs/mongoose';
 import { InternalServerErrorException } from '@nestjs/common';
-import { AccessCodeService } from '../services/access-code.service';
-import { ScreeningAccessCode } from '../schemas/screening-access-code.schema';
-import { ApplicationPackage } from '../../application-package/schema/application-package.schema';
-import { ApplicationForm } from '../../application-form/schemas/application-form.schema';
-import { HouseholdService } from '../services/household.service';
-import { AccessCodeType } from '../enums/access-code-type.enum';
+import { getModelToken } from '@nestjs/mongoose';
+import { Test, TestingModule } from '@nestjs/testing';
 import { PinoLogger } from 'nestjs-pino';
+import { ApplicationForm } from '../../application-form/schemas/application-form.schema';
+import { ApplicationPackage } from '../../application-package/schema/application-package.schema';
+import { AccessCodeType } from '../enums/access-code-type.enum';
+import { ScreeningAccessCode } from '../schemas/screening-access-code.schema';
+import { AccessCodeService } from '../services/access-code.service';
+import { HouseholdService } from '../services/household.service';
 
 const mockLogger = {
   info: jest.fn(),
@@ -550,11 +550,13 @@ describe('AccessCodeService - resendOrCreateAccessCode', () => {
 describe('AccessCodeService - deleteByApplicationPackageId', () => {
   let service: AccessCodeService;
 
+  const mockDeleteManyExec = jest.fn();
   const mockDeleteMany = jest.fn();
 
   beforeEach(async () => {
     jest.clearAllMocks();
-    mockDeleteMany.mockResolvedValue({ deletedCount: 2 });
+    mockDeleteMany.mockReturnValue({ exec: mockDeleteManyExec });
+    mockDeleteManyExec.mockResolvedValue({ deletedCount: 2 });
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [

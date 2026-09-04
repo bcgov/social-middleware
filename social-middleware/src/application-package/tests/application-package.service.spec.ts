@@ -1,34 +1,34 @@
-import { Test, TestingModule } from '@nestjs/testing';
-import { getModelToken } from '@nestjs/mongoose';
 import {
+  BadRequestException,
   InternalServerErrorException,
   NotFoundException,
-  BadRequestException,
 } from '@nestjs/common';
-import { ApplicationPackageService } from '../services/application-package.service';
-import { ApplicationPackage } from '../schema/application-package.schema';
+import { ConfigService } from '@nestjs/config';
+import { getModelToken } from '@nestjs/mongoose';
+import { Test, TestingModule } from '@nestjs/testing';
+import { ApplicationFormType } from '../../application-form/enums/application-form-types.enum';
+import { ApplicationFormService } from '../../application-form/services/application-form.service';
+import { AttachmentsService } from '../../attachments/attachments.service';
+import { AttachmentType } from '../../attachments/enums/attachment-types.enum';
+import { UserService } from '../../auth/user.service';
+import { UserUtil } from '../../common/utils/user.util';
+import { RelationshipToPrimary } from '../../household/enums/relationship-to-primary.enum';
+import { AccessCodeService } from '../../household/services/access-code.service';
+import { HouseholdService } from '../../household/services/household.service';
+import { NotificationService } from '../../notifications/services/notification.service';
+import { SiebelApiService } from '../../siebel/siebel-api.service';
+import { CreateApplicationPackageDto } from '../dto/create-application-package.dto';
 import {
   ApplicationPackageStatus,
   ServiceRequestStage,
 } from '../enums/application-package-status.enum';
-import { ApplicationFormType } from '../../application-form/enums/application-form-types.enum';
-import { ApplicationFormService } from '../../application-form/services/application-form.service';
-import { HouseholdService } from '../../household/services/household.service';
-import { NotificationService } from '../../notifications/services/notification.service';
-import { AccessCodeService } from '../../household/services/access-code.service';
-import { UserService } from '../../auth/user.service';
-import { UserUtil } from '../../common/utils/user.util';
-import { ApplicationPackageQueueService } from '../queue/application-package-queue.service';
 import {
   ApplicationPackageSubSubType,
   ApplicationPackageSubType,
 } from '../enums/application-package-subtypes.enum';
-import { CreateApplicationPackageDto } from '../dto/create-application-package.dto';
-import { RelationshipToPrimary } from '../../household/enums/relationship-to-primary.enum';
-import { AttachmentsService } from '../../attachments/attachments.service';
-import { AttachmentType } from '../../attachments/enums/attachment-types.enum';
-import { SiebelApiService } from '../../siebel/siebel-api.service';
-import { ConfigService } from '@nestjs/config';
+import { ApplicationPackageQueueService } from '../queue/application-package-queue.service';
+import { ApplicationPackage } from '../schema/application-package.schema';
+import { ApplicationPackageService } from '../services/application-package.service';
 import { ProspectService } from '../services/prospect.service';
 
 describe('ApplicationPackageService - updateApplicationPackageStage', () => {
@@ -1354,6 +1354,7 @@ describe('ApplicationPackageService - submitApplicationPackage — BCSC re-prosp
   const mockHouseholdService = {
     findAllHouseholdMembers: jest.fn(),
     updateHouseholdMember: jest.fn(),
+    findPrimaryApplicant: jest.fn(),
   };
 
   const mockApplicationFormService = {
@@ -1372,6 +1373,11 @@ describe('ApplicationPackageService - submitApplicationPackage — BCSC re-prosp
     createProspect: jest.fn(),
     updateServiceRequestFields: jest.fn(),
     updateServiceRequestStage: jest.fn(),
+  };
+
+  const mockApplicationPackageQueueService = {
+    enqueueReferralSubmission: jest.fn(),
+    enqueueProspectCreation: jest.fn(),
   };
 
   const mockProspectService = { createKeyPlayerProspect: jest.fn() };
@@ -1441,6 +1447,7 @@ describe('ApplicationPackageService - submitApplicationPackage — BCSC re-prosp
     mockHouseholdService.updateHouseholdMember.mockResolvedValue(
       mockSelfMember,
     );
+    mockHouseholdService.findPrimaryApplicant.mockResolvedValue(null);
 
     // Empty forms — satisfies both isApplicationPackageComplete and the attachment loop
     mockApplicationFormService.findAllByApplicationPackageId.mockResolvedValue(
@@ -1481,7 +1488,7 @@ describe('ApplicationPackageService - submitApplicationPackage — BCSC re-prosp
         { provide: UserUtil, useValue: mockUserUtil },
         {
           provide: ApplicationPackageQueueService,
-          useValue: { enqueueReferralSubmission: jest.fn() },
+          useValue: mockApplicationPackageQueueService,
         },
         { provide: AttachmentsService, useValue: {} },
         {
@@ -1582,6 +1589,11 @@ describe('ApplicationPackageService - submitApplicationPackage — BCSC re-prosp
         .spyOn(service, 'updateApplicationPackageStage')
         .mockResolvedValue(undefined as any);
 
+      mockHouseholdService.findPrimaryApplicant.mockResolvedValue({
+        householdMemberId: 'hm-self-001',
+        prospectId: null,
+      });
+
       await service.activateNewApplication(
         APPLICATION_PACKAGE_ID,
         USER_ID,
@@ -1591,6 +1603,14 @@ describe('ApplicationPackageService - submitApplicationPackage — BCSC re-prosp
       expect(service.getApplicationPackage).toHaveBeenCalledWith(
         APPLICATION_PACKAGE_ID,
         USER_ID,
+      );
+      expect(
+        mockApplicationPackageQueueService.enqueueProspectCreation,
+      ).toHaveBeenCalledWith(
+        APPLICATION_PACKAGE_ID,
+        BCSC_DID,
+        'hm-self-001',
+        'sr-001',
       );
       expect(service.updateApplicationPackageStage).toHaveBeenCalledWith(
         pkg,

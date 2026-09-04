@@ -1,31 +1,31 @@
 import {
-  Controller,
-  Post,
-  Get,
   Body,
-  Res,
-  Req,
+  Controller,
+  Get,
   HttpException,
   HttpStatus,
-  UseGuards,
   Inject,
+  Post,
+  Req,
+  Res,
+  UseGuards,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Request, Response } from 'express';
-import * as jwt from 'jsonwebtoken';
-import { UserService } from './user.service';
 import {
+  ApiCookieAuth,
   ApiOperation,
   ApiResponse,
   ApiTags,
-  ApiCookieAuth,
 } from '@nestjs/swagger';
+import { Request, Response } from 'express';
+import * as jwt from 'jsonwebtoken';
 import { PinoLogger } from 'nestjs-pino';
+import { UserPayload } from '../common/interfaces';
 import { SessionUtil } from '../common/utils/session.util';
+import { UserProfileResponse } from './interfaces/user-profile-response.interface';
 import { SessionAuthGuard } from './session-auth.guard';
 import { AuthStrategy } from './strategies/auth-strategy.interface';
-import { UserProfileResponse } from './interfaces/user-profile-response.interface';
-import { UserPayload } from '../common/interfaces';
+import { UserService } from './user.service';
 
 @ApiTags('Authentication')
 @Controller('auth')
@@ -212,6 +212,9 @@ export class AuthController {
       alternate_phone: user.alternate_phone,
       ...(user.resource_case_active_date && sendResourceDetails // if they have an active resource case, send the date, otherwise send nothing
         ? { resource_case_active_date: user.resource_case_active_date }
+        : {}),
+      ...(sendResourceDetails
+        ? { non_key_player_caregiver: user.non_key_player_caregiver ?? null }
         : {}),
     };
   }

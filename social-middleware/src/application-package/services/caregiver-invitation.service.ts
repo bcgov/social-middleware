@@ -1,22 +1,24 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import { ApplicationPackage } from '../schema/application-package.schema';
-import { AccessCodeService } from 'src/household/services/access-code.service';
+import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
 import { AccessCodeType } from 'src/household/enums/access-code-type.enum';
+import { RelationshipToPrimary } from 'src/household/enums/relationship-to-primary.enum';
+import { AccessCodeService } from 'src/household/services/access-code.service';
 import { HouseholdService } from 'src/household/services/household.service';
 import { NotificationService } from 'src/notifications/services/notification.service';
 import { SiebelApiService } from 'src/siebel/siebel-api.service';
-import { ApplicationPackageStatus } from '../enums/application-package-status.enum';
-import { ServiceRequestStage } from '../enums/application-package-status.enum';
-import { PinoLogger, InjectPinoLogger } from 'nestjs-pino';
 import { v4 as uuidv4 } from 'uuid';
-import { RelationshipToPrimary } from 'src/household/enums/relationship-to-primary.enum';
-import { ProspectiveCaregiver } from '../interfaces/prospective-caregiver.interface';
 import {
-  ApplicationPackageSubType,
+  ApplicationPackageStatus,
+  ServiceRequestStage,
+} from '../enums/application-package-status.enum';
+import {
   ApplicationPackageSubSubType,
+  ApplicationPackageSubType,
 } from '../enums/application-package-subtypes.enum';
+import { ProspectiveCaregiver } from '../interfaces/prospective-caregiver.interface';
+import { ApplicationPackage } from '../schema/application-package.schema';
 
 @Injectable()
 export class CaregiverInvitationService {
@@ -34,13 +36,14 @@ export class CaregiverInvitationService {
   async processProspectiveCaregiver(
     caregiver: ProspectiveCaregiver,
   ): Promise<void> {
-    // 1. idempotency check
+    // 1. idempotency check - is the srId linked to an application package already..
     const existing = await this.applicationPackageModel
       .findOne({ srId: caregiver.srId })
       .lean();
 
+    // it is already linked..
     if (existing) {
-      // Already redeemed — nothing to do
+      // Check if it has a userId; meaning it was completed
       if (existing.userId) {
         this.logger.info(
           { srId: caregiver.srId },
@@ -189,7 +192,7 @@ export class CaregiverInvitationService {
           contactId,
           srId,
           subtype: ApplicationPackageSubType.OOC,
-          subsubtype: ApplicationPackageSubSubType.EFP,
+          subsubtype: ApplicationPackageSubSubType._BLANK,
         };
 
         await this.processProspectiveCaregiver(caregiver);

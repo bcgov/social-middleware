@@ -1,14 +1,14 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document } from 'mongoose';
 import {
-  ApplicationPackageSubType,
-  ApplicationPackageSubSubType,
-  ReferralState,
-} from '../enums/application-package-subtypes.enum';
-import {
   ApplicationPackageStatus,
   ServiceRequestStage,
 } from '../enums/application-package-status.enum';
+import {
+  ApplicationPackageSubSubType,
+  ApplicationPackageSubType,
+  ReferralState,
+} from '../enums/application-package-subtypes.enum';
 import { SubmissionStatus } from '../enums/submission-status.enum';
 
 export type ApplicationPackageDocument = ApplicationPackage & Document;
@@ -29,7 +29,6 @@ export class ApplicationPackage {
   subtype!: ApplicationPackageSubType;
 
   @Prop({
-    required: true,
     enum: ApplicationPackageSubSubType,
     default: ApplicationPackageSubSubType.FCH,
   })

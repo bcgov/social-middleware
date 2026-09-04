@@ -5,6 +5,12 @@ import { UserStatus } from '../enums/user-status.enum';
 
 export type UserDocument = User & Document;
 
+export interface NonKeyPlayerCaregiver {
+  first_name: string;
+  last_name: string;
+  relationship: string;
+}
+
 @Schema({ timestamps: true })
 export class User {
   id!: string;
@@ -62,6 +68,9 @@ export class User {
 
   @Prop({ required: false, type: Date, default: null })
   resource_case_last_checked?: Date;
+
+  @Prop({ required: false, type: Object, default: null })
+  non_key_player_caregiver?: NonKeyPlayerCaregiver | null;
 
   @Prop({ default: Date.now })
   last_login!: Date;
