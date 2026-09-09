@@ -19,7 +19,13 @@ export class SessionUtil {
       throw new UnauthorizedException('No session token available.');
     }
 
-    const decoded = jwt.verify(sessionToken, this.jwtSecret) as jwt.JwtPayload;
+    let decoded: jwt.JwtPayload;
+
+    try {
+      decoded = jwt.verify(sessionToken, this.jwtSecret) as jwt.JwtPayload;
+    } catch {
+      throw new UnauthorizedException('Invalid or expired session token');
+    }
 
     const userId = decoded.userId as string;
 
