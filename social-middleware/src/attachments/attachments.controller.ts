@@ -11,6 +11,7 @@ import {
   ParseUUIDPipe,
   Post,
   Req,
+  UnauthorizedException,
   UseGuards,
   ValidationPipe,
 } from '@nestjs/common';
@@ -24,6 +25,7 @@ import {
 } from '@nestjs/swagger';
 import { Request } from 'express';
 import { UserService } from 'src/auth/user.service';
+import { ApplicationFormService } from '../application-form/services/application-form.service';
 import { SessionAuthGuard } from '../auth/session-auth.guard';
 import { getCurrentDateMmmDdYyyy } from '../common/utils/date.util';
 import { SessionUtil } from '../common/utils/session.util';
@@ -42,6 +44,7 @@ export class AttachmentsController {
     private readonly sessionUtil: SessionUtil,
     private readonly householdService: HouseholdService, // used to validate ownership
     private readonly userService: UserService, // used to retrieve case ID
+    private readonly applicationFormsService: ApplicationFormService,
   ) {}
 
   @Post()
@@ -56,8 +59,10 @@ export class AttachmentsController {
     dto: CreateAttachmentDto,
     @Req() request: Request,
   ) {
+    const userId = this.sessionUtil.extractUserIdFromRequest(request);
+    await this.assertAttachmentTargetOwnership(dto, userId);
+
     try {
-      const userId = this.sessionUtil.extractUserIdFromRequest(request);
       dto.fileName = `${dto.fileName} [${getCurrentDateMmmDdYyyy()}]`;
       return await this.attachmentsService.create(dto, userId);
     } catch (error) {
@@ -65,6 +70,46 @@ export class AttachmentsController {
         'Failed to upload attachment',
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
+    }
+  }
+
+  private async assertAttachmentTargetOwnership(
+    dto: CreateAttachmentDto,
+    userId: string,
+  ): Promise<void> {
+    if (dto.applicationPackageId) {
+      const ownsPackage = await this.householdService.verifyUserOwnsPackage(
+        dto.applicationPackageId,
+        userId,
+      );
+      if (!ownsPackage) {
+        throw new UnauthorizedException(
+          'Not authorized to attach to this application package',
+        );
+      }
+    }
+    if (dto.householdMemberId) {
+      const ownsMember =
+        await this.householdService.verifyUserOwnsHouseholdMemberPackage(
+          dto.householdMemberId,
+          userId,
+        );
+      if (!ownsMember) {
+        throw new UnauthorizedException(
+          'Not authorized to attach for this household member',
+        );
+      }
+    }
+    if (dto.applicationFormId) {
+      const ownsForm = await this.applicationFormsService.confirmOwnership(
+        dto.applicationFormId,
+        userId,
+      );
+      if (!ownsForm) {
+        throw new UnauthorizedException(
+          'Not authorized to attach to this application form',
+        );
+      }
     }
   }
 
