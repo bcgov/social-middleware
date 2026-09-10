@@ -85,6 +85,12 @@ export class HouseholdController {
       );
     }
 
+    if (dto.applicationPackageId !== applicationPackageId) {
+      throw new UnauthorizedException(
+        'Household member application package does not match the request target',
+      );
+    }
+
     try {
       return await this.householdService.createMember(dto);
     } catch (error: unknown) {
