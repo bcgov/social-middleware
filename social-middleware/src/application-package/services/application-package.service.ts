@@ -412,6 +412,10 @@ export class ApplicationPackageService {
 
       return updatedPackage;
     } catch (error: unknown) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+
       const err = error as Error;
       this.logger.error(
         `Failed to update application package ${applicationPackageId}: ${err.message}`,
@@ -1742,6 +1746,7 @@ export class ApplicationPackageService {
     const applicationPackage = (await this.applicationPackageModel
       .findOne({
         applicationPackageId,
+        userId,
       })
       .lean()
       .exec()) as ApplicationPackage;
@@ -1852,7 +1857,7 @@ export class ApplicationPackageService {
     );
 
     const applicationPackage = (await this.applicationPackageModel
-      .findOne({ applicationPackageId })
+      .findOne({ applicationPackageId, userId })
       .lean()
       .exec()) as ApplicationPackage;
 
@@ -1941,7 +1946,7 @@ export class ApplicationPackageService {
     );
 
     const applicationPackage = (await this.applicationPackageModel
-      .findOne({ applicationPackageId })
+      .findOne({ applicationPackageId, userId })
       .lean()
       .exec()) as ApplicationPackage;
 
