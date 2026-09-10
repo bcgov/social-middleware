@@ -255,5 +255,17 @@ describe('Attachments cross-applicant authorization', () => {
         expect(item.uploadedBy).toBe(world.userA.userId);
       }
     });
+    it('rejects an in-service upload tagged to another applicant’s household member', async () => {
+      const res = await request(harness.httpServer)
+        .post('/attachments/in-service-training')
+        .set('Cookie', cookieA)
+        .send(
+          attachmentBody({
+            householdMemberId: world.memberB.self.householdMemberId,
+          }),
+        );
+
+      expect([401, 403]).toContain(res.status);
+    });
   });
 });
