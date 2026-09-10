@@ -172,6 +172,7 @@ export class ApplicationFormsController {
   }
 
   @Get()
+  @UseGuards(SessionAuthGuard)
   @ApiOperation({
     summary: 'Get user application forms',
     description:
