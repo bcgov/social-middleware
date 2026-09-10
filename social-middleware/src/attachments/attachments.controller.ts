@@ -136,6 +136,7 @@ export class AttachmentsController {
     dto.resourceCaseId = user.resource_case_id;
     dto.fileName = `${dto.fileName} [${getCurrentDateMmmDdYyyy()}]`;
     dto.applicationPackageId = undefined;
+    await this.assertAttachmentTargetOwnership(dto, userId);
     return await this.attachmentsService.create(dto, userId);
   }
 
