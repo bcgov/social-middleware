@@ -144,7 +144,7 @@ export class AttachmentsService {
     userId: string,
   ): Promise<AttachmentDocument | null> {
     return await this.attachmentModel
-      .findOne({ attachmentId, userId })
+      .findOne({ attachmentId, uploadedBy: userId })
       .lean()
       .exec();
   }
