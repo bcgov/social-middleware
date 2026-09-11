@@ -15,10 +15,16 @@ spec:
       type: string
   workspaces:
     - name: source
+  volumes:
+    - name: node-modules
+      emptyDir: {}
   steps:
     - name: install-and-test
       image: $(params.NODE_IMAGE)
       workingDir: $(workspaces.source.path)/$(params.PROJECT_DIR)
+      volumeMounts:
+        - name: node-modules
+          mountPath: /workspace/source/social-middleware/node_modules
       env:
         - name: HOME
           value: /tmp
@@ -27,6 +33,5 @@ spec:
       script: |
         #!/usr/bin/env bash
         set -euxo pipefail
-
         npm ci
         npm test -- --runInBand --coverage=false
