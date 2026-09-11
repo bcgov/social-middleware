@@ -182,6 +182,7 @@ export async function startAuthorizationApp(): Promise<AuthorizationHarness> {
   process.env.JWT_SECRET ??= 'authorization-test-jwt-secret';
   process.env.FRONTEND_URL ??= 'http://localhost:5173';
   process.env.FORM_ACCESS_TOKEN_EXPIRY_MINUTES ??= '30';
+  process.env.TEST_RESOURCE_CASE = 'false';
 
   const mongod = await MongoMemoryServer.create();
   const siebel = buildSiebelMock();
