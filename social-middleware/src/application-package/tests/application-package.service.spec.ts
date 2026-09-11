@@ -2045,16 +2045,15 @@ describe('ApplicationPackageService - updateApplicationPackage', () => {
     );
   });
 
-  it('surfaces the internal NotFoundException as an InternalServerErrorException (current behaviour)', async () => {
-    // NOTE: the method throws NotFoundException inside its own try/catch, so the
-    // caller actually receives InternalServerErrorException. Likely a bug — see
-    // getApplicationPackage for the correct rethrow pattern.
+  it('throws NotFoundException when the package is not found for the user', async () => {
     mockModel.findOneAndUpdate.mockReturnValue(queryFor(null));
 
     await expect(
       service.updateApplicationPackage('pkg-1', {}, 'user-1'),
     ).rejects.toThrow(
-      new InternalServerErrorException('Could not update application package'),
+      new NotFoundException(
+        'Application package with ID pkg-1 not found or access denied',
+      ),
     );
   });
 

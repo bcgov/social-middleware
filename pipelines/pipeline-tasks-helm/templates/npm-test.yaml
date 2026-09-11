@@ -1,0 +1,32 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: npm-test
+  namespace: {{.Release.Namespace}}
+spec:
+  params:
+    - name: PROJECT_DIR
+      description: Directory of the middleware project inside the cloned repo.
+      default: social-middleware
+      type: string
+    - name: NODE_IMAGE
+      description: Node image used to run the test suite.
+      default: docker.io/library/node:22
+      type: string
+  workspaces:
+    - name: source
+  steps:
+    - name: install-and-test
+      image: $(params.NODE_IMAGE)
+      workingDir: $(workspaces.source.path)/$(params.PROJECT_DIR)
+      env:
+        - name: HOME
+          value: /tmp
+        - name: MONGOMS_DOWNLOAD_DIR
+          value: /tmp/mongodb-binaries
+      script: |
+        #!/usr/bin/env bash
+        set -euxo pipefail
+
+        npm ci
+        npm test -- --runInBand --coverage=false

@@ -1,11 +1,12 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
+import { ApplicationFormModule } from '../application-form/application-form.module';
+import { AuthModule } from '../auth/auth.module';
+import { SessionUtil } from '../common/utils/session.util';
+import { HouseholdModule } from '../household/household.module';
 import { AttachmentsController } from './attachments.controller';
 import { AttachmentsService } from './attachments.service';
 import { Attachment, AttachmentSchema } from './schemas/attachment.schema';
-import { SessionUtil } from '../common/utils/session.util';
-import { HouseholdModule } from '../household/household.module';
-import { AuthModule } from '../auth/auth.module';
 
 @Module({
   imports: [
@@ -14,6 +15,7 @@ import { AuthModule } from '../auth/auth.module';
     ]),
     HouseholdModule,
     AuthModule,
+    ApplicationFormModule,
   ],
   controllers: [AttachmentsController],
   providers: [AttachmentsService, SessionUtil],

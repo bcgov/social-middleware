@@ -49,3 +49,4 @@ bower_components/
 # OS files
 .DS_Store
 Thumbs.db
+social-middleware/dump.rdb

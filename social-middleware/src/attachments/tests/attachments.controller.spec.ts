@@ -4,9 +4,11 @@ import {
   HttpException,
   HttpStatus,
   NotFoundException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Request } from 'express';
+import { ApplicationFormService } from 'src/application-form/services/application-form.service';
 import { SessionAuthGuard } from 'src/auth/session-auth.guard';
 import { SessionUtil } from 'src/common/utils/session.util';
 import { HouseholdService } from 'src/household/services/household.service';
@@ -40,7 +42,11 @@ describe('AttachmentsController', () => {
   };
 
   const mockHouseholdService = {
+    verifyUserOwnsPackage: jest.fn(),
     verifyUserOwnsHouseholdMemberPackage: jest.fn(),
+  };
+  const mockApplicationFormsService = {
+    confirmOwnership: jest.fn(),
   };
 
   const mockRequest = {} as Request;
@@ -56,6 +62,10 @@ describe('AttachmentsController', () => {
         { provide: SessionUtil, useValue: mockSessionUtil },
         { provide: HouseholdService, useValue: mockHouseholdService },
         { provide: UserService, useValue: mockUserService },
+        {
+          provide: ApplicationFormService,
+          useValue: mockApplicationFormsService,
+        },
       ],
     })
       .overrideGuard(SessionAuthGuard)
@@ -66,6 +76,10 @@ describe('AttachmentsController', () => {
   });
 
   describe('uploadAttachment', () => {
+    beforeEach(() => {
+      mockHouseholdService.verifyUserOwnsPackage.mockResolvedValue(true);
+    });
+
     const dto = {
       applicationPackageId: APPLICATION_PACKAGE_ID,
       attachmentType: AttachmentType.MEDICAL_ASSESSMENT,
@@ -97,6 +111,15 @@ describe('AttachmentsController', () => {
           HttpStatus.INTERNAL_SERVER_ERROR,
         ),
       );
+    });
+
+    it('throws UnauthorizedException when the target package is not owned', async () => {
+      mockHouseholdService.verifyUserOwnsPackage.mockResolvedValue(false);
+
+      await expect(
+        controller.uploadAttachment(dto, mockRequest),
+      ).rejects.toThrow(UnauthorizedException);
+      expect(mockAttachmentsService.create).not.toHaveBeenCalled();
     });
   });
 
