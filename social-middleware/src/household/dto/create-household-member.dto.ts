@@ -26,10 +26,10 @@ export class CreateHouseholdMemberDto {
   @IsUUID()
   householdMemberId?: string; // Unique ID for the household member (UUID)
 
-  @IsOptional() // when created for a family member, we will not have a userId
-  @IsString()
-  @MaxLength(30)
-  userId?: string; // ID of the user this member represents (UUID)
+  //@IsOptional() // when created for a family member, we will not have a userId
+  //@IsString()
+  //@MaxLength(30)
+  //userId?: string; // ID of the user this member represents (UUID)
 
   @IsString()
   @MinLength(1, { message: 'First name is required' })

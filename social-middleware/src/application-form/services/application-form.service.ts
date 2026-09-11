@@ -3,6 +3,7 @@ import {
   HttpException,
   Injectable,
   InternalServerErrorException,
+  BadRequestException,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
@@ -42,6 +43,7 @@ import { Builder } from 'xml2js';
 import { AccessCodeType } from 'src/household/enums/access-code-type.enum';
 import { InjectQueue } from '@nestjs/bull';
 import { Queue } from 'bull';
+import { ConfigService } from '@nestjs/config';
 
 @Injectable()
 export class ApplicationFormService {
@@ -58,6 +60,7 @@ export class ApplicationFormService {
     private readonly accessCodeService: AccessCodeService,
     private readonly householdService: HouseholdService,
     private readonly notificationService: NotificationService,
+    private readonly configService: ConfigService,
     @InjectQueue('applicationPackageQueue')
     private readonly applicationPackageQueue: Queue,
   ) {}
@@ -359,6 +362,17 @@ export class ApplicationFormService {
       throw new InternalServerErrorException(
         'Failed to create new form access token',
       );
+    }
+  }
+
+  assertTokenNotExpired(createdAt: Date) {
+    const minutes = this.configService.get<number>(
+      'FORM_ACCESS_TOKEN_EXPIRY_MINUTES',
+      30,
+    );
+    const ageMs = Date.now() - new Date(createdAt).getTime();
+    if (ageMs > minutes * 60 * 1000) {
+      throw new BadRequestException('Token has expired');
     }
   }
 
@@ -790,17 +804,18 @@ export class ApplicationFormService {
     try {
       this.logger.info('Saving application', dto.token);
       this.logger.debug('Saving application for token', dto.token);
-      //this.logger.info('Status ', dto.status);
 
       const record = await this.formParametersModel
         .findOne({ formAccessToken: { $eq: dto.token } })
-        .select('applicationFormId')
         .lean()
         .exec();
 
       if (!record) {
         throw new NotFoundException(`Token ${dto.token} not found`);
       }
+      // check token expiry
+      this.assertTokenNotExpired(record.createdAt);
+
       const updated = await this.applicationFormModel
         .findOneAndUpdate(
           { applicationFormId: record.applicationFormId },

@@ -17,6 +17,7 @@ import { AccessCodeService } from '../../household/services/access-code.service'
 import { HouseholdService } from '../../household/services/household.service';
 import { NotificationService } from '../../notifications/services/notification.service';
 import { FormType } from '../enums/form-type.enum';
+import { ConfigService } from '@nestjs/config';
 
 // chainable Mongoose query helper
 function q(val: unknown) {
@@ -129,6 +130,10 @@ describe('ApplicationFormService', () => {
         {
           provide: getQueueToken('applicationPackageQueue'),
           useValue: mockQueue,
+        },
+        {
+          provide: ConfigService,
+          useValue: { get: jest.fn().mockReturnValue(30) },
         },
       ],
     }).compile();
