@@ -129,6 +129,18 @@ spec:
 
               echo "DEBUG: resolved namespace = '$(cat "${NAMESPACE_PATH}")'"
               echo "DEBUG: resolved imageTag  = '$(cat "${IMAGE_TAG_PATH}")'"
+    - name: npm-test
+      params:
+        - name: PROJECT_DIR
+          value: social-middleware
+      runAfter:
+        - npm-test
+      taskRef:
+        kind: Task
+        name: npm-test
+      workspaces:
+        - name: source
+          workspace: shared-data 
     - name: buildah
       params:
         - name: IMAGE
