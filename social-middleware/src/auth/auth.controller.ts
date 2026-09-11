@@ -5,6 +5,7 @@ import {
   HttpException,
   HttpStatus,
   Inject,
+  NotFoundException,
   Post,
   Req,
   Res,
@@ -195,6 +196,9 @@ export class AuthController {
   async getUserProfile(@Req() req: Request): Promise<UserProfileResponse> {
     const userId = this.sessionUtil.extractUserIdFromRequest(req);
     const user = await this.userService.findOne(userId);
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
     const sendResourceDetails =
       this.configService.get<string>('TEST_RESOURCE_CASE') === 'true';
 
