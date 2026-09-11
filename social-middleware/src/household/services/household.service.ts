@@ -1,6 +1,8 @@
 import {
   Injectable,
   InternalServerErrorException,
+  BadRequestException,
+  HttpException,
   NotFoundException,
   Logger,
 } from '@nestjs/common';
@@ -75,6 +77,19 @@ export class HouseholdService {
         );
       }
 
+      const existingMember = await this.householdMemberModel
+        .findOne({
+          householdMemberId,
+          applicationPackageId: dto.applicationPackageId,
+        })
+        .lean();
+
+      if (existingMember?.userId) {
+        throw new BadRequestException(
+          'Cannot modify a household member who has already redeemed their access code',
+        );
+      }
+
       // check for duplicates before creating/updating
       const duplicateCheck = await this.checkForDuplicate(
         dto.applicationPackageId,
@@ -146,6 +161,9 @@ export class HouseholdService {
       );
       return result;
     } catch (error: unknown) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
       const err = error as Error;
       this.logger.error(
         `Failed to upsert household member for applicationPackageId=${dto.applicationPackageId}: ${err.message}`,
