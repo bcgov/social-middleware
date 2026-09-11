@@ -134,7 +134,7 @@ spec:
         - name: PROJECT_DIR
           value: social-middleware
       runAfter:
-        - npm-test
+        - set-env-config
       taskRef:
         kind: Task
         name: npm-test
@@ -160,7 +160,7 @@ spec:
         - name: BUILDAH_IMAGE
           value: $(params.buildahImage)
       runAfter:
-        - set-env-config
+        - npm-test
       taskRef:
         kind: Task
         name: buildah
