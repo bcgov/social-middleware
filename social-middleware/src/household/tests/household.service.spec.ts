@@ -83,6 +83,7 @@ describe('HouseholdService', () => {
     beforeEach(() => {
       // Default: no existing members (no duplicate)
       householdMemberModel.find.mockReturnValue(leanExecChain([]));
+      householdMemberModel.findOne.mockReturnValue(leanChain(null));
     });
 
     const stubUpsert = (memberType: MemberTypes) =>
@@ -134,6 +135,18 @@ describe('HouseholdService', () => {
       expect(
         householdMemberModel.findOneAndUpdate.mock.calls[0][1].$set.memberType,
       ).toBe(MemberTypes.NonCaregiverAdult);
+    });
+    it('rejects modifying a household member who has already redeemed their access code', async () => {
+      householdMemberModel.findOne.mockReturnValue(
+        leanChain({
+          householdMemberId: 'generated-id',
+          userId: 'some-user-id',
+        }),
+      );
+
+      await expect(service.createMember(makeDto())).rejects.toThrow(
+        'Cannot modify a household member who has already redeemed their access code',
+      );
     });
 
     it('assigns NonAdult for a member under 18', async () => {
