@@ -65,7 +65,7 @@ export class AttachmentsController {
     try {
       dto.fileName = `${dto.fileName} [${getCurrentDateMmmDdYyyy()}]`;
       return await this.attachmentsService.create(dto, userId);
-    } catch (error) {
+    } catch {
       throw new HttpException(
         'Failed to upload attachment',
         HttpStatus.INTERNAL_SERVER_ERROR,
