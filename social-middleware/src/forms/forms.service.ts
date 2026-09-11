@@ -7,7 +7,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
+import { PinoLogger } from 'nestjs-pino';
 import {
   ApplicationForm,
   ApplicationFormDocument,
@@ -20,7 +20,6 @@ import { ApplicationFormService } from '../application-form/services/application
 import { UserProfileResponse } from '../auth/interfaces/user-profile-response.interface';
 import { UserService } from '../auth/user.service';
 import { ValidateTokenDto } from './dto/validate-token.dto';
-// TODO: cleanup old tokens
 
 @Injectable()
 export class FormsService {
@@ -30,7 +29,7 @@ export class FormsService {
     private formParametersModel: Model<FormParametersDocument>,
     @InjectModel(ApplicationForm.name)
     private applicationFormModel: Model<ApplicationFormDocument>,
-    @InjectPinoLogger(ApplicationFormService.name)
+    //@InjectPinoLogger(ApplicationFormService.name)
     private applicationFormService: ApplicationFormService,
     private readonly userService: UserService,
     private readonly logger: PinoLogger,
@@ -87,13 +86,8 @@ export class FormsService {
     this.logger.info('Checking whether form access token exists');
 
     let record;
-    let expiryOfTokenInMs;
+
     try {
-      const minutes = this.configService.get<number>(
-        'FORM_ACCESS_TOKEN_EXPIRY_MINUTES',
-        30,
-      );
-      expiryOfTokenInMs = minutes * 60 * 1000;
       // Fetch the form params for this token
       record = await this.formParametersModel
         .findOne({ formAccessToken: { $eq: token } })
@@ -122,11 +116,9 @@ export class FormsService {
     this.logger.info('Checking whether form access token is expired');
 
     // Check if createdAt is within the expiry time
-    const ageOfTokenInMs = Date.now() - new Date(record.createdAt).getTime();
-    if (ageOfTokenInMs > expiryOfTokenInMs) {
-      console.log('Token expired, but continue for now'); //TODO remove this for the real case
-      //throw new BadRequestException('Token has expired');
-    }
+
+    this.applicationFormService.assertTokenNotExpired(record.createdAt);
+
     this.logger.info('Form access token not expired, passing parameters');
     // Return only the formParameters field
     const applicationForm = await this.applicationFormModel
@@ -139,22 +131,12 @@ export class FormsService {
     if (!applicationForm) {
       throw new NotFoundException(`No application found for token ${token}`);
     }
-    // Convert JSON to string
-    /* const json = applicationForm.formData
-      ? JSON.stringify(applicationForm.formData)
-      : '{}'; */
 
     const formData = applicationForm.formData;
 
     if (formData != null) {
       this.logger.info(`Base64-encoded formData length: ${formData.length}`);
     } else this.logger.info(`Base64-encoded formData length: 0`);
-    // Encode to base64 using Node.js Buffer
-    //const base64 = Buffer.from(json, 'utf8').toString('base64'); // ✅ standard Node.js approach :contentReference[oaicite:1]{index=1}
-
-    //this.logger.info(`Base64-encoded formData length: ${base64.length}`);
-
-    // Return the base64 string (in an object or as-is)
 
     return { formJson: formData };
   }
@@ -200,6 +182,10 @@ export class FormsService {
         );
         throw new NotFoundException('No valid token found for this form');
       }
+
+      this.applicationFormService.assertTokenNotExpired(
+        formParameter.createdAt,
+      );
 
       // check if the provided token matches the most recent one
       if (mostRecentToken.formAccessToken !== formAccessToken) {
