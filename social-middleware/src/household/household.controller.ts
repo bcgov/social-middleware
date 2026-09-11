@@ -425,6 +425,11 @@ export class HouseholdController {
     if (!member) {
       throw new NotFoundException('Household member not found');
     }
+    if (member.applicationPackageId !== applicationPackageId) {
+      throw new UnauthorizedException(
+        'Household member does not belong to this application package',
+      );
+    }
     if (member.userId !== null) {
       throw new BadRequestException(
         'Cannot edit a household member who has already redeemed their access code',
@@ -478,6 +483,11 @@ export class HouseholdController {
     const member = await this.householdService.findById(householdMemberId);
     if (!member) {
       throw new NotFoundException('Household member not found');
+    }
+    if (member.applicationPackageId !== applicationPackageId) {
+      throw new UnauthorizedException(
+        'Household member does not belong to this application package',
+      );
     }
     if (member.userId !== null) {
       throw new BadRequestException(
