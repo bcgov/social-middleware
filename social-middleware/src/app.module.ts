@@ -5,7 +5,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { ScheduleModule } from '@nestjs/schedule';
 import { LoggerModule } from 'nestjs-pino';
-import pino from 'pino';
+import { buildPinoHttpOptions } from './common/logger/pino-options';
 import { ApplicationFormModule } from './application-form/application-form.module';
 import { ApplicationPackageModule } from './application-package/application-package.module';
 import { AttachmentsModule } from './attachments/attachments.module';
@@ -54,27 +54,7 @@ export class AppModule {
           imports: [ConfigModule],
           inject: [ConfigService],
           useFactory: (config: ConfigService) => ({
-            pinoHttp: {
-              level: config.get('NODE_ENV') === 'production' ? 'info' : 'debug',
-              serializers: {
-                err: pino.stdSerializers.err,
-                error: pino.stdSerializers.err,
-              },
-              autoLogging: {
-                ignore: (req) => req.url === '/health',
-              },
-              transport:
-                config.get('NODE_ENV') !== 'production'
-                  ? {
-                      target: 'pino-pretty',
-                      options: {
-                        colorize: true,
-                        translateTime: 'SYS:standard',
-                        ignore: 'pid,hostname',
-                      },
-                    }
-                  : undefined,
-            },
+            pinoHttp: buildPinoHttpOptions(config),
           }),
         }),
         HealthModule,
