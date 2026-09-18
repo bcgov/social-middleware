@@ -66,7 +66,7 @@ export class AccessCodeService {
 
       await accessCodeRecord.save();
       this.logger.info(
-        { accessCode, expiresAt },
+        { expiresAt, type },
         'Created screening access code record',
       );
 
@@ -121,10 +121,7 @@ export class AccessCodeService {
 
       // if we didn't find a valid one return an error
       if (!accessCodeRecord) {
-        this.logger.warn(
-          { accessCode },
-          'Invalid, expired, or locked access code',
-        );
+        this.logger.warn('Invalid, expired, or locked access code');
         return { success: false, error: 'Invalid or expired access code' };
       }
 
@@ -163,12 +160,9 @@ export class AccessCodeService {
 
         this.logger.warn(
           {
-            accessCode,
             userId,
-            expectedLastName: householdMember.lastName.toLowerCase().trim(),
-            providedLastName: bcscUserData.lastName.toLowerCase().trim(),
-            expectedDOB: householdMember.dateOfBirth,
-            providedDOB: bcscUserData.dateOfBirth,
+            lastNameMatched: false,
+            dobMatched: dobMatch,
             attemptCount: accessCodeRecord.attemptCount + 1,
           },
           'User validation failed for access code',
@@ -237,7 +231,6 @@ export class AccessCodeService {
       // all good to go
       this.logger.info(
         {
-          accessCode,
           userId,
           householdMemberId: accessCodeRecord.householdMemberId,
         },
@@ -250,7 +243,7 @@ export class AccessCodeService {
       };
     } catch (error: unknown) {
       this.logger.error(
-        { error, accessCode, userId },
+        { err: error, userId },
         'Failed to associate user with access code',
       );
       throw new InternalServerErrorException('Failed to process access code');
