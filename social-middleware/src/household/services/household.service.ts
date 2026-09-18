@@ -643,9 +643,6 @@ export class HouseholdService {
           this.logger.warn(
             {
               applicationPackageId,
-              firstName,
-              lastName,
-              dateOfBirth,
               existingMember: member.householdMemberId,
             },
             'Duplicate household member detected',
