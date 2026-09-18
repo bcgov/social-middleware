@@ -99,13 +99,7 @@ export class ChesService {
     const token = await this.getAccessToken();
     const chesApiUrl = this.configService.get<string>('CHES_API_URL');
 
-    this.logger.info(
-      {
-        to: data.to,
-        subject: data.subject,
-      },
-      'Sending email via CHES',
-    );
+    this.logger.info({ subject: data.subject }, 'Sending email via CHES');
 
     try {
       const response = await firstValueFrom(
@@ -147,14 +141,10 @@ export class ChesService {
           : undefined;
 
       this.logger.error(
-        {
-          error:
-            errorData?.data ||
-            (err instanceof Error ? err.message : 'Unknown error'),
-          status: errorData?.status,
-        },
+        { err, status: errorData?.status },
         'Failed to send email via CHES',
       );
+
       throw new HttpException(
         errorData?.data || 'Failed to send email',
         errorData?.status || 500,
