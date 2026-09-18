@@ -792,6 +792,7 @@ export class HouseholdService {
   }
 
   // used by household invitation process, when we attempt to lookup a household member and don't have a user record yet.
+  /*
   async findByLastNameAndDOB(
     lastName: string,
     dateOfBirth: string,
@@ -806,6 +807,7 @@ export class HouseholdService {
     }
     return user;
   }
+    */
 
   // a household member can only be edited if the application has not been submitted yet.
   async verifyPackageEditable(applicationPackageId: string): Promise<boolean> {
