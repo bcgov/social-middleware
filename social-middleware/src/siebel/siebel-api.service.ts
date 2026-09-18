@@ -149,7 +149,7 @@ export class SiebelApiService {
     }
   }
 
-  async getServiceRequests(query: any) {
+  async getServiceRequests(query: Record<string, any>) {
     const endpoint = '/ServiceRequest/ServiceRequest';
     return await this.get(endpoint, query);
   }
