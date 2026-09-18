@@ -323,7 +323,12 @@ export class SiebelApiService {
       return await this.put(endpoint, serviceRequestData);
     } catch (error: unknown) {
       this.logger.error(
-        { endpoint, err: error },
+        {
+          err: error,
+          operation: 'createServiceRequest',
+          endpoint,
+          outcome: 'failure',
+        },
         'Failed to create service request',
       );
       throw error;
@@ -348,7 +353,13 @@ export class SiebelApiService {
       return await this.put(endpoint, payload, params);
     } catch (error) {
       this.logger.error(
-        { err: error, serviceRequestId, newStage },
+        {
+          err: error,
+          operation: 'updateServiceRequestStage',
+          serviceRequestId,
+          newStage,
+          outcome: 'failure',
+        },
         'Failed to update Service Request stage',
       );
       throw error;
@@ -373,7 +384,13 @@ export class SiebelApiService {
       return await this.put(endpoint, fields, params);
     } catch (error) {
       this.logger.error(
-        { err: error, serviceRequestId, fieldNames: Object.keys(fields) },
+        {
+          err: error,
+          operation: 'updateServiceRequestFields',
+          serviceRequestId,
+          fieldNames: Object.keys(fields),
+          outcome: 'failure',
+        },
         'Failed to update Service Request fields',
       );
       throw error;
