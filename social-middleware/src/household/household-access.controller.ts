@@ -69,7 +69,7 @@ export class HouseholdAccessCodeController {
       };
 
       this.logger.debug(
-        { accessCode: dto.accessCode, userId, userData },
+        { userId, userData },
         'Associating access code with user',
       );
 
@@ -95,7 +95,7 @@ export class HouseholdAccessCodeController {
       }
     } catch (error: unknown) {
       const err = error as Error;
-      this.logger.error({ error: err }, 'Access code association error');
+      this.logger.error({ err: error }, 'Access code association error');
       const errorMessage =
         err instanceof Error ? err.message : 'Failed to associate access code';
       return { success: false, message: errorMessage };

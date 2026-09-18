@@ -4,7 +4,6 @@ import {
   BadRequestException,
   HttpException,
   NotFoundException,
-  Logger,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
@@ -22,17 +21,19 @@ import {
 } from '../../application-package/schema/application-package.schema';
 import { ApplicationPackageStatus } from '../../application-package/enums/application-package-status.enum';
 import { GenderTypes } from '../enums/gender-types.enum';
+import { PinoLogger } from 'nestjs-pino';
 
 @Injectable()
 export class HouseholdService {
-  private readonly logger = new Logger(HouseholdService.name);
-
   constructor(
     @InjectModel(HouseholdMembers.name)
     private householdMemberModel: Model<HouseholdMembersDocument>,
     @InjectModel(ApplicationPackage.name)
     private applicationPackageModel: Model<ApplicationPackageDocument>,
-  ) {}
+    private readonly logger: PinoLogger,
+  ) {
+    this.logger.setContext(HouseholdService.name);
+  }
 
   // TO DO: Move to UTIL function
   // helper method to make some decisions off of
@@ -68,12 +69,14 @@ export class HouseholdService {
       // if no householdMemberId is provided, generate one
       if (!householdMemberId) {
         householdMemberId = uuidv4();
-        this.logger.log(
-          `Generated new householdMemberId: ${householdMemberId}`,
+        this.logger.debug(
+          { householdMemberId },
+          'Generated new householdMemberId',
         );
       } else {
-        this.logger.log(
-          `Using provided householdMemberId: ${householdMemberId}`,
+        this.logger.debug(
+          { householdMemberId },
+          'Using provided householdMemberId',
         );
       }
 
@@ -107,10 +110,12 @@ export class HouseholdService {
       }
 
       const age = this.calculateAge(dto.dateOfBirth);
-      this.logger.log(`Age is ${age}`);
       // everyone over 18 requires a screening
       const requireScreening = age >= 18;
-      this.logger.log(`requiresScreening is: ${requireScreening}`);
+      this.logger.debug(
+        { householdMemberId, requireScreening },
+        'Screening requirement determined',
+      );
       let memberType = null;
 
       switch (dto.relationshipToPrimary) {
@@ -156,18 +161,27 @@ export class HouseholdService {
         )
         .exec();
 
-      this.logger.log(
-        `Successfully upserted household member with ID: ${result.householdMemberId} for applicationPackageId: ${dto.applicationPackageId}`,
+      this.logger.info(
+        {
+          householdMemberId: result.householdMemberId,
+          applicationPackageId: dto.applicationPackageId,
+        },
+        'Successfully upserted household member',
       );
       return result;
     } catch (error: unknown) {
       if (error instanceof HttpException) {
         throw error;
       }
-      const err = error as Error;
+      //const err = error as Error;
       this.logger.error(
-        `Failed to upsert household member for applicationPackageId=${dto.applicationPackageId}: ${err.message}`,
-        err.stack,
+        {
+          err: error,
+          operation: 'createMember',
+          applicationPackageId: dto.applicationPackageId,
+          outcome: 'failure',
+        },
+        'Failed to upsert household member',
       );
       throw new InternalServerErrorException(
         'Could not create/update household member',
@@ -181,8 +195,9 @@ export class HouseholdService {
     userId: string,
   ): Promise<HouseholdMembersDocument | null> {
     try {
-      this.logger.log(
-        `Associating user ${userId} with household member ${householdMemberId}`,
+      this.logger.info(
+        { operation: 'associateUserWithMember', householdMemberId, userId },
+        'Associating user with household member',
       );
 
       const result = await this.householdMemberModel
@@ -195,20 +210,38 @@ export class HouseholdService {
 
       if (!result) {
         this.logger.warn(
-          `Household member with ID ${householdMemberId} not found for user association.`,
+          {
+            operation: 'associateUserWithMember',
+            householdMemberId,
+            userId,
+            outcome: 'not_found',
+          },
+          'Household member not found for user association',
         );
         return null;
       }
 
-      this.logger.log(
-        `Successfully associated user ${userId} with household member ${householdMemberId}`,
+      this.logger.info(
+        {
+          operation: 'associateUserWithMember',
+          householdMemberId,
+          userId,
+          outcome: 'success',
+        },
+        'Successfully associated user with household member',
       );
       return result;
     } catch (error: unknown) {
-      const err = error as Error;
+      //const err = error as Error;
       this.logger.error(
-        `Failed to associate ${userId} with household member ${householdMemberId}: ${err.message}`,
-        err.stack,
+        {
+          err: error,
+          operation: 'associateUserWithMember',
+          householdMemberId,
+          userId,
+          outcome: 'failure',
+        },
+        'Failed to associate user with household member',
       );
       throw new InternalServerErrorException(
         'Could not associate user with household member',
@@ -245,8 +278,9 @@ export class HouseholdService {
     },
   ): Promise<HouseholdMembersDocument> {
     try {
-      this.logger.log(
-        `Updating household member ${householdMemberId} with authenticated user data`,
+      this.logger.info(
+        { operation: 'updateMemberWithUserData', householdMemberId },
+        'Updating household member with authenticated user data',
       );
 
       const updateData: Partial<HouseholdMembers> = {};
@@ -261,10 +295,15 @@ export class HouseholdService {
 
       return this.updateHouseholdMember(householdMemberId, updateData);
     } catch (error: unknown) {
-      const err = error as Error;
+      //const err = error as Error;
       this.logger.error(
-        `Failed to update household member ${householdMemberId}: ${err.message}`,
-        err.stack,
+        {
+          err: error,
+          operation: 'updateMemberWithUserData',
+          householdMemberId,
+          outcome: 'failure',
+        },
+        'Failed to update household member with user data',
       );
       throw new InternalServerErrorException(
         'Could not update household member with user data',
@@ -284,17 +323,22 @@ export class HouseholdService {
 
       if (!member) {
         this.logger.warn(
-          `Household member with ID ${householdMemberId} not found`,
+          { operation: 'findById', householdMemberId, outcome: 'not_found' },
+          'Household member not found',
         );
         return null;
       }
 
       return member;
     } catch (error: unknown) {
-      const err = error as Error;
       this.logger.error(
-        `Error finding household member with ID=${householdMemberId}: ${err.message}`,
-        err.stack,
+        {
+          err: error,
+          operation: 'findById',
+          householdMemberId,
+          outcome: 'failure',
+        },
+        'Error finding household member',
       );
       throw new InternalServerErrorException('Failed to find household member');
     }
@@ -303,17 +347,16 @@ export class HouseholdService {
   async findByUserId(userId: string): Promise<HouseholdMembersDocument[]> {
     try {
       const members = await this.householdMemberModel.find({ userId }).exec();
-
-      this.logger.log(
-        `Found ${members.length} household members for userId:${userId}`,
+      this.logger.info(
+        { operation: 'findByUserId', userId, count: members.length },
+        'Found household members for user',
       );
 
       return members;
     } catch (error: unknown) {
-      const err = error as Error;
       this.logger.error(
-        `Error finding household members for userId=${userId}: ${err.message}`,
-        err.stack,
+        { err: error, operation: 'findByUserId', userId, outcome: 'failure' },
+        'Error finding household members for user',
       );
       throw new InternalServerErrorException(
         'Failed to find household members by userId',
@@ -331,10 +374,14 @@ export class HouseholdService {
         .exec();
       return members;
     } catch (error: unknown) {
-      const err = error as Error;
       this.logger.error(
-        `Error fetching household members for applicationId=${applicationPackageId}: ${err.message}`,
-        err.stack,
+        {
+          err: error,
+          operation: 'findAllHouseholdMembers',
+          applicationPackageId,
+          outcome: 'failure',
+        },
+        'Error fetching household members for application package',
       );
       throw new InternalServerErrorException(
         'Failed to retrieve household members',
@@ -355,8 +402,9 @@ export class HouseholdService {
   //
   async remove(householdMemberId: string): Promise<boolean> {
     try {
-      this.logger.log(
-        `Attempting to delete household member with ID: ${householdMemberId}`,
+      this.logger.info(
+        { operation: 'remove', householdMemberId },
+        'Attempting to delete household member',
       );
 
       const result = await this.householdMemberModel
@@ -365,15 +413,17 @@ export class HouseholdService {
 
       if (!result) {
         this.logger.warn(
-          `Household Member with ID ${householdMemberId} not found`,
+          { operation: 'remove', householdMemberId, outcome: 'not_found' },
+          'Household member not found',
         );
         throw new NotFoundException(
           `Household Member with ID ${householdMemberId} not found`,
         );
       }
 
-      this.logger.log(
-        `Successfully deleted household member with ID: ${householdMemberId}`,
+      this.logger.info(
+        { operation: 'remove', householdMemberId, outcome: 'success' },
+        'Successfully deleted household member',
       );
       return true;
     } catch (error: unknown) {
@@ -381,10 +431,14 @@ export class HouseholdService {
         throw error;
       }
 
-      const err = error as Error;
       this.logger.error(
-        `Failed to delete household member ${householdMemberId}: ${err.message}`,
-        err.stack,
+        {
+          err: error,
+          operation: 'remove',
+          householdMemberId,
+          outcome: 'failure',
+        },
+        'Failed to delete household member',
       );
       throw new InternalServerErrorException(
         'Could not delete household member',
@@ -397,24 +451,38 @@ export class HouseholdService {
     applicationPackageId: string,
   ): Promise<{ deletedCount: number }> {
     try {
-      this.logger.log(
-        `Deleting all household members for applicationPackageId: ${applicationPackageId}`,
+      this.logger.info(
+        {
+          operation: 'deleteAllMembersByApplicationPackageId',
+          applicationPackageId,
+        },
+        'Deleting all household members for application package',
       );
 
       const result = await this.householdMemberModel
         .deleteMany({ applicationPackageId })
         .exec();
 
-      this.logger.log(
-        `Deleted ${result.deletedCount} household members for applicationPackageId: ${applicationPackageId}`,
+      this.logger.info(
+        {
+          operation: 'deleteAllMembersByApplicationPackageId',
+          applicationPackageId,
+          deletedCount: result.deletedCount,
+          outcome: 'success',
+        },
+        'Deleted household members for application package',
       );
 
       return { deletedCount: result.deletedCount };
     } catch (error: unknown) {
-      const err = error as Error;
       this.logger.error(
-        `Failed to delete household members for applicationPackageId=${applicationPackageId}: ${err.message}`,
-        err.stack,
+        {
+          err: error,
+          operation: 'deleteAllMembersByApplicationPackageId',
+          applicationPackageId,
+          outcome: 'failure',
+        },
+        'Failed to delete household members for application package',
       );
       throw new InternalServerErrorException(
         'Could not delete household members',
@@ -427,8 +495,12 @@ export class HouseholdService {
     applicationPackageId: string,
   ): Promise<{ deletedCount: number }> {
     try {
-      this.logger.log(
-        `Deleting non-primary household members for applicationPackageId: ${applicationPackageId}`,
+      this.logger.info(
+        {
+          operation: 'deleteNonPrimaryMembersByApplicationPackageId',
+          applicationPackageId,
+        },
+        'Deleting non-primary household members for application package',
       );
 
       const result = await this.householdMemberModel
@@ -438,16 +510,26 @@ export class HouseholdService {
         })
         .exec();
 
-      this.logger.log(
-        `Deleted ${result.deletedCount} non-primary household members for applicationPackageId: ${applicationPackageId}`,
+      this.logger.info(
+        {
+          operation: 'deleteNonPrimaryMembersByApplicationPackageId',
+          applicationPackageId,
+          deletedCount: result.deletedCount,
+          outcome: 'success',
+        },
+        'Deleted non-primary household members for application package',
       );
 
       return { deletedCount: result.deletedCount };
     } catch (error: unknown) {
-      const err = error as Error;
       this.logger.error(
-        `Failed to delete non-primary household members for applicationPackageId=${applicationPackageId}: ${err.message}`,
-        err.stack,
+        {
+          err: error,
+          operation: 'deleteNonPrimaryMembersByApplicationPackageId',
+          applicationPackageId,
+          outcome: 'failure',
+        },
+        'Failed to delete non-primary household members for application package',
       );
       throw new InternalServerErrorException(
         'Could not delete non-primary household members',
@@ -634,9 +716,6 @@ export class HouseholdService {
           this.logger.warn(
             {
               applicationPackageId,
-              firstName,
-              lastName,
-              dateOfBirth,
               existingMember: member.householdMemberId,
             },
             'Duplicate household member detected',
@@ -650,10 +729,14 @@ export class HouseholdService {
       }
       return { isDuplicate: false };
     } catch (error: unknown) {
-      const err = error as Error;
       this.logger.error(
-        `Error checking for duplicate household member: ${err.message}`,
-        err.stack,
+        {
+          err: error,
+          operation: 'checkForDuplicate',
+          applicationPackageId,
+          outcome: 'failure',
+        },
+        'Error checking for duplicate household member',
       );
       throw new InternalServerErrorException(
         'Could not check for duplicate household members',
@@ -695,7 +778,13 @@ export class HouseholdService {
       return !!appPackage;
     } catch (error) {
       this.logger.error(
-        { error, householdMemberId, userId },
+        {
+          err: error,
+          operation: 'verifyUserOwnsHouseholdMemberPackage',
+          householdMemberId,
+          userId,
+          outcome: 'failure',
+        },
         'Error verifying household member package ownership',
       );
       return false;
@@ -703,6 +792,7 @@ export class HouseholdService {
   }
 
   // used by household invitation process, when we attempt to lookup a household member and don't have a user record yet.
+  /*
   async findByLastNameAndDOB(
     lastName: string,
     dateOfBirth: string,
@@ -717,6 +807,7 @@ export class HouseholdService {
     }
     return user;
   }
+    */
 
   // a household member can only be edited if the application has not been submitted yet.
   async verifyPackageEditable(applicationPackageId: string): Promise<boolean> {

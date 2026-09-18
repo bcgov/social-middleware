@@ -11,13 +11,7 @@ import { MemberTypes } from '../enums/member-types.enum';
 import { RelationshipToPrimary } from '../enums/relationship-to-primary.enum';
 import { ApplicationPackageStatus } from '../../application-package/enums/application-package-status.enum';
 import { CreateHouseholdMemberDto } from '../dto/create-household-member.dto';
-import { Logger } from '@nestjs/common';
-
-beforeAll(() => {
-  jest.spyOn(Logger.prototype, 'error').mockImplementation(() => {});
-  jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => {});
-  jest.spyOn(Logger.prototype, 'log').mockImplementation(() => {});
-});
+import { PinoLogger } from 'nestjs-pino';
 
 // Chainable mock helpers
 const execChain = (value: any) => ({
@@ -45,8 +39,19 @@ function makeDto(
 
 describe('HouseholdService', () => {
   let service: HouseholdService;
-  let householdMemberModel: jest.Mocked<any>;
-  let applicationPackageModel: jest.Mocked<any>;
+  let householdMemberModel: Record<string, jest.Mock>;
+  let applicationPackageModel: Record<string, jest.Mock>;
+
+  const pinoLogger = {
+    setContext: jest.fn(),
+    trace: jest.fn(),
+    debug: jest.fn(),
+    info: jest.fn(),
+    warn: jest.fn(),
+    error: jest.fn(),
+    fatal: jest.fn(),
+    assign: jest.fn(),
+  };
 
   beforeEach(async () => {
     householdMemberModel = {
@@ -68,6 +73,10 @@ describe('HouseholdService', () => {
         {
           provide: getModelToken(ApplicationPackage.name),
           useValue: applicationPackageModel,
+        },
+        {
+          provide: PinoLogger,
+          useValue: pinoLogger,
         },
       ],
     }).compile();

@@ -37,7 +37,6 @@ export class FormsService {
   async validateTokenAndGetParameters(dto: ValidateTokenDto): Promise<any> {
     this.logger.info('Validating form access token');
     const token = dto.token;
-    this.logger.debug('Passed token', token);
     this.logger.info('Checking whether form access token exists');
 
     let record;
@@ -56,7 +55,7 @@ export class FormsService {
         .exec();
     } catch (err) {
       // Log and handle only unexpected DB errors
-      this.logger.error('Error validating token', err);
+      this.logger.error({ err }, 'Error validating token');
       throw new InternalServerErrorException('Failed to validate token');
     }
     // If not found, throw 404 error
@@ -73,9 +72,12 @@ export class FormsService {
     if (ageOfTokenInMs > expiryOfTokenInMs) {
       throw new BadRequestException('Token has expired');
     }
-    this.logger.info('Form access token not expired, passing parameters');
+
     // Return only the formParameters field
-    this.logger.info('Form Parameters', record.formParameters);
+    this.logger.info(
+      { paramCount: Object.keys(record.formParameters ?? {}).length },
+      'Form parameters retrieved',
+    );
     return record.formParameters;
   }
 
@@ -102,7 +104,7 @@ export class FormsService {
         .exec();
     } catch (err) {
       // Log and handle only unexpected DB errors
-      this.logger.error('Error validating token', err);
+      this.logger.error({ err }, 'Error validating token');
       throw new InternalServerErrorException('Failed to validate token');
     }
     // If not found, throw 404 error

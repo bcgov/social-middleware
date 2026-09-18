@@ -149,7 +149,7 @@ export class SiebelApiService {
     }
   }
 
-  async getServiceRequests(query: any) {
+  async getServiceRequests(query: Record<string, any>) {
     const endpoint = '/ServiceRequest/ServiceRequest';
     return await this.get(endpoint, query);
   }
@@ -255,20 +255,17 @@ export class SiebelApiService {
     } catch (error: unknown) {
       if (error instanceof AxiosError) {
         const errorData = error.response?.data as unknown;
-
         if (error.response?.status === 404) {
           this.logger.debug({ endpoint, params }, 'Resource not found (404)');
         } else {
           this.logger.error(
-            { endpoint, params, status: error.response?.status, errorData },
+            { endpoint, params, status: error.response?.status, err: error },
             'GET request failed',
           );
         }
-
         throw this.handleError(error, errorData);
       }
-
-      this.logger.error({ endpoint, params, error }, 'GET request failed');
+      this.logger.error({ endpoint, params, err: error }, 'GET request failed');
       throw new Error('Unexpected error during Siebel GET request');
     }
   }
@@ -325,27 +322,15 @@ export class SiebelApiService {
     try {
       return await this.put(endpoint, serviceRequestData);
     } catch (error: unknown) {
-      // Log the raw error first
-      this.logger.error('Raw error object:', error);
-
-      // Try different error structure patterns
-      if (error && typeof error === 'object') {
-        this.logger.error('Error keys:', Object.keys(error));
-
-        // Axios error structure
-        if ('response' in error) {
-          const axiosError = error as AxiosError;
-          this.logger.error('Axios response:', axiosError.response);
-          this.logger.error('Axios status:', axiosError.response?.status);
-          this.logger.error('Axios data:', axiosError.response?.data);
-        }
-
-        // Other error patterns
-        if ('message' in error) {
-          this.logger.error('Error message:', (error as any).message);
-        }
-      }
-
+      this.logger.error(
+        {
+          err: error,
+          operation: 'createServiceRequest',
+          endpoint,
+          outcome: 'failure',
+        },
+        'Failed to create service request',
+      );
       throw error;
     }
   }
@@ -368,7 +353,13 @@ export class SiebelApiService {
       return await this.put(endpoint, payload, params);
     } catch (error) {
       this.logger.error(
-        { error, serviceRequestId, newStage },
+        {
+          err: error,
+          operation: 'updateServiceRequestStage',
+          serviceRequestId,
+          newStage,
+          outcome: 'failure',
+        },
         'Failed to update Service Request stage',
       );
       throw error;
@@ -385,7 +376,7 @@ export class SiebelApiService {
     };
 
     this.logger.debug(
-      { serviceRequestId, fields },
+      { serviceRequestId, fieldNames: Object.keys(fields) },
       'Updating Service Request fields',
     );
 
@@ -393,7 +384,13 @@ export class SiebelApiService {
       return await this.put(endpoint, fields, params);
     } catch (error) {
       this.logger.error(
-        { error, serviceRequestId, fields },
+        {
+          err: error,
+          operation: 'updateServiceRequestFields',
+          serviceRequestId,
+          fieldNames: Object.keys(fields),
+          outcome: 'failure',
+        },
         'Failed to update Service Request fields',
       );
       throw error;
@@ -498,8 +495,8 @@ export class SiebelApiService {
       'Applicant Flag': prospectData.ApplicantFlag,
     };
     this.logger.debug(
-      `Creating prospect for Service Request: ${prospectData.ServiceRequestId}`,
-      payload,
+      { serviceRequestId: prospectData.ServiceRequestId },
+      'Creating prospect for Service Request',
     );
     return await this.put(endpoint, payload);
   }
@@ -683,32 +680,18 @@ export class SiebelApiService {
         this.httpService.put<T>(url, data, { headers, params }),
       );
 
-      this.logger.debug({ endpoint, data, params }, 'PUT request successful');
+      this.logger.debug({ endpoint, params }, 'PUT request successful');
       return response.data;
     } catch (error: unknown) {
       if (error instanceof AxiosError) {
         const errorData = error.response?.data as unknown;
-
         this.logger.error(
-          {
-            endpoint,
-            data,
-            params,
-            status: error.response?.status,
-            statusText: error.response?.statusText,
-            errorData,
-            errorMessage: error.message,
-            errorStack: error.stack,
-          },
+          { endpoint, params, status: error.response?.status, err: error },
           'PUT request failed',
         );
-
         throw this.handleError(error, errorData);
       }
-      this.logger.error(
-        { endpoint, data, params, error },
-        'PUT request failed',
-      );
+      this.logger.error({ endpoint, params, err: error }, 'PUT request failed');
       throw new Error('Unexpected error during Siebel PUT request');
     }
   }

@@ -802,17 +802,19 @@ export class ApplicationFormService {
     status: ApplicationFormStatus,
   ): Promise<void> {
     try {
-      this.logger.info('Saving application', dto.token);
-      this.logger.debug('Saving application for token', dto.token);
-
       const record = await this.formParametersModel
         .findOne({ formAccessToken: { $eq: dto.token } })
         .lean()
         .exec();
 
       if (!record) {
-        throw new NotFoundException(`Token ${dto.token} not found`);
+        throw new NotFoundException(`Token not found`);
       }
+
+      this.logger.debug(
+        { applicationFormId: record.applicationFormId },
+        'Saving application form data',
+      );
       // check token expiry
       this.assertTokenNotExpired(record.createdAt);
 
@@ -835,13 +837,16 @@ export class ApplicationFormService {
         );
       }
 
-      this.logger.info('Application saved  to DB ', record.applicationFormId);
+      this.logger.info(
+        { applicationFormId: record.applicationFormId },
+        'Application saved to DB',
+      );
     } catch (err) {
       if (err instanceof HttpException) {
         // Re-throw known HTTP exceptions (404, 400)
         throw err;
       }
-      this.logger.error('Error submitting application', err);
+      this.logger.error({ err }, 'Error submitting application');
       throw new InternalServerErrorException('Could not save form data');
     }
   }
