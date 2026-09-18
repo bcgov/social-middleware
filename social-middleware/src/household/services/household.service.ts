@@ -4,7 +4,6 @@ import {
   BadRequestException,
   HttpException,
   NotFoundException,
-  Logger,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
@@ -22,17 +21,19 @@ import {
 } from '../../application-package/schema/application-package.schema';
 import { ApplicationPackageStatus } from '../../application-package/enums/application-package-status.enum';
 import { GenderTypes } from '../enums/gender-types.enum';
+import { PinoLogger } from 'nestjs-pino';
 
 @Injectable()
 export class HouseholdService {
-  private readonly logger = new Logger(HouseholdService.name);
-
   constructor(
     @InjectModel(HouseholdMembers.name)
     private householdMemberModel: Model<HouseholdMembersDocument>,
     @InjectModel(ApplicationPackage.name)
     private applicationPackageModel: Model<ApplicationPackageDocument>,
-  ) {}
+    private readonly logger: PinoLogger,
+  ) {
+    this.logger.setContext(HouseholdService.name);
+  }
 
   // TO DO: Move to UTIL function
   // helper method to make some decisions off of
@@ -68,12 +69,14 @@ export class HouseholdService {
       // if no householdMemberId is provided, generate one
       if (!householdMemberId) {
         householdMemberId = uuidv4();
-        this.logger.log(
-          `Generated new householdMemberId: ${householdMemberId}`,
+        this.logger.debug(
+          { householdMemberId },
+          'Generated new householdMemberId',
         );
       } else {
-        this.logger.log(
-          `Using provided householdMemberId: ${householdMemberId}`,
+        this.logger.debug(
+          { householdMemberId },
+          'Using provided householdMemberId',
         );
       }
 
@@ -107,10 +110,12 @@ export class HouseholdService {
       }
 
       const age = this.calculateAge(dto.dateOfBirth);
-      this.logger.log(`Age is ${age}`);
       // everyone over 18 requires a screening
       const requireScreening = age >= 18;
-      this.logger.log(`requiresScreening is: ${requireScreening}`);
+      this.logger.debug(
+        { householdMemberId, requireScreening },
+        'Screening requirement determined',
+      );
       let memberType = null;
 
       switch (dto.relationshipToPrimary) {
@@ -156,8 +161,12 @@ export class HouseholdService {
         )
         .exec();
 
-      this.logger.log(
-        `Successfully upserted household member with ID: ${result.householdMemberId} for applicationPackageId: ${dto.applicationPackageId}`,
+      this.logger.info(
+        {
+          householdMemberId: result.householdMemberId,
+          applicationPackageId: dto.applicationPackageId,
+        },
+        'Successfully upserted household member',
       );
       return result;
     } catch (error: unknown) {
@@ -181,7 +190,7 @@ export class HouseholdService {
     userId: string,
   ): Promise<HouseholdMembersDocument | null> {
     try {
-      this.logger.log(
+      this.logger.info(
         `Associating user ${userId} with household member ${householdMemberId}`,
       );
 
@@ -200,7 +209,7 @@ export class HouseholdService {
         return null;
       }
 
-      this.logger.log(
+      this.logger.info(
         `Successfully associated user ${userId} with household member ${householdMemberId}`,
       );
       return result;
@@ -245,7 +254,7 @@ export class HouseholdService {
     },
   ): Promise<HouseholdMembersDocument> {
     try {
-      this.logger.log(
+      this.logger.info(
         `Updating household member ${householdMemberId} with authenticated user data`,
       );
 
@@ -304,7 +313,7 @@ export class HouseholdService {
     try {
       const members = await this.householdMemberModel.find({ userId }).exec();
 
-      this.logger.log(
+      this.logger.info(
         `Found ${members.length} household members for userId:${userId}`,
       );
 
@@ -355,7 +364,7 @@ export class HouseholdService {
   //
   async remove(householdMemberId: string): Promise<boolean> {
     try {
-      this.logger.log(
+      this.logger.info(
         `Attempting to delete household member with ID: ${householdMemberId}`,
       );
 
@@ -372,7 +381,7 @@ export class HouseholdService {
         );
       }
 
-      this.logger.log(
+      this.logger.info(
         `Successfully deleted household member with ID: ${householdMemberId}`,
       );
       return true;
@@ -397,7 +406,7 @@ export class HouseholdService {
     applicationPackageId: string,
   ): Promise<{ deletedCount: number }> {
     try {
-      this.logger.log(
+      this.logger.info(
         `Deleting all household members for applicationPackageId: ${applicationPackageId}`,
       );
 
@@ -405,7 +414,7 @@ export class HouseholdService {
         .deleteMany({ applicationPackageId })
         .exec();
 
-      this.logger.log(
+      this.logger.info(
         `Deleted ${result.deletedCount} household members for applicationPackageId: ${applicationPackageId}`,
       );
 
@@ -427,7 +436,7 @@ export class HouseholdService {
     applicationPackageId: string,
   ): Promise<{ deletedCount: number }> {
     try {
-      this.logger.log(
+      this.logger.info(
         `Deleting non-primary household members for applicationPackageId: ${applicationPackageId}`,
       );
 
@@ -438,7 +447,7 @@ export class HouseholdService {
         })
         .exec();
 
-      this.logger.log(
+      this.logger.info(
         `Deleted ${result.deletedCount} non-primary household members for applicationPackageId: ${applicationPackageId}`,
       );
 
