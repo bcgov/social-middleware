@@ -145,10 +145,7 @@ export class ChesService {
         'Failed to send email via CHES',
       );
 
-      throw new HttpException(
-        errorData?.data || 'Failed to send email',
-        errorData?.status || 500,
-      );
+      throw new HttpException('Failed to send email', errorData?.status || 500);
     }
   }
 }
