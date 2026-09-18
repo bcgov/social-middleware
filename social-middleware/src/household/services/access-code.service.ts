@@ -51,7 +51,15 @@ export class AccessCodeService {
 
     try {
       // create screening application record
-      this.logger.info('Creating new Access Code Record');
+      this.logger.info(
+        {
+          operation: 'createAccessCode',
+          householdMemberId,
+          applicationPackageId,
+          type,
+        },
+        'Creating new Access Code Record',
+      );
 
       const accessCodeRecord = new this.screeningAccessCodeModel({
         accessCode,
@@ -66,13 +74,30 @@ export class AccessCodeService {
 
       await accessCodeRecord.save();
       this.logger.info(
-        { expiresAt, type },
+        {
+          operation: 'createAccessCode',
+          householdMemberId,
+          applicationPackageId,
+          expiresAt,
+          type,
+          outcome: 'success',
+        },
         'Created screening access code record',
       );
 
       return { accessCode, expiresAt };
     } catch (error) {
-      this.logger.error({ error }, 'Failed to create access code record');
+      this.logger.error(
+        {
+          err: error,
+          operation: 'createAccessCode',
+          householdMemberId,
+          applicationPackageId,
+          type,
+          outcome: 'failure',
+        },
+        'Failed to create access code record',
+      );
       throw new InternalServerErrorException('Access code creation failed');
     }
   }
@@ -121,7 +146,10 @@ export class AccessCodeService {
 
       // if we didn't find a valid one return an error
       if (!accessCodeRecord) {
-        this.logger.warn('Invalid, expired, or locked access code');
+        this.logger.warn(
+          { operation: 'associateAccessCode', userId, outcome: 'failure' },
+          'Invalid, expired, or locked access code',
+        );
         return { success: false, error: 'Invalid or expired access code' };
       }
 
@@ -133,7 +161,12 @@ export class AccessCodeService {
       // if we don't find one, that's an error
       if (!householdMember) {
         this.logger.error(
-          { householdMemberId: accessCodeRecord.householdMemberId },
+          {
+            operation: 'associateAccessCode',
+            householdMemberId: accessCodeRecord.householdMemberId,
+            userId,
+            outcome: 'failure',
+          },
           'Household member not found',
         );
         return { success: false, error: 'No match' };
@@ -160,10 +193,13 @@ export class AccessCodeService {
 
         this.logger.warn(
           {
+            operation: 'associateAccessCode',
             userId,
+            householdMemberId: accessCodeRecord.householdMemberId,
             lastNameMatched: false,
             dobMatched: dobMatch,
             attemptCount: accessCodeRecord.attemptCount + 1,
+            outcome: 'failure',
           },
           'User validation failed for access code',
         );
@@ -222,8 +258,10 @@ export class AccessCodeService {
 
       this.logger.info(
         {
+          operation: 'associateAccessCode',
           householdMemberId: accessCodeRecord.householdMemberId,
           userId,
+          outcome: 'success',
         },
         'Associated application forms with authenticated user',
       );
@@ -231,8 +269,10 @@ export class AccessCodeService {
       // all good to go
       this.logger.info(
         {
+          operation: 'associateAccessCode',
           userId,
           householdMemberId: accessCodeRecord.householdMemberId,
+          outcome: 'success',
         },
         'Successfully validated and associated user with screening application',
       );
@@ -243,7 +283,12 @@ export class AccessCodeService {
       };
     } catch (error: unknown) {
       this.logger.error(
-        { err: error, userId },
+        {
+          err: error,
+          operation: 'associateAccessCode',
+          userId,
+          outcome: 'failure',
+        },
         'Failed to associate user with access code',
       );
       throw new InternalServerErrorException('Failed to process access code');
@@ -343,19 +388,9 @@ export class AccessCodeService {
       const d2Month = d2.getUTCMonth();
       const d2Day = d2.getUTCDate();
 
-      this.logger.info(
-        {
-          original1: date1,
-          original2: date2,
-          d1Parts: { year: d1Year, month: d1Month, day: d1Day },
-          d2Parts: { year: d2Year, month: d2Month, day: d2Day },
-        },
-        `Comparing date parts`,
-      );
-
       return d1Year === d2Year && d1Month === d2Month && d1Day === d2Day;
     } catch (error) {
-      this.logger.error({ date1, date2, error }, 'Date comparison failed');
+      this.logger.error({ error }, 'Date comparison failed');
       return false;
     }
   }
