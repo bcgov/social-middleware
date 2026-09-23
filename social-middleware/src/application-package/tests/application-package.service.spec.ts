@@ -760,6 +760,7 @@ describe('ApplicationPackageService - lockApplicationPackage', () => {
     getApplicationFormByHouseholdId: jest.fn(),
     createApplicationForm: jest.fn(),
     createScreeningFormsAndAccessCode: jest.fn(),
+    findIncompletePrimaryApplicantForms: jest.fn(),
   };
 
   const mockLogger = {
@@ -811,6 +812,11 @@ describe('ApplicationPackageService - lockApplicationPackage', () => {
       mockSelfMember,
       mockAdultPartner,
     ]);
+
+    mockHouseholdService.findPrimaryApplicant.mockResolvedValue(mockSelfMember);
+    mockApplicationFormService.findIncompletePrimaryApplicantForms.mockResolvedValue(
+      [],
+    );
 
     mockApplicationFormService.createScreeningFormsAndAccessCode.mockResolvedValue(
       undefined,
