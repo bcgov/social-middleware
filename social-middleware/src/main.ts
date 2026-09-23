@@ -1,5 +1,6 @@
 import { ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { setConfigService } from './common/config/config-loader';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import * as cookieParser from 'cookie-parser';
@@ -29,6 +30,7 @@ async function bootstrap() {
 
     // load config
     const config = app.get(ConfigService);
+    setConfigService(config);
 
     const isDevEnvironment =
       config.get<string>('NODE_ENV') === 'development' ||
