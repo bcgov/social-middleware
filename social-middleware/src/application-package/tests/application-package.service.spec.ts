@@ -3245,7 +3245,7 @@ describe('ApplicationPackageService - submitTrainingCertificates', () => {
           fileName: 'pride.pdf',
           category: 'Resource Case',
           subCategory: 'Training Certificate',
-          description: 'PRIDE Certificate',
+          description: 'PRESERVICE CERTIFICATE',
         }),
       );
       expect(mockAttachments.saveIcmAttachmentId).toHaveBeenCalledWith(
