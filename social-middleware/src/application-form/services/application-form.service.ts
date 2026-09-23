@@ -992,6 +992,25 @@ export class ApplicationFormService {
       .exec();
   }
 
+  // Returns primary-applicant forms (excluding Referral/Household types) that are
+  // not yet in COMPLETE status. Used to gate both the APPLICATION -> CONSENT lock
+  // and the CONSENT -> READY completeness check, so the two transitions can't drift.
+  async findIncompletePrimaryApplicantForms(
+    applicationPackageId: string,
+    primaryHouseholdMemberId: string,
+  ): Promise<ApplicationForm[]> {
+    const allForms =
+      await this.findAllByApplicationPackageId(applicationPackageId);
+
+    return allForms.filter(
+      (form) =>
+        form.householdMemberId === primaryHouseholdMemberId &&
+        form.type !== ApplicationFormType.REFERRAL &&
+        form.type !== ApplicationFormType.HOUSEHOLD &&
+        form.status !== ApplicationFormStatus.COMPLETE,
+    );
+  }
+
   async deleteByApplicationPackageId(
     applicationPackageId: string,
   ): Promise<void> {

@@ -56,6 +56,7 @@ describe('ApplicationPackageProcessor', () => {
 
   const mockApplicationFormService = {
     findAllByApplicationPackageId: jest.fn(),
+    findIncompletePrimaryApplicantForms: jest.fn(),
     findByPackageAndUser: jest.fn(),
     convertFormDataToXml: jest.fn(),
     saveSiebelAttachmentId: jest.fn(),
@@ -259,7 +260,7 @@ describe('ApplicationPackageProcessor', () => {
       mockHouseholdService.findAllHouseholdMembers.mockResolvedValue([
         primaryApplicant,
       ]);
-      mockApplicationFormService.findAllByApplicationPackageId.mockResolvedValue(
+      mockApplicationFormService.findIncompletePrimaryApplicantForms.mockResolvedValue(
         [
           {
             householdMemberId: 'hm-primary-001',
@@ -288,8 +289,8 @@ describe('ApplicationPackageProcessor', () => {
       mockHouseholdService.findAllHouseholdMembers.mockResolvedValue([
         primaryApplicant,
       ]);
-      mockApplicationFormService.findAllByApplicationPackageId.mockResolvedValue(
-        completePrimaryForms,
+      mockApplicationFormService.findIncompletePrimaryApplicantForms.mockResolvedValue(
+        [],
       );
       mockHouseholdService.validateHouseholdCompletion.mockResolvedValue({
         isComplete: false,
@@ -321,8 +322,8 @@ describe('ApplicationPackageProcessor', () => {
         primaryApplicant,
         screeningMember,
       ]);
-      mockApplicationFormService.findAllByApplicationPackageId.mockResolvedValue(
-        completePrimaryForms,
+      mockApplicationFormService.findIncompletePrimaryApplicantForms.mockResolvedValue(
+        [],
       );
       mockHouseholdService.validateHouseholdCompletion.mockResolvedValue({
         isComplete: true,
@@ -350,8 +351,8 @@ describe('ApplicationPackageProcessor', () => {
       mockHouseholdService.findAllHouseholdMembers.mockResolvedValue([
         primaryApplicant,
       ]);
-      mockApplicationFormService.findAllByApplicationPackageId.mockResolvedValue(
-        completePrimaryForms,
+      mockApplicationFormService.findIncompletePrimaryApplicantForms.mockResolvedValue(
+        [],
       );
       mockHouseholdService.validateHouseholdCompletion.mockResolvedValue({
         isComplete: true,

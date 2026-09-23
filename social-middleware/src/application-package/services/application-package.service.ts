@@ -1523,6 +1523,25 @@ export class ApplicationPackageService {
       throw new BadRequestException(`Household data is incomplete`);
     }
 
+    const primaryApplicant =
+      await this.householdService.findPrimaryApplicant(applicationPackageId);
+    if (!primaryApplicant) {
+      throw new BadRequestException('No primary applicant found');
+    }
+
+    const incompletePrimaryForms =
+      await this.applicationFormService.findIncompletePrimaryApplicantForms(
+        applicationPackageId,
+        primaryApplicant.householdMemberId,
+      );
+    if (incompletePrimaryForms.length > 0) {
+      throw new BadRequestException(
+        `Application forms are incomplete: ${incompletePrimaryForms
+          .map((f) => f.type)
+          .join(', ')}`,
+      );
+    }
+
     // Atomically transition APPLICATION → CONSENT (or SUBMITTED if no screening).
     // Uses the status as a condition so only one concurrent request wins.
     const claimed = await this.applicationPackageModel.findOneAndUpdate(
