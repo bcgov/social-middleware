@@ -11,7 +11,7 @@ export enum AttachmentType {
   PCCCONSENT = 'Consent for Prior Contact Check',
   PROOF_OF_RESIDENCE = 'Proof of Residence',
   REFERENCE_LETTER = 'Reference Letter',
-  TRAINING_CERTIFICATE = 'PRIDE Certificate',
+  TRAINING_CERTIFICATE = 'PRESERVICE CERTIFICATE',
   IN_SERVICE_TRAINING_CERTIFICATE = 'In-Service Training Certificate',
 }
 
