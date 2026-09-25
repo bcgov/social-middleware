@@ -15,6 +15,7 @@ import { ApplicationFormStatus } from '../enums/application-form-status.enum';
 import { ApplicationFormType } from '../enums/application-form-types.enum';
 import { AccessCodeService } from '../../household/services/access-code.service';
 import { HouseholdService } from '../../household/services/household.service';
+import { HouseholdMembersDocument } from 'src/household/schemas/household-members.schema';
 import { NotificationService } from '../../notifications/services/notification.service';
 import { FormType } from '../enums/form-type.enum';
 import { ConfigService } from '@nestjs/config';
@@ -322,7 +323,7 @@ describe('ApplicationFormService', () => {
       householdService.findById.mockResolvedValue({
         householdMemberId: 'hm-001',
         userId: 'user-001',
-      } as any);
+      } as unknown as HouseholdMembersDocument);
 
       expect(
         await service.verifyHouseholdMemberAccess('hm-001', 'user-001'),
@@ -333,7 +334,7 @@ describe('ApplicationFormService', () => {
       householdService.findById.mockResolvedValue({
         householdMemberId: 'hm-001',
         userId: 'other-user',
-      } as any);
+      } as unknown as HouseholdMembersDocument);
 
       expect(
         await service.verifyHouseholdMemberAccess('hm-001', 'user-001'),
