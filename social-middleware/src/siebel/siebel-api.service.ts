@@ -733,8 +733,8 @@ export class SiebelApiService {
     SiebelSRResponse[]
   > {
     const params = {
-      SearchSpec: `([SR Type]='Caregiver Application' AND [SR Sub Type]='Kinship' AND [ICM Stage]='Referral' AND [Primary Contact Id] <> '' AND [Primary Contact Id] <> 'No Match Row Id')`,
-      fields: 'Id,Primary Contact Id,ICM Stage,SR Sub Type',
+      SearchSpec: `([SR Type]='Caregiver Application' AND [SR Sub Type]='Kinship' AND [ICM Stage]='Referral' AND [Primary Contact Id] <> '' AND [Primary Contact Id] <> 'No Match Row Id' AND [Status]='Open')`,
+      fields: 'Id,Primary Contact Id,ICM Stage,SR Sub Type,Resolution',
       ViewMode: 'Organization',
       ChildLinks: 'None',
       PageSize: '100',
@@ -754,6 +754,7 @@ export class SiebelApiService {
 
     const matched = await Promise.all(
       srs.map(async (sr) => {
+        if (sr['Resolution'] === 'Withdrawn') return null; // we should skip withdrawn kinship applications
         const contactId = sr['Primary Contact Id'];
         if (!contactId) return null;
         const caregiverType = await this.getActiveCaregiverType(
