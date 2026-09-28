@@ -1,9 +1,10 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { Injectable, OnModuleInit } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { ConfigService } from '@nestjs/config';
 import { firstValueFrom } from 'rxjs';
 import { AxiosResponse, AxiosError } from 'axios';
 import { Cron, CronExpression, SchedulerRegistry } from '@nestjs/schedule';
+import { PinoLogger } from 'nestjs-pino';
 
 @Injectable()
 export class SiebelAuthService implements OnModuleInit {
@@ -11,13 +12,14 @@ export class SiebelAuthService implements OnModuleInit {
   private accessToken: string | null = null;
   private tokenExpiry: Date | null = null;
 
-  private readonly logger = new Logger(SiebelAuthService.name);
-
   constructor(
     private readonly httpService: HttpService,
     private readonly configService: ConfigService,
     private readonly schedulerRegistry: SchedulerRegistry,
-  ) {}
+    private readonly logger: PinoLogger,
+  ) {
+    this.logger.setContext(SiebelAuthService.name);
+  }
 
   async getAccessToken(): Promise<string> {
     if (this.accessToken && this.tokenExpiry && new Date() < this.tokenExpiry) {
@@ -63,7 +65,7 @@ export class SiebelAuthService implements OnModuleInit {
       this.tokenExpiry = new Date(Date.now() + (expiresIn - 60) * 1000); // Refresh 1 min before expiry
       this.hasFirstAuth = true;
 
-      this.logger.log('Successfully obtained Siebel access token');
+      this.logger.info('Successfully obtained Siebel access token');
       return this.accessToken;
     } catch (error: unknown) {
       let errorData: unknown = null;
@@ -81,9 +83,9 @@ export class SiebelAuthService implements OnModuleInit {
   async retryAuth() {
     if (this.hasFirstAuth === false) {
       try {
-        this.logger.log(`Retrying Siebel authentication...`);
+        this.logger.info('Retrying Siebel authentication...');
         await this.getAccessToken();
-        this.logger.log(`Siebel authentication obtained, cron job will stop.`);
+        this.logger.info(`Siebel authentication obtained, cron job will stop.`);
       } catch {
         this.logger.warn(
           `Failed to retrieve Siebel access token. Will periodically retry every 5 minutes.`,
@@ -96,7 +98,7 @@ export class SiebelAuthService implements OnModuleInit {
   }
 
   async onModuleInit() {
-    this.logger.log(`Attempting to obtain initial Siebel authentication...`);
+    this.logger.info(`Attempting to obtain initial Siebel authentication...`);
     try {
       await this.getAccessToken();
     } catch {

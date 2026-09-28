@@ -6,8 +6,13 @@ export class GetAttachmentDto {
   @ApiProperty()
   attachmentId!: string;
 
-  @ApiProperty()
-  applicationPackageId!: string;
+  @ApiProperty({ required: false })
+  @IsOptional()
+  applicationPackageId?: string | null;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  resourceCaseId?: string | null;
 
   @ApiProperty({ required: false })
   @IsOptional()

@@ -41,7 +41,6 @@ curl -k -d '{"ref":"main","repository":{"url":"https://github.com/bcgov/caregive
 
 
 # Future work
-1. automated tests in pipeline(on push/merge)
 1. helm permissions to couple pipeline.yaml into helm chart
 1. dev/test/prod workflow
 1. Automate POD / PVC deletion after pipeline run

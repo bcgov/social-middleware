@@ -1,45 +1,46 @@
 import {
-  Controller,
-  Post,
-  Patch,
-  Param,
-  Body,
-  HttpException,
-  UseGuards,
-  HttpStatus,
-  Req,
-  Get,
-  Delete,
-  Inject,
-  forwardRef,
-  ValidationPipe,
   BadRequestException,
-  UnauthorizedException,
+  Body,
+  Controller,
+  Delete,
+  forwardRef,
+  Get,
+  HttpException,
+  HttpStatus,
+  Inject,
   NotFoundException,
+  Param,
   ParseUUIDPipe,
+  Patch,
+  Post,
+  Req,
+  UnauthorizedException,
+  UseGuards,
+  ValidationPipe,
 } from '@nestjs/common';
-import { Request } from 'express';
-import { SessionUtil } from '../common/utils/session.util';
-import { HouseholdService } from './services/household.service';
-import { AccessCodeService } from './services/access-code.service';
-import { ApplicationFormService } from '../application-form/services/application-form.service';
-import { NotificationService } from '../notifications/services/notification.service';
-import { CreateHouseholdMemberDto } from './dto/create-household-member.dto';
-import { GetApplicationFormDto } from '../application-form/dto/get-application-form.dto';
-import { UpdateHouseholdMemberDto } from './dto/update-household-member.dto';
-import { HouseholdMembersDocument } from './schemas/household-members.schema';
 import {
-  ApiTags,
-  ApiOperation,
-  ApiResponse,
-  ApiParam,
   ApiBody,
   ApiOkResponse,
+  ApiOperation,
+  ApiParam,
+  ApiResponse,
+  ApiTags,
 } from '@nestjs/swagger';
-import { HouseholdMemberWithFormsDto } from './dto/household-member-with-forms.dto';
-import { SessionAuthGuard } from '../auth/session-auth.guard';
-import { ApplicationFormStatus } from '../application-form/enums/application-form-status.enum';
+import { Request } from 'express';
 import { PinoLogger } from 'nestjs-pino';
+import { GetApplicationFormDto } from '../application-form/dto/get-application-form.dto';
+import { ApplicationFormStatus } from '../application-form/enums/application-form-status.enum';
+import { ApplicationFormService } from '../application-form/services/application-form.service';
+import { SessionAuthGuard } from '../auth/session-auth.guard';
+import { SessionUtil } from '../common/utils/session.util';
+import { NotificationService } from '../notifications/services/notification.service';
+import { CreateHouseholdMemberDto } from './dto/create-household-member.dto';
+import { HouseholdMemberWithFormsDto } from './dto/household-member-with-forms.dto';
+import { UpdateHouseholdMemberDto } from './dto/update-household-member.dto';
+import { RelationshipToPrimary } from './enums/relationship-to-primary.enum';
+import { HouseholdMembersDocument } from './schemas/household-members.schema';
+import { AccessCodeService } from './services/access-code.service';
+import { HouseholdService } from './services/household.service';
 @ApiTags('Household Members')
 @Controller('application-package/:applicationPackageId/household-members')
 @UseGuards(SessionAuthGuard)
@@ -81,6 +82,12 @@ export class HouseholdController {
     if (!hasAccess) {
       throw new UnauthorizedException(
         'Not authorized to modify this application package',
+      );
+    }
+
+    if (dto.applicationPackageId !== applicationPackageId) {
+      throw new UnauthorizedException(
+        'Household member application package does not match the request target',
       );
     }
 
@@ -241,7 +248,7 @@ export class HouseholdController {
 
     if (incompleteForms.length > 0) {
       throw new BadRequestException(
-        `Cannot confirm screening package - ${incompleteForms.length} of ${forms.length} forms 
+        `Cannot confirm screening package - ${incompleteForms.length} of ${forms.length} forms
   are incomplete`,
       );
     }
@@ -260,7 +267,9 @@ export class HouseholdController {
   @ApiOperation({
     summary: 'Mark all screening documents as attached for a household member',
     description:
-      'Called when primary applicant confirms they have uploaded all screening documents on behalf of household member',
+      'Called when the primary applicant uploads screening documents on behalf of a household member. ' +
+      'Not permitted for their spouse - spouses (partner, common law) submit their own screening documents ' +
+      'via their own portal login.',
   })
   @ApiResponse({
     status: 200,
@@ -291,6 +300,26 @@ export class HouseholdController {
       );
     }
 
+    // Authorization: only the primary applicant (package owner) may mark
+    // screening documents on behalf of a member, and never for their spouse/partner/commonlaw -
+    // spouses submit their own documents via their own portal login
+    const isPackageOwner = await this.householdService.verifyUserOwnsPackage(
+      applicationPackageId,
+      userId,
+    );
+    if (
+      !isPackageOwner ||
+      [
+        RelationshipToPrimary.Spouse,
+        RelationshipToPrimary.CommonLaw,
+        RelationshipToPrimary.Partner,
+      ].includes(member.relationshipToPrimary)
+    ) {
+      throw new UnauthorizedException(
+        'Not authorized to mark screening documents for this household member',
+      );
+    }
+
     // Get all application forms for this household member
     const forms =
       await this.applicationFormService.getApplicationFormByHouseholdId(
@@ -313,7 +342,7 @@ export class HouseholdController {
     await this.householdService.markScreeningProvided(householdMemberId);
 
     this.logger.info(
-      `Marked ${forms.length} screening form(s) as attached for household member 
+      `Marked ${forms.length} screening form(s) as attached for household member
   ${householdMemberId}`,
     );
 
@@ -396,6 +425,11 @@ export class HouseholdController {
     if (!member) {
       throw new NotFoundException('Household member not found');
     }
+    if (member.applicationPackageId !== applicationPackageId) {
+      throw new UnauthorizedException(
+        'Household member does not belong to this application package',
+      );
+    }
     if (member.userId !== null) {
       throw new BadRequestException(
         'Cannot edit a household member who has already redeemed their access code',
@@ -450,6 +484,11 @@ export class HouseholdController {
     if (!member) {
       throw new NotFoundException('Household member not found');
     }
+    if (member.applicationPackageId !== applicationPackageId) {
+      throw new UnauthorizedException(
+        'Household member does not belong to this application package',
+      );
+    }
     if (member.userId !== null) {
       throw new BadRequestException(
         'Cannot resend access code to a member who has already logged in',
@@ -476,8 +515,8 @@ export class HouseholdController {
 
     const { accessCode, expiresAt, isNew } =
       await this.accessCodeService.resendOrCreateAccessCode(
-        applicationPackageId,
         householdMemberId,
+        applicationPackageId,
       );
 
     await this.householdService.incrementResendTracking(householdMemberId);

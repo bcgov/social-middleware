@@ -231,11 +231,6 @@ export class ApplicationPackageProcessor {
         return { isComplete: false, status: applicationPackage.status };
       }
 
-      // get all the application forms
-      const allApplicationForms =
-        await this.applicationFormService.findAllByApplicationPackageId(
-          applicationPackageId,
-        );
       //get all household members
       const householdMembers =
         await this.householdService.findAllHouseholdMembers(
@@ -255,16 +250,11 @@ export class ApplicationPackageProcessor {
       }
 
       // Get all forms for the primary applicant
-      const primaryApplicantForms = allApplicationForms.filter(
-        (form) =>
-          form.householdMemberId === primaryApplicant.householdMemberId &&
-          form.type !== ApplicationFormType.REFERRAL &&
-          form.type !== ApplicationFormType.HOUSEHOLD,
-      );
-
-      const incompletePrimaryForms = primaryApplicantForms.filter(
-        (form) => form.status !== ApplicationFormStatus.COMPLETE,
-      );
+      const incompletePrimaryForms =
+        await this.applicationFormService.findIncompletePrimaryApplicantForms(
+          applicationPackageId,
+          primaryApplicant.householdMemberId,
+        );
 
       if (incompletePrimaryForms.length > 0) {
         // Self-heal a known status glitch: the package was submitted but the
@@ -300,7 +290,6 @@ export class ApplicationPackageProcessor {
         this.logger.info(
           {
             applicationPackageId,
-            totalPrimaryForms: primaryApplicantForms.length,
             incompleteCount: incompletePrimaryForms.length,
           },
           'Primary applicant forms not yet complete',
@@ -355,7 +344,6 @@ export class ApplicationPackageProcessor {
       this.logger.info(
         {
           applicationPackageId,
-          primaryFormsCompleted: primaryApplicantForms.length,
           screeningMembersCompleted: membersRequiringScreening.length,
         },
         'All primary applicant forms complete and all required screening info provided',
@@ -424,10 +412,22 @@ export class ApplicationPackageProcessor {
       return { success: false };
     }
 
-    await this.siebelApiService.createSRNotification(srId, {
-      serviceRequestNumber: srDetails['Service Request Number']!,
-      owner: srDetails['Assigned To Id']!,
-    });
+    if (!srDetails['Assigned To'] || !srDetails['Assigned To Id']) {
+      this.logger.warn(
+        {
+          srId: appPackage.srId,
+        },
+        'SR is unassigned; skipping',
+      );
+    } else {
+      // create a service request notification assigned to the service request assignee
+      await this.siebelApiService.createSRNotification(appPackage.srId, {
+        serviceRequestNumber: srDetails['Service Request Number']!,
+        owner: srDetails['Assigned To Id'],
+        assignedTo: srDetails['Assigned To'],
+        //officeId: srDetails['Service Office Id'],
+      });
+    }
 
     if (this.configService.get<string>('OCT2027_RELEASE_ENABLED') === 'true') {
       await this.siebelApiService.updateServiceRequestFields(appPackage.srId, {

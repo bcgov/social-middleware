@@ -23,7 +23,7 @@ export class IcmStageQueueService {
         return;
       }
 
-      this.logger.info('Adding ICM stage check job to queue');
+      //this.logger.info('Adding ICM stage check job to queue');
       const job = await this.icmStageQueue.add('check-icm-stage', {});
       this.logger.info(
         { jobId: job.id },

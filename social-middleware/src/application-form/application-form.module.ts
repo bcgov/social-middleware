@@ -23,7 +23,7 @@ import { HouseholdModule } from 'src/household/household.module';
 import { ApplicationFormsController } from './application-form.controller';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { SessionUtil } from '../common/utils/session.util';
-import { NotificationModule } from '../notifications/notification.module';
+//import { NotificationModule } from '../notifications/notification.module';
 import { BullModule } from '@nestjs/bull';
 
 @Module({
@@ -37,7 +37,7 @@ import { BullModule } from '@nestjs/bull';
     EventEmitterModule,
     AuthModule, // For UserService dependency
     HouseholdModule,
-    NotificationModule,
+    //NotificationModule,
     BullModule.registerQueue({ name: 'applicationPackageQueue' }),
   ],
   exports: [ApplicationFormService, AccessCodeService, MongooseModule], // Export so other modules can use it

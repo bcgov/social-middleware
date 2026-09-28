@@ -92,7 +92,7 @@ export class NotificationService {
           <p>Hello ${householdMemberName},</p>
           <p>You have been identified as a household member on an application to become a foster caregiver. As part of the assessment process, the Ministry of Children and Family Development requires all adult household members to provide background information and consent to screening activities.</p>
           <p>Please sign in to the <a href="${this.frontendUrl}">Foster & Care Provider Portal</a> using your BC Services Card and enter the access code <b>${accessCode}</b> to begin.</p>
-          <p>Thank you for providing the information we need to continue your assessment.</p> 
+          <p>Thank you for providing the information we need to continue your assessment.</p>
           <p>Thank you,<br>BC Caregiver Registry Team</p>
         `,
       bodyType: 'html',
@@ -114,13 +114,13 @@ export class NotificationService {
       from:
         this.configService.get<string>('CHES_FROM_EMAIL') ||
         'noreply@gov.bc.ca',
-      subject: 'Invitation to apply as a Kinship Caregiver',
+      subject: 'Invitation to apply as a Kinship Care Provider',
       body: `
-            <h2>You’ve been identified as a prospective Kinship Caregiver</h2>
+            <h2>You’ve been identified as a prospective Kinship Care Provider</h2>
             <p>Hello ${applicantName},</p>
-            <p>You have been identified as a prospective Kinship Caregiver. As part of the assessment process, the Ministry of Children and Family Development requires a completed application to proceed.</p>
+            <p>You have been identified as a prospective Kinship Care Provider. As part of the assessment process, the Ministry of Children and Family Development requires a completed application to proceed.</p>
             <p>Please sign in to the <a href="${this.frontendUrl}">Foster & Care Provider Portal</a> using your BC Services Card and enter the access code <b>${accessCode}</b> to begin.</p>
-            <p>Thank you for providing the information we need to continue your assessment.</p> 
+            <p>Thank you for providing the information we need to continue your assessment.</p>
             <p>Thank you,<br>BC Caregiver Registry Team</p>
           `,
       bodyType: 'html',
@@ -172,9 +172,10 @@ export class NotificationService {
       body: `
               <h2>Application Submitted Successfully</h2>
               <p>Hello ${applicantName},</p>
-              <p>Thank you — all required information for your caregiver application has been received, and it has now been submitted to the Ministry of Children and Family Development for processing.</p> 
-              <p>A social worker will contact you in the coming weeks if they have any questions. You can now complete your Medical Screening form. Please sign in to the <a href="${this.frontendUrl}">Foster & Care Provider Portal</a> for instructions on providing your medical information.</p>
-              <p>Thank you,<br>BC Caregiver Registry Team</p>
+              <p>Thank you — Your application has been received, and it has been submitted to the Centralized Services Hub (CSH) for processing.</p>
+              <p>Your application will now undergo initial screening. Processing times may vary depending on application volume and individual circumstances.</p>
+              <p>If any additional information is needed to complete your initial screening, a worker will reach out to you.</p>
+              <p>If you have an urgent concern, CSH can be reached at: <a href="mailto:CSH.GeneralEnquiries@gov.bc.ca">CSH.GeneralEnquiries@gov.bc.ca</a></p>
             `,
       bodyType: 'html',
       priority: 'normal',

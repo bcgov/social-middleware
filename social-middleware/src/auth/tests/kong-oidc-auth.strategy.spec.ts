@@ -1,5 +1,11 @@
 import { HttpStatus } from '@nestjs/common';
 import { KongOidcAuthStrategy } from '../strategies/kong-oidc-auth.strategy';
+import { ConfigService } from '@nestjs/config';
+import { UserService } from '../user.service';
+import { AuthService } from '../auth.service';
+import { UserUtil } from 'src/common/utils/user.util';
+import { PinoLogger } from 'nestjs-pino';
+import { TokenBlacklistService } from '../services/token-blacklist.service';
 
 const mockUserInfo = {
   sub: 'user-sub-123',
@@ -80,13 +86,14 @@ describe('KongOidcAuthStrategy', () => {
 
   beforeEach(() => {
     strategy = new KongOidcAuthStrategy(
-      mockConfigService as any,
-      mockUserService as any,
-      mockAuthService as any,
-      mockUserUtil as any,
-      mockLogger as any,
-      mockTokenBlacklistService as any,
+      mockConfigService as unknown as ConfigService,
+      mockUserService as unknown as UserService,
+      mockAuthService as unknown as AuthService,
+      mockUserUtil as unknown as UserUtil,
+      mockLogger as unknown as PinoLogger,
+      mockTokenBlacklistService as unknown as TokenBlacklistService,
     );
+
     jest
       .spyOn(strategy as any, 'createUserSession')
       .mockResolvedValue(undefined);

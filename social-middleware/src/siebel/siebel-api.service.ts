@@ -1,16 +1,16 @@
-import { Injectable } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
+import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { firstValueFrom } from 'rxjs';
 import { AxiosError } from 'axios';
-import { SiebelAuthService } from './siebel-auth.service';
 import { PinoLogger } from 'nestjs-pino';
+import { firstValueFrom } from 'rxjs';
 import {
   CaregiverTypeItem,
   CaregiverTypesResponse,
   IcmContactDetail,
 } from './dto/caregiver-type-response.dto';
 import { IcmCaregiverType } from './enums/icm-caregiver-type.enum';
+import { SiebelAuthService } from './siebel-auth.service';
 
 interface SiebelContactResponse {
   Id?: string;
@@ -29,8 +29,11 @@ export interface SiebelSRResponse {
 }
 
 export interface CreateNotificationData {
-  serviceRequestNumber: string;
-  owner: string;
+  serviceRequestNumber?: string;
+  caseNumber?: string;
+  owner?: string; // SR Assigned to Id
+  description?: string; // custom notification description
+  assignedTo?: string;
 }
 
 export interface SiebelSRsResponse {
@@ -46,14 +49,28 @@ export interface SiebelSRDetail {
   Status?: string;
   'ICM Stage'?: string;
   Resolution?: string;
+  'Service Office'?: string;
+  'Service Office Id'?: string;
   [key: string]: unknown;
 }
 
 export interface SiebelResourceCase {
   Id: string;
   Status: string;
+  'Case Num': string;
+  'Assigned To': string;
+  'Assigned To Id'?: string;
   'Created Date': string;
   'Reopened Date': string;
+  [key: string]: unknown;
+}
+
+export interface SiebelCaseContact {
+  Id?: string;
+  Relationship?: string;
+  'First Name'?: string;
+  'Last Name'?: string;
+  'End Date'?: string;
   [key: string]: unknown;
 }
 
@@ -66,6 +83,7 @@ export class SiebelApiError extends Error {
     this.name = 'SiebelApiError';
   }
 }
+
 @Injectable()
 export class SiebelApiService {
   private readonly baseUrl: string;
@@ -86,27 +104,52 @@ export class SiebelApiService {
     this.logger.setContext(SiebelApiService.name);
   }
 
-  private async getHeaders(): Promise<Record<string, string>> {
+  private async getHeaders(
+    trustedUsernameOverride?: string,
+  ): Promise<Record<string, string>> {
     const accessToken = await this.siebelAuthService.getAccessToken();
 
     return {
       Authorization: `Bearer ${accessToken}`,
-      'X-ICM-TrustedUsername': this.trustedUsername,
+      'X-ICM-TrustedUsername': trustedUsernameOverride ?? this.trustedUsername,
       'Content-Type': 'application/json',
       Accept: 'application/json',
       'Accept-Encoding': 'identity',
     };
   }
 
-  async getCaseContacts(query: any) {
-    const endpoint = this.configService.get<string>('CASE_CONTACTS_ENDPOINT');
-    if (!endpoint) {
-      throw new Error('CASE_CONTACTS_ENDPOINT configuration is missing');
+  async getCaseContacts(caseId: string): Promise<SiebelCaseContact[]> {
+    const endpoint = `/Cases/Case/${caseId}/Contact`;
+    const params = {
+      ViewMode: 'Organization',
+      fields: 'Relationship,Last Name,First Name,End Date',
+    };
+
+    try {
+      const result = await this.get<{
+        items?: SiebelCaseContact | SiebelCaseContact[];
+        Id?: string;
+        [key: string]: unknown;
+      }>(endpoint, params);
+
+      if (result.items) {
+        return Array.isArray(result.items) ? result.items : [result.items];
+      }
+
+      if (result.Id) {
+        return [result];
+      }
+
+      return [];
+    } catch (error) {
+      if (error instanceof SiebelApiError && error.status === 404) {
+        return [];
+      }
+      throw error;
     }
-    return await this.get(endpoint, query);
   }
 
-  async getServiceRequests(query: any) {
+  async getServiceRequests(query: Record<string, any>) {
     const endpoint = '/ServiceRequest/ServiceRequest';
     return await this.get(endpoint, query);
   }
@@ -207,25 +250,22 @@ export class SiebelApiService {
         this.httpService.get<T>(url, { headers, params }),
       );
 
-      this.logger.debug({ endpoint, params }, 'GET request successful');
+      this.logger.trace({ endpoint, params }, 'GET request successful');
       return response.data;
     } catch (error: unknown) {
       if (error instanceof AxiosError) {
         const errorData = error.response?.data as unknown;
-
         if (error.response?.status === 404) {
           this.logger.debug({ endpoint, params }, 'Resource not found (404)');
         } else {
           this.logger.error(
-            { endpoint, params, status: error.response?.status, errorData },
+            { endpoint, params, status: error.response?.status, err: error },
             'GET request failed',
           );
         }
-
         throw this.handleError(error, errorData);
       }
-
-      this.logger.error({ endpoint, params, error }, 'GET request failed');
+      this.logger.error({ endpoint, params, err: error }, 'GET request failed');
       throw new Error('Unexpected error during Siebel GET request');
     }
   }
@@ -282,27 +322,15 @@ export class SiebelApiService {
     try {
       return await this.put(endpoint, serviceRequestData);
     } catch (error: unknown) {
-      // Log the raw error first
-      this.logger.error('Raw error object:', error);
-
-      // Try different error structure patterns
-      if (error && typeof error === 'object') {
-        this.logger.error('Error keys:', Object.keys(error));
-
-        // Axios error structure
-        if ('response' in error) {
-          const axiosError = error as AxiosError;
-          this.logger.error('Axios response:', axiosError.response);
-          this.logger.error('Axios status:', axiosError.response?.status);
-          this.logger.error('Axios data:', axiosError.response?.data);
-        }
-
-        // Other error patterns
-        if ('message' in error) {
-          this.logger.error('Error message:', (error as any).message);
-        }
-      }
-
+      this.logger.error(
+        {
+          err: error,
+          operation: 'createServiceRequest',
+          endpoint,
+          outcome: 'failure',
+        },
+        'Failed to create service request',
+      );
       throw error;
     }
   }
@@ -325,7 +353,13 @@ export class SiebelApiService {
       return await this.put(endpoint, payload, params);
     } catch (error) {
       this.logger.error(
-        { error, serviceRequestId, newStage },
+        {
+          err: error,
+          operation: 'updateServiceRequestStage',
+          serviceRequestId,
+          newStage,
+          outcome: 'failure',
+        },
         'Failed to update Service Request stage',
       );
       throw error;
@@ -342,7 +376,7 @@ export class SiebelApiService {
     };
 
     this.logger.debug(
-      { serviceRequestId, fields },
+      { serviceRequestId, fieldNames: Object.keys(fields) },
       'Updating Service Request fields',
     );
 
@@ -350,7 +384,13 @@ export class SiebelApiService {
       return await this.put(endpoint, fields, params);
     } catch (error) {
       this.logger.error(
-        { error, serviceRequestId, fields },
+        {
+          err: error,
+          operation: 'updateServiceRequestFields',
+          serviceRequestId,
+          fieldNames: Object.keys(fields),
+          outcome: 'failure',
+        },
         'Failed to update Service Request fields',
       );
       throw error;
@@ -365,6 +405,7 @@ export class SiebelApiService {
       fileType: string;
       description: string;
       category: string;
+      subCategory?: string;
     },
   ) {
     const endpoint = '/Attachment/Attachment';
@@ -375,6 +416,7 @@ export class SiebelApiService {
       'Memo Number': '',
       Categorie: 'Attachment',
       Category: attachmentData.category,
+      'Sub-Category': attachmentData.subCategory ?? '',
       Status: 'Complete',
       FileExt: attachmentData.fileType,
       FileName: attachmentData.fileName,
@@ -453,8 +495,8 @@ export class SiebelApiService {
       'Applicant Flag': prospectData.ApplicantFlag,
     };
     this.logger.debug(
-      `Creating prospect for Service Request: ${prospectData.ServiceRequestId}`,
-      payload,
+      { serviceRequestId: prospectData.ServiceRequestId },
+      'Creating prospect for Service Request',
     );
     return await this.put(endpoint, payload);
   }
@@ -469,18 +511,86 @@ export class SiebelApiService {
       Id: 'NULL',
       Type: 'Notification',
       'ICM Sub Type': 'Action Required',
-      Description: `Caregiver Applicant has cancelled their application (${activityData.serviceRequestNumber})`,
+      Description:
+        activityData.description ??
+        `Caregiver Applicant has cancelled their application (${activityData.serviceRequestNumber})`,
       Priority: '3-Standard',
       Status: 'Open',
       'Action By': 'Staff',
       'Activity SR Id': serviceRequestId,
       'Primary Owner Id': activityData.owner,
+      //'Service Office Id': activityData.officeId,
     };
 
     this.logger.debug(
       `Creating notification activity for Service Request: ${serviceRequestId}`,
     );
+    return await this.put(
+      endpoint,
+      payload,
+      undefined,
+      activityData.assignedTo,
+    );
+  }
+
+  async createCaseAttachment(
+    caseId: string,
+    attachmentData: {
+      fileName: string;
+      fileContent: string;
+      fileType: string;
+      description: string;
+      category: string;
+      subCategory?: string;
+    },
+  ) {
+    const endpoint = '/Attachment/Attachment';
+    const payload = {
+      'Case Id': caseId,
+      Id: 'NULL',
+      'Memo Id': 'NULL',
+      'Memo Number': '',
+      Categorie: 'Attachment',
+      Category: attachmentData.category,
+      'Sub-Category': attachmentData.subCategory ?? '',
+      Status: 'Complete',
+      FileExt: attachmentData.fileType,
+      FileName: attachmentData.fileName,
+      'Attachment Id': attachmentData.fileContent,
+      Description: attachmentData.description,
+    };
+    this.logger.debug(`Creating attachment for Case: ${caseId}`);
     return await this.put(endpoint, payload);
+  }
+
+  async createCaseNotification(
+    caseId: string,
+    activityData: CreateNotificationData,
+  ) {
+    const endpoint = '/Activities/Activities';
+
+    const payload = {
+      Id: 'NULL',
+      Type: 'Notification',
+      'ICM Sub Type': 'Action Required',
+      Description:
+        activityData.description ??
+        `Caregiver has submitted an in-service training certificate (${activityData.caseNumber ?? caseId})`,
+      Priority: '3-Standard',
+      Status: 'Open',
+      'Action By': 'Staff',
+      'Case Id': caseId,
+      'Primary Owner Id': activityData.owner,
+    };
+
+    this.logger.debug(`Creating notification activity for Case: ${caseId}`);
+
+    return await this.put(
+      endpoint,
+      payload,
+      undefined,
+      activityData.assignedTo,
+    );
   }
 
   async getIcmContactById(contactId: string): Promise<IcmContactDetail | null> {
@@ -505,7 +615,7 @@ export class SiebelApiService {
     const endpoint = `/ServiceRequest/ServiceRequest/${srId}`;
     const params = {
       fields:
-        'Id, Service Request Number, Assigned To Id, Assigned To, Status, ICM Stage, Resolution',
+        'Id, Service Request Number, Assigned To Id, Assigned To, Status, ICM Stage, Resolution, Service Office, Assigned To',
       ChildLinks: 'None',
       ViewMode: 'Organization',
     };
@@ -526,7 +636,8 @@ export class SiebelApiService {
     const params = {
       SearchSpec: `([Key Player Id] = '${contactId}' AND [Type] = 'Resource' AND [Status] = 'Open')`,
       ViewMode: 'Catalog',
-      fields: 'Id,Status,Created Date,Reopened Date',
+      fields:
+        'Id,Status,Created Date,Reopened Date,Assigned To Id,Assigned To,Case Num',
       ChildLinks: 'None',
     };
 
@@ -559,41 +670,28 @@ export class SiebelApiService {
     endpoint: string,
     data?: unknown,
     params?: Record<string, any>,
+    trustedUsernameOverride?: string,
   ): Promise<T> {
     try {
-      const headers = await this.getHeaders();
+      const headers = await this.getHeaders(trustedUsernameOverride);
       const url = `${this.baseUrl}${endpoint}`;
 
       const response = await firstValueFrom(
         this.httpService.put<T>(url, data, { headers, params }),
       );
 
-      this.logger.debug({ endpoint, data, params }, 'PUT request successful');
+      this.logger.debug({ endpoint, params }, 'PUT request successful');
       return response.data;
     } catch (error: unknown) {
       if (error instanceof AxiosError) {
         const errorData = error.response?.data as unknown;
-
         this.logger.error(
-          {
-            endpoint,
-            data,
-            params,
-            status: error.response?.status,
-            statusText: error.response?.statusText,
-            errorData,
-            errorMessage: error.message,
-            errorStack: error.stack,
-          },
+          { endpoint, params, status: error.response?.status, err: error },
           'PUT request failed',
         );
-
         throw this.handleError(error, errorData);
       }
-      this.logger.error(
-        { endpoint, data, params, error },
-        'PUT request failed',
-      );
+      this.logger.error({ endpoint, params, err: error }, 'PUT request failed');
       throw new Error('Unexpected error during Siebel PUT request');
     }
   }
@@ -607,6 +705,7 @@ export class SiebelApiService {
       //SearchSpec: `([Caregiver Type] = '${caregiverType}')`,
       ChildLinks: 'None',
       ViewMode: 'Organization',
+      PageSize: '100', // unlikely, but to enable in testing environment
     };
 
     try {
@@ -634,12 +733,14 @@ export class SiebelApiService {
     SiebelSRResponse[]
   > {
     const params = {
-      SearchSpec: `([SR Type]='Caregiver Application' AND [SR Sub Type]='Kinship' AND [ICM Stage]='Referral' AND [Primary Contact Id] <> '' AND [Primary Contact Id] <> 'No Match Row Id')`,
-      fields: 'Id,Primary Contact Id,ICM Stage,SR Sub Type',
+      SearchSpec: `([SR Type]='Caregiver Application' AND [SR Sub Type]='Kinship' AND [ICM Stage]='Referral' AND [Primary Contact Id] <> '' AND [Primary Contact Id] <> 'No Match Row Id' AND [Status]='Open')`,
+      fields: 'Id,Primary Contact Id,ICM Stage,SR Sub Type,Resolution',
       ViewMode: 'Organization',
       ChildLinks: 'None',
+      PageSize: '100',
     };
 
+    // get 100 Kinship Applications in the Referral Stage with a Primary Contact
     const result = await this.get<SiebelSRsResponse>(
       '/ServiceRequest/ServiceRequest',
       params,
@@ -653,6 +754,7 @@ export class SiebelApiService {
 
     const matched = await Promise.all(
       srs.map(async (sr) => {
+        if (sr['Resolution'] === 'Withdrawn') return null; // we should skip withdrawn kinship applications
         const contactId = sr['Primary Contact Id'];
         if (!contactId) return null;
         const caregiverType = await this.getActiveCaregiverType(

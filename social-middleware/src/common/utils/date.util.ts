@@ -14,7 +14,7 @@ export function compareDates(date1: string, date2: string): boolean {
       d1.getMonth() === d2.getMonth() &&
       d1.getDate() === d2.getDate()
     );
-  } catch (error) {
+  } catch {
     return false;
   }
 }
@@ -36,4 +36,17 @@ export function formatDateForSiebel(dateInput: string | Date): string {
   const year = date.getFullYear();
 
   return `${month}/${day}/${year}`;
+}
+
+/**
+ * Returns the current date in mmm-dd-yyyy format (e.g., Sep-02-2026)
+ * @returns Formatted date string in mmm-dd-yyyy format
+ */
+export function getCurrentDateMmmDdYyyy(): string {
+  const date = new Date();
+  const month = date.toLocaleString('en-US', { month: 'short' });
+  const day = String(date.getDate()).padStart(2, '0');
+  const year = date.getFullYear();
+
+  return `${month}-${day}-${year}`;
 }

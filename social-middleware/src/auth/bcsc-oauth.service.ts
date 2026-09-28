@@ -166,13 +166,17 @@ export class BcscOAuthService {
 
       return response.data;
     } catch (error: unknown) {
-      let errorData: unknown = null;
-      if (error instanceof AxiosError) {
-        errorData = error.response?.data;
-      }
+      const status =
+        error instanceof AxiosError ? error.response?.status : undefined;
+      const oauthErrorCode =
+        error instanceof AxiosError &&
+        typeof error.response?.data === 'object' &&
+        error.response?.data !== null
+          ? (error.response.data as Record<string, unknown>).error
+          : undefined;
 
       this.logger.error(
-        { errorData },
+        { status, oauthErrorCode },
         'Failed to exchange authorization code for tokens',
       );
       throw new Error('Failed to authenticate with BCSC');
@@ -202,12 +206,9 @@ export class BcscOAuthService {
 
       return response.data;
     } catch (error: unknown) {
-      let errorData: unknown = null;
-      if (error instanceof AxiosError) {
-        errorData = error.response?.data;
-      }
-
-      this.logger.error({ errorData }, 'Failed to fetch user info from BCSC');
+      const status =
+        error instanceof AxiosError ? error.response?.status : undefined;
+      this.logger.error({ status }, 'Failed to fetch user info from BCSC');
       throw new Error('Failed to fetch user information from BCSC');
     }
   }

@@ -1,4 +1,8 @@
-import { compareDates, formatDateForSiebel } from './date.util';
+import {
+  compareDates,
+  formatDateForSiebel,
+  getCurrentDateMmmDdYyyy,
+} from './date.util';
 
 describe('compareDates', () => {
   it('returns true for identical date strings', () => {
@@ -27,6 +31,24 @@ describe('compareDates', () => {
 
   it('returns false when both dates are invalid', () => {
     expect(compareDates('not-a-date', 'also-invalid')).toBe(false);
+  });
+});
+
+describe('getCurrentDateMmmDdYyyy', () => {
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  it('returns the current date in mmm-dd-yyyy format', () => {
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date(2026, 8, 2));
+    expect(getCurrentDateMmmDdYyyy()).toBe('Sep-02-2026');
+  });
+
+  it('pads single-digit days with a leading zero', () => {
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date(2026, 0, 5));
+    expect(getCurrentDateMmmDdYyyy()).toBe('Jan-05-2026');
   });
 });
 

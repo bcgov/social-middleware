@@ -1,37 +1,37 @@
 import {
+  Body,
   Controller,
+  Delete,
+  Get,
+  HttpCode,
+  NotFoundException,
+  Param,
+  ParseUUIDPipe,
+  Post,
   Query,
   Req,
-  Get,
-  Param,
-  Delete,
-  UseGuards,
-  Body,
-  HttpCode,
-  ValidationPipe,
-  NotFoundException,
   UnauthorizedException,
-  Post,
-  ParseUUIDPipe,
+  UseGuards,
+  ValidationPipe,
 } from '@nestjs/common';
 import {
-  ApiTags,
+  ApiBearerAuth,
   ApiOperation,
   ApiParam,
-  ApiResponse,
   ApiQuery,
-  ApiBearerAuth,
+  ApiResponse,
+  ApiTags,
 } from '@nestjs/swagger';
 import { Request } from 'express';
-import { NewTokenDto } from './dto/new-token.dto';
 import { GetApplicationFormDto } from './dto/get-application-form.dto';
+import { NewTokenDto } from './dto/new-token.dto';
 import { SubmitApplicationFormDto } from './dto/submit-application-form.dto';
 //import { InviteHouseholdMemberParamsDto } from './dto/invite-household-member-params.dto';
-import { SessionAuthGuard } from 'src/auth/session-auth.guard';
-import { ApplicationFormService } from './services/application-form.service';
-import { SessionUtil } from 'src/common/utils/session.util';
 import { PinoLogger } from 'nestjs-pino';
+import { SessionAuthGuard } from 'src/auth/session-auth.guard';
+import { SessionUtil } from 'src/common/utils/session.util';
 import { ApplicationFormStatus } from './enums/application-form-status.enum';
+import { ApplicationFormService } from './services/application-form.service';
 
 @ApiBearerAuth()
 @ApiTags('Application Forms')
@@ -172,6 +172,7 @@ export class ApplicationFormsController {
   }
 
   @Get()
+  @UseGuards(SessionAuthGuard)
   @ApiOperation({
     summary: 'Get user application forms',
     description:

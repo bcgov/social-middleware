@@ -1,33 +1,38 @@
 import {
-  Controller,
-  Post,
-  Get,
-  Delete,
-  Param,
+  BadRequestException,
   Body,
-  Req,
+  Controller,
+  Delete,
+  ForbiddenException,
+  Get,
   HttpException,
   HttpStatus,
-  ValidationPipe,
+  Param,
   ParseUUIDPipe,
+  Post,
+  Req,
+  UnauthorizedException,
   UseGuards,
-  ForbiddenException,
+  ValidationPipe,
 } from '@nestjs/common';
 import {
-  ApiTags,
-  ApiOperation,
-  ApiResponse,
-  ApiParam,
-  ApiBody,
   ApiBearerAuth,
+  ApiBody,
+  ApiOperation,
+  ApiParam,
+  ApiResponse,
+  ApiTags,
 } from '@nestjs/swagger';
 import { Request } from 'express';
+import { UserService } from 'src/auth/user.service';
+import { ApplicationFormService } from '../application-form/services/application-form.service';
+import { SessionAuthGuard } from '../auth/session-auth.guard';
+import { getCurrentDateMmmDdYyyy } from '../common/utils/date.util';
+import { SessionUtil } from '../common/utils/session.util';
+import { HouseholdService } from '../household/services/household.service';
 import { AttachmentsService } from './attachments.service';
 import { CreateAttachmentDto } from './dto/create-attachment.dto';
 import { GetAttachmentDto } from './dto/get-attachment.dto';
-import { SessionUtil } from '../common/utils/session.util';
-import { SessionAuthGuard } from '../auth/session-auth.guard';
-import { HouseholdService } from '../household/services/household.service';
 
 @ApiBearerAuth()
 @ApiTags('Attachments')
@@ -38,6 +43,8 @@ export class AttachmentsController {
     private readonly attachmentsService: AttachmentsService,
     private readonly sessionUtil: SessionUtil,
     private readonly householdService: HouseholdService, // used to validate ownership
+    private readonly userService: UserService, // used to retrieve case ID
+    private readonly applicationFormsService: ApplicationFormService,
   ) {}
 
   @Post()
@@ -52,15 +59,109 @@ export class AttachmentsController {
     dto: CreateAttachmentDto,
     @Req() request: Request,
   ) {
+    const userId = this.sessionUtil.extractUserIdFromRequest(request);
+    await this.assertAttachmentTargetOwnership(dto, userId);
+
     try {
-      const userId = this.sessionUtil.extractUserIdFromRequest(request);
+      dto.fileName = `${dto.fileName} [${getCurrentDateMmmDdYyyy()}]`;
       return await this.attachmentsService.create(dto, userId);
-    } catch (error) {
+    } catch {
       throw new HttpException(
         'Failed to upload attachment',
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
+  }
+
+  private async assertAttachmentTargetOwnership(
+    dto: CreateAttachmentDto,
+    userId: string,
+  ): Promise<void> {
+    if (dto.applicationPackageId) {
+      const ownsPackage = await this.householdService.verifyUserOwnsPackage(
+        dto.applicationPackageId,
+        userId,
+      );
+      if (!ownsPackage) {
+        throw new UnauthorizedException(
+          'Not authorized to attach to this application package',
+        );
+      }
+    }
+    if (dto.householdMemberId) {
+      const ownsMember =
+        await this.householdService.verifyUserOwnsHouseholdMemberPackage(
+          dto.householdMemberId,
+          userId,
+        );
+      if (!ownsMember) {
+        throw new UnauthorizedException(
+          'Not authorized to attach for this household member',
+        );
+      }
+    }
+    if (dto.applicationFormId) {
+      const ownsForm = await this.applicationFormsService.confirmOwnership(
+        dto.applicationFormId,
+        userId,
+      );
+      if (!ownsForm) {
+        throw new UnauthorizedException(
+          'Not authorized to attach to this application form',
+        );
+      }
+    }
+  }
+
+  @Post('in-service-training')
+  @ApiOperation({ summary: 'Upload an in-service training certificate' })
+  @ApiBody({ type: CreateAttachmentDto })
+  @ApiResponse({
+    status: 201,
+    description: 'Attachment uploaded successfully',
+  })
+  @ApiResponse({ status: 400, description: 'No active resource case found' })
+  async uploadInServiceTraining(
+    @Body(new ValidationPipe({ whitelist: true, transform: true }))
+    dto: CreateAttachmentDto,
+    @Req() request: Request,
+  ) {
+    const userId = this.sessionUtil.extractUserIdFromRequest(request);
+    const user = await this.userService.findOne(userId);
+    if (!user?.resource_case_id) {
+      throw new BadRequestException(
+        'No active resource case found for this user',
+      );
+    }
+    dto.resourceCaseId = user.resource_case_id;
+    dto.fileName = `${dto.fileName} [${getCurrentDateMmmDdYyyy()}]`;
+    dto.applicationPackageId = undefined;
+    await this.assertAttachmentTargetOwnership(dto, userId);
+    return await this.attachmentsService.create(dto, userId);
+  }
+
+  @Get('in-service-training')
+  @ApiOperation({ summary: 'Get in-service training certificates' })
+  @ApiResponse({
+    status: 200,
+    description: 'Attachments retrieved successfully',
+    type: [GetAttachmentDto],
+  })
+  @ApiResponse({ status: 400, description: 'No active resource case found' })
+  async getInServiceTraining(
+    @Req() request: Request,
+  ): Promise<GetAttachmentDto[]> {
+    const userId = this.sessionUtil.extractUserIdFromRequest(request);
+    const user = await this.userService.findOne(userId);
+    if (!user?.resource_case_id) {
+      throw new BadRequestException(
+        'No active resource case found for this user',
+      );
+    }
+    return await this.attachmentsService.findByResourceCaseId(
+      user.resource_case_id,
+      userId,
+    );
   }
 
   @Get('application-package/:applicationPackageId')

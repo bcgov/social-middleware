@@ -11,13 +11,7 @@ import { MemberTypes } from '../enums/member-types.enum';
 import { RelationshipToPrimary } from '../enums/relationship-to-primary.enum';
 import { ApplicationPackageStatus } from '../../application-package/enums/application-package-status.enum';
 import { CreateHouseholdMemberDto } from '../dto/create-household-member.dto';
-import { Logger } from '@nestjs/common';
-
-beforeAll(() => {
-  jest.spyOn(Logger.prototype, 'error').mockImplementation(() => {});
-  jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => {});
-  jest.spyOn(Logger.prototype, 'log').mockImplementation(() => {});
-});
+import { PinoLogger } from 'nestjs-pino';
 
 // Chainable mock helpers
 const execChain = (value: any) => ({
@@ -45,8 +39,19 @@ function makeDto(
 
 describe('HouseholdService', () => {
   let service: HouseholdService;
-  let householdMemberModel: jest.Mocked<any>;
-  let applicationPackageModel: jest.Mocked<any>;
+  let householdMemberModel: Record<string, jest.Mock>;
+  let applicationPackageModel: Record<string, jest.Mock>;
+
+  const pinoLogger = {
+    setContext: jest.fn(),
+    trace: jest.fn(),
+    debug: jest.fn(),
+    info: jest.fn(),
+    warn: jest.fn(),
+    error: jest.fn(),
+    fatal: jest.fn(),
+    assign: jest.fn(),
+  };
 
   beforeEach(async () => {
     householdMemberModel = {
@@ -69,6 +74,10 @@ describe('HouseholdService', () => {
           provide: getModelToken(ApplicationPackage.name),
           useValue: applicationPackageModel,
         },
+        {
+          provide: PinoLogger,
+          useValue: pinoLogger,
+        },
       ],
     }).compile();
 
@@ -83,6 +92,7 @@ describe('HouseholdService', () => {
     beforeEach(() => {
       // Default: no existing members (no duplicate)
       householdMemberModel.find.mockReturnValue(leanExecChain([]));
+      householdMemberModel.findOne.mockReturnValue(leanChain(null));
     });
 
     const stubUpsert = (memberType: MemberTypes) =>
@@ -134,6 +144,18 @@ describe('HouseholdService', () => {
       expect(
         householdMemberModel.findOneAndUpdate.mock.calls[0][1].$set.memberType,
       ).toBe(MemberTypes.NonCaregiverAdult);
+    });
+    it('rejects modifying a household member who has already redeemed their access code', async () => {
+      householdMemberModel.findOne.mockReturnValue(
+        leanChain({
+          householdMemberId: 'generated-id',
+          userId: 'some-user-id',
+        }),
+      );
+
+      await expect(service.createMember(makeDto())).rejects.toThrow(
+        'Cannot modify a household member who has already redeemed their access code',
+      );
     });
 
     it('assigns NonAdult for a member under 18', async () => {

@@ -1,17 +1,17 @@
 import {
+  BadRequestException,
   Controller,
   Delete,
-  Query,
-  Post,
-  BadRequestException,
   ForbiddenException,
+  Post,
+  Query,
   ValidationPipe,
 } from '@nestjs/common';
-import { DevToolsService } from './dev-tools.service';
 import { ApiTags } from '@nestjs/swagger';
+import { isDev } from '../common/config/config-loader';
 import { DevOnlySwaggerDocs } from '../common/decorators/dev-only-doc.decorator';
 import { DevOnlyResetPackageDocs } from '../common/decorators/dev-only-reset-package-doc.decorator';
-import { isDev } from '../common/config/config-loader';
+import { DevToolsService } from './dev-tools.service';
 import { ClearUserDataQueryDto } from './dto/clear-user-data-query.dto';
 import { ResetApplicationPackageQueryDto } from './dto/reset-application-package-query.dto';
 import { TriggerStageQueryDto } from './dto/trigger-stage-query.dto';
@@ -27,7 +27,7 @@ export class DevToolsController {
     @Query(new ValidationPipe({ whitelist: true, transform: true }))
     query: ClearUserDataQueryDto,
   ) {
-    if (!isDev) {
+    if (!isDev()) {
       throw new ForbiddenException('Dev tools are disabled');
     }
 
@@ -44,7 +44,7 @@ export class DevToolsController {
     @Query(new ValidationPipe({ whitelist: true, transform: true }))
     query: ResetApplicationPackageQueryDto,
   ) {
-    if (!isDev) {
+    if (!isDev()) {
       throw new ForbiddenException('Dev tools are disabled');
     }
 
@@ -62,7 +62,7 @@ export class DevToolsController {
     @Query(new ValidationPipe({ whitelist: true, transform: true }))
     query: TriggerStageQueryDto,
   ) {
-    if (!isDev) throw new ForbiddenException('Dev tools are disabled');
+    if (!isDev()) throw new ForbiddenException('Dev tools are disabled');
     return this.devToolsService.triggerStageTransition(
       query.applicationPackageId,
       query.stage,

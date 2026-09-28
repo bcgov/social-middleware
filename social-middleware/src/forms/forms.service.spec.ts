@@ -1,7 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getModelToken } from '@nestjs/mongoose';
 import { ConfigService } from '@nestjs/config';
-import { PinoLogger, getLoggerToken } from 'nestjs-pino';
+import { PinoLogger } from 'nestjs-pino';
 import { FormsService } from './forms.service';
 import { FormParameters } from 'src/application-form/schemas/form-parameters.schema';
 import { ApplicationForm } from 'src/application-form/schemas/application-form.schema';
@@ -27,8 +27,8 @@ describe('FormsService', () => {
         { provide: getModelToken(FormParameters.name), useValue: {} },
         { provide: getModelToken(ApplicationForm.name), useValue: {} },
         {
-          provide: getLoggerToken(ApplicationFormService.name),
-          useValue: mockLogger,
+          provide: ApplicationFormService,
+          useValue: { assertTokenNotExpired: jest.fn() },
         },
         { provide: UserService, useValue: {} },
         { provide: PinoLogger, useValue: mockLogger },

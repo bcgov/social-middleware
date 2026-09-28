@@ -1,7 +1,7 @@
 import {
   Processor,
   Process,
-  OnQueueCompleted,
+  //OnQueueCompleted,
   OnQueueFailed,
 } from '@nestjs/bull';
 import { Job } from 'bull';
@@ -91,8 +91,8 @@ export class IcmStageProcessor {
         const searchSpec =
           '(' + chunk.map((srId) => `[Id]='${srId}'`).join(' OR ') + ')';
 
-        this.logger.info(
-          { chunkIndex: i + 1, totalChunks: chunks.length, searchSpec },
+        this.logger.debug(
+          { chunkIndex: i + 1, totalChunks: chunks.length },
           'Processing chunk',
         );
 
@@ -117,10 +117,10 @@ export class IcmStageProcessor {
           // push the array of items to the collection of all stages to analyze
           allStages.push(...items);
 
-          this.logger.info(
-            { chunkIndex: i + 1, itemsReceived: items.length },
-            'Chunk processed successfully',
-          );
+          //this.logger.debug(
+          //  { chunkIndex: i + 1, itemsReceived: items.length },
+          //  'Chunk processed successfully',
+          //);
         } catch (error) {
           this.logger.error(
             {
@@ -147,7 +147,7 @@ export class IcmStageProcessor {
         // basic error checking; should not happen unless we constructed our searchSpec wrong..
         if (!sr) {
           this.logger.warn(
-            { srId: pkg.srId, packageId: pkg._id },
+            { srId: pkg.srId, packageId: String(pkg._id) },
             'Service request not found in ICM response',
           );
           continue;
@@ -166,7 +166,7 @@ export class IcmStageProcessor {
           this.logger.info(
             {
               srId: pkg.srId,
-              packageId: pkg._id,
+              packageId: String(pkg._id),
               oldStage: pkg.srStage,
               newStage: icmStage,
             },
@@ -186,7 +186,7 @@ export class IcmStageProcessor {
               {
                 error,
                 srId: pkg.srId,
-                packageId: pkg._id,
+                packageId: String(pkg._id),
               },
               'Failed to update application package stage',
             );
@@ -205,10 +205,10 @@ export class IcmStageProcessor {
     }
   }
 
-  @OnQueueCompleted()
-  onCompleted(job: Job, result: unknown) {
-    this.logger.info({ jobId: job.id, result }, 'ICM stage check completed');
-  }
+  //@OnQueueCompleted()
+  //onCompleted(job: Job, result: unknown) {
+  //  this.logger.info({ jobId: job.id, result }, 'ICM stage check completed');
+  // }
 
   @OnQueueFailed()
   onFailed(job: Job, error: Error) {

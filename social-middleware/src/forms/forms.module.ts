@@ -5,16 +5,15 @@ import { FormsService } from './forms.service';
 //import { ApplicationModule } from 'src/application/application.module';
 import { ApplicationFormModule } from '../application-form/application-form.module';
 import {
-  FormParameters,
-  FormParametersSchema,
-} from '../application-form/schemas/form-parameters.schema';
-import {
   ApplicationForm,
   ApplicationFormSchema,
 } from '../application-form/schemas/application-form.schema';
-import { UserService } from '../auth/user.service';
+import {
+  FormParameters,
+  FormParametersSchema,
+} from '../application-form/schemas/form-parameters.schema';
 import { User, UserSchema } from '../auth/schemas/user.schema';
-import { TokenBlacklistModule } from '../auth/services/token-blacklist.module';
+import { UserService } from '../auth/user.service';
 
 @Module({
   imports: [
@@ -24,7 +23,6 @@ import { TokenBlacklistModule } from '../auth/services/token-blacklist.module';
       { name: User.name, schema: UserSchema },
     ]),
     ApplicationFormModule,
-    TokenBlacklistModule,
   ],
   controllers: [FormsController],
   providers: [FormsService, UserService],

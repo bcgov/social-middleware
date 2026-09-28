@@ -1,13 +1,13 @@
-import { Test, TestingModule } from '@nestjs/testing';
-import { getModelToken } from '@nestjs/mongoose';
 import { InternalServerErrorException } from '@nestjs/common';
-import { AccessCodeService } from '../services/access-code.service';
-import { ScreeningAccessCode } from '../schemas/screening-access-code.schema';
-import { ApplicationPackage } from '../../application-package/schema/application-package.schema';
-import { ApplicationForm } from '../../application-form/schemas/application-form.schema';
-import { HouseholdService } from '../services/household.service';
-import { AccessCodeType } from '../enums/access-code-type.enum';
+import { getModelToken } from '@nestjs/mongoose';
+import { Test, TestingModule } from '@nestjs/testing';
 import { PinoLogger } from 'nestjs-pino';
+import { ApplicationForm } from '../../application-form/schemas/application-form.schema';
+import { ApplicationPackage } from '../../application-package/schema/application-package.schema';
+import { AccessCodeType } from '../enums/access-code-type.enum';
+import { ScreeningAccessCode } from '../schemas/screening-access-code.schema';
+import { AccessCodeService } from '../services/access-code.service';
+import { HouseholdService } from '../services/household.service';
 
 const mockLogger = {
   info: jest.fn(),
@@ -542,5 +542,55 @@ describe('AccessCodeService - resendOrCreateAccessCode', () => {
     const result = await service.resendOrCreateAccessCode('hm-001');
 
     expect(result.isNew).toBe(true);
+  });
+});
+
+// ─── deleteByApplicationPackageId ─────────────────────────────────────────────
+
+describe('AccessCodeService - deleteByApplicationPackageId', () => {
+  let service: AccessCodeService;
+
+  const mockDeleteManyExec = jest.fn();
+  const mockDeleteMany = jest.fn();
+
+  beforeEach(async () => {
+    jest.clearAllMocks();
+    mockDeleteMany.mockReturnValue({ exec: mockDeleteManyExec });
+    mockDeleteManyExec.mockResolvedValue({ deletedCount: 2 });
+
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        AccessCodeService,
+        {
+          provide: getModelToken(ScreeningAccessCode.name),
+          useValue: {
+            findOne: jest.fn(),
+            findByIdAndUpdate: jest.fn(),
+            deleteMany: mockDeleteMany,
+          },
+        },
+        { provide: getModelToken(ApplicationPackage.name), useValue: {} },
+        { provide: getModelToken(ApplicationForm.name), useValue: {} },
+        { provide: HouseholdService, useValue: mockHouseholdService },
+        { provide: PinoLogger, useValue: mockLogger },
+      ],
+    }).compile();
+
+    service = module.get<AccessCodeService>(AccessCodeService);
+  });
+
+  it('calls deleteMany with applicationPackageId (not parentApplicationId)', async () => {
+    await service.deleteByApplicationPackageId('pkg-001');
+
+    expect(mockDeleteMany).toHaveBeenCalledWith({
+      applicationPackageId: 'pkg-001',
+    });
+  });
+
+  it('does not use the wrong field name parentApplicationId', async () => {
+    await service.deleteByApplicationPackageId('pkg-001');
+
+    const callArg = mockDeleteMany.mock.calls[0][0] as Record<string, unknown>;
+    expect(callArg).not.toHaveProperty('parentApplicationId');
   });
 });

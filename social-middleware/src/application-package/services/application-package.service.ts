@@ -7,57 +7,58 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { v4 as uuidv4 } from 'uuid';
 import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
-import { ApplicationPackage } from '../schema/application-package.schema';
+import { v4 as uuidv4 } from 'uuid';
+import {
+  ApplicationFormType,
+  getApplicationFormRecipe,
+  getFormIdForFormType,
+  getReferralRecipe,
+} from '../../application-form/enums/application-form-types.enum';
+import { ApplicationForm } from '../../application-form/schemas/application-form.schema';
+import { ApplicationFormService } from '../../application-form/services/application-form.service';
+import { CancelApplicationPackageDto } from '../dto/cancel-application-package.dto';
+import { CreateApplicationPackageDto } from '../dto/create-application-package.dto';
+import { SubmitReferralRequestDto } from '../dto/submit-referral-request.dto';
+import { UpdateApplicationPackageDto } from '../dto/update-application-package.dto';
 import {
   ApplicationPackageStatus,
   ServiceRequestStage,
 } from '../enums/application-package-status.enum';
-import { ApplicationForm } from '../../application-form/schemas/application-form.schema';
-import { ApplicationFormService } from '../../application-form/services/application-form.service';
-import {
-  ApplicationFormType,
-  getFormIdForFormType,
-  getReferralRecipe,
-  getApplicationFormRecipe,
-} from '../../application-form/enums/application-form-types.enum';
 import { ApplicationPackageQueueService } from '../queue/application-package-queue.service';
-import { SubmitReferralRequestDto } from '../dto/submit-referral-request.dto';
-import { CreateApplicationPackageDto } from '../dto/create-application-package.dto';
-import { UpdateApplicationPackageDto } from '../dto/update-application-package.dto';
-import { CancelApplicationPackageDto } from '../dto/cancel-application-package.dto';
+import { ApplicationPackage } from '../schema/application-package.schema';
 
-import { HouseholdService } from '../../household/services/household.service';
-import { AccessCodeService } from '../../household/services/access-code.service';
-import { UserService } from '../../auth/user.service';
 import { ConfigService } from '@nestjs/config';
-import { UserUtil } from '../../common/utils/user.util';
+import { Model } from 'mongoose';
+import { UserService } from '../../auth/user.service';
 import { calculateAge } from '../../common/utils/age.util';
 import { formatDateForSiebel } from '../../common/utils/date.util';
-import { Model } from 'mongoose';
+import { UserUtil } from '../../common/utils/user.util';
 import {
   getApplicantFlag,
   RelationshipToPrimary,
 } from '../../household/enums/relationship-to-primary.enum';
+import { AccessCodeService } from '../../household/services/access-code.service';
+import { HouseholdService } from '../../household/services/household.service';
 import {
-  SiebelApiService,
   SiebelApiError,
+  SiebelApiService,
 } from '../../siebel/siebel-api.service';
 //import { ReferralState } from './enums/application-package-subtypes.enum';
 import { ValidateHouseholdCompletionDto } from '../dto/validate-application-package.dto';
 //import { CreateApplicationFormDto } from '../application-form/dto/create-application-form.dto';
-import { HouseholdMembersDocument } from '../../household/schemas/household-members.schema';
 import { ApplicationFormStatus } from '../../application-form/enums/application-form-status.enum';
 import { AttachmentsService } from '../../attachments/attachments.service';
+import { HouseholdMembersDocument } from '../../household/schemas/household-members.schema';
 import { NotificationService } from '../../notifications/services/notification.service';
 
+import { UUID } from 'crypto';
 import {
-  AttachmentType,
   AttachmentCategoryMap,
+  AttachmentSubCategoryMap,
+  AttachmentType,
 } from '../../attachments/enums/attachment-types.enum';
 import { GenderTypes } from '../../household/enums/gender-types.enum';
-import { UUID } from 'crypto';
 import { ApplicationPackageSubType } from '../enums/application-package-subtypes.enum';
 import { ProspectService } from './prospect.service';
 
@@ -178,14 +179,7 @@ export class ApplicationPackageService {
       ServiceRequestStage.APPLICATION,
     );
     if (pkg.srId) {
-      await this.siebelApiService.updateServiceRequestStage(
-        pkg.srId,
-        ServiceRequestStage.APPLICATION,
-      );
-      await this.siebelApiService.updateServiceRequestFields(pkg.srId, {
-        'ICM BCSC DID': bcscDid,
-      });
-
+      // we create the prospect prior to updating the application stage so the activity plan can run.
       const primaryMember =
         await this.householdService.findPrimaryApplicant(applicationPackageId);
       if (primaryMember && !primaryMember.prospectId) {
@@ -196,6 +190,13 @@ export class ApplicationPackageService {
           pkg.srId,
         );
       }
+      await this.siebelApiService.updateServiceRequestStage(
+        pkg.srId,
+        ServiceRequestStage.APPLICATION,
+      );
+      await this.siebelApiService.updateServiceRequestFields(pkg.srId, {
+        'ICM BCSC DID': bcscDid,
+      });
     }
   }
 
@@ -267,12 +268,22 @@ export class ApplicationPackageService {
             'Service Request not found in ICM; skipping notification and proceeding with local cancellation',
           );
         } else {
-          // create a service request notification assigned to the service request assignee
-          await this.siebelApiService.createSRNotification(appPackage.srId, {
-            serviceRequestNumber: srDetails['Service Request Number']!,
-            owner: srDetails['Assigned To Id']!,
-          });
-
+          if (!srDetails['Assigned To'] || !srDetails['Assigned To Id']) {
+            this.logger.warn(
+              {
+                srId: appPackage.srId,
+              },
+              'SR is unassigned; skipping',
+            );
+          } else {
+            // create a service request notification assigned to the service request assignee
+            await this.siebelApiService.createSRNotification(appPackage.srId, {
+              serviceRequestNumber: srDetails['Service Request Number']!,
+              owner: srDetails['Assigned To Id'],
+              assignedTo: srDetails['Assigned To'],
+              //officeId: srDetails['Service Office Id'],
+            });
+          }
           // reflect the cancellation on the SR itself
           if (
             this.configService.get<string>('OCT2027_RELEASE_ENABLED') === 'true'
@@ -401,6 +412,10 @@ export class ApplicationPackageService {
 
       return updatedPackage;
     } catch (error: unknown) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+
       const err = error as Error;
       this.logger.error(
         `Failed to update application package ${applicationPackageId}: ${err.message}`,
@@ -1508,6 +1523,25 @@ export class ApplicationPackageService {
       throw new BadRequestException(`Household data is incomplete`);
     }
 
+    const primaryApplicant =
+      await this.householdService.findPrimaryApplicant(applicationPackageId);
+    if (!primaryApplicant) {
+      throw new BadRequestException('No primary applicant found');
+    }
+
+    const incompletePrimaryForms =
+      await this.applicationFormService.findIncompletePrimaryApplicantForms(
+        applicationPackageId,
+        primaryApplicant.householdMemberId,
+      );
+    if (incompletePrimaryForms.length > 0) {
+      throw new BadRequestException(
+        `Application forms are incomplete: ${incompletePrimaryForms
+          .map((f) => f.type)
+          .join(', ')}`,
+      );
+    }
+
     // Atomically transition APPLICATION → CONSENT (or SUBMITTED if no screening).
     // Uses the status as a condition so only one concurrent request wins.
     const claimed = await this.applicationPackageModel.findOneAndUpdate(
@@ -1731,6 +1765,7 @@ export class ApplicationPackageService {
     const applicationPackage = (await this.applicationPackageModel
       .findOne({
         applicationPackageId,
+        userId,
       })
       .lean()
       .exec()) as ApplicationPackage;
@@ -1841,7 +1876,7 @@ export class ApplicationPackageService {
     );
 
     const applicationPackage = (await this.applicationPackageModel
-      .findOne({ applicationPackageId })
+      .findOne({ applicationPackageId, userId })
       .lean()
       .exec()) as ApplicationPackage;
 
@@ -1914,6 +1949,318 @@ export class ApplicationPackageService {
     }
 
     return { success: true, attachmentsUploaded: uploadedCount };
+  }
+
+  async submitTrainingCertificates(
+    applicationPackageId: string,
+    userId: string,
+  ): Promise<{
+    success: boolean;
+    attachmentsUploaded: number;
+    notificationSent: boolean;
+  }> {
+    this.logger.info(
+      { applicationPackageId, userId },
+      'Starting training certificate submission to ICM',
+    );
+
+    const applicationPackage = (await this.applicationPackageModel
+      .findOne({ applicationPackageId, userId })
+      .lean()
+      .exec()) as ApplicationPackage;
+
+    // does the application package exist?
+    if (!applicationPackage) {
+      throw new NotFoundException(
+        `Application package ${applicationPackageId} not found`,
+      );
+    }
+    // does it have a service request ID
+    if (!applicationPackage.srId) {
+      throw new BadRequestException(
+        'Service request not created yet — cannot submit training certificates',
+      );
+    }
+
+    const allAttachments =
+      await this.attachmentsService.findByApplicationPackageId(
+        applicationPackageId,
+        userId,
+      );
+
+    const pending = allAttachments.filter(
+      (att) =>
+        att.attachmentType === AttachmentType.TRAINING_CERTIFICATE &&
+        !att.icmAttachmentId,
+    );
+    // we didn't upload a training certificate..
+    if (pending.length === 0) {
+      throw new BadRequestException(
+        'No training certificate attachments found to submit',
+      );
+    }
+
+    const category =
+      AttachmentCategoryMap[AttachmentType.TRAINING_CERTIFICATE] ?? 'Training';
+    const subCategory =
+      AttachmentSubCategoryMap[AttachmentType.TRAINING_CERTIFICATE] ?? '';
+    let uploadedCount = 0;
+
+    for (const attachment of pending) {
+      try {
+        const fullAttachment = await this.attachmentsService.findById(
+          attachment.attachmentId,
+        );
+
+        if (!fullAttachment?.fileData) {
+          this.logger.warn(
+            { attachmentId: attachment.attachmentId },
+            'Skipping attachment with no file content',
+          );
+          continue;
+        }
+
+        await this.siebelApiService.createAttachment(applicationPackage.srId, {
+          fileName: fullAttachment.fileName,
+          fileContent: fullAttachment.fileData,
+          fileType: fullAttachment.fileType,
+          category,
+          subCategory,
+          description: AttachmentType.TRAINING_CERTIFICATE,
+        });
+
+        await this.attachmentsService.saveIcmAttachmentId(
+          attachment.attachmentId,
+          `submitted-${Date.now()}`,
+        );
+
+        uploadedCount++;
+      } catch (err) {
+        this.logger.error(
+          { attachmentId: attachment.attachmentId, err },
+          'Failed to upload training certificate to ICM',
+        );
+        throw new InternalServerErrorException(
+          'Failed to upload training certificate to ICM',
+        );
+      }
+    }
+
+    let notificationSent = false;
+    try {
+      const srDetails = await this.siebelApiService.getIcmServiceRequestById(
+        applicationPackage.srId,
+      );
+
+      if (!srDetails) {
+        this.logger.warn(
+          { srId: applicationPackage.srId },
+          'Service Request not found in ICM; skipping notification',
+        );
+      } else if (!srDetails['Assigned To Id'] || !srDetails['Assigned To']) {
+        this.logger.warn(
+          { srId: applicationPackage.srId },
+          'SR missing owner; notification would default to the API user/org — skipping',
+        );
+      } else {
+        await this.siebelApiService.createSRNotification(
+          applicationPackage.srId,
+          {
+            serviceRequestNumber: srDetails['Service Request Number']!,
+            owner: srDetails['Assigned To Id'],
+            description: `Caregiver Applicant has submitted PRIDE training certificate(s) (${srDetails['Service Request Number']})`,
+            assignedTo: srDetails['Assigned To'],
+          },
+        );
+        notificationSent = true;
+      }
+    } catch (error) {
+      const isConnectivityFailure =
+        error instanceof SiebelApiError &&
+        (error.status === undefined ||
+          (error.status === 403 &&
+            error.message.includes('IP address not allowed')));
+      if (isConnectivityFailure) {
+        this.logger.warn(
+          { srId: applicationPackage.srId, error },
+          'Siebel connectivity failure; skipping notification — certificates were uploaded',
+        );
+      } else {
+        this.logger.error(
+          { srId: applicationPackage.srId, error },
+          'Failed to create SR notification for training certificates',
+        );
+      }
+    }
+
+    await this.applicationPackageModel.findOneAndUpdate(
+      { applicationPackageId },
+      { $set: { hasTrainingCertificates: true, updatedAt: new Date() } },
+      { new: true },
+    );
+
+    this.logger.info(
+      { applicationPackageId, uploadedCount, notificationSent },
+      'Training certificates submitted',
+    );
+
+    return {
+      success: true,
+      attachmentsUploaded: uploadedCount,
+      notificationSent,
+    };
+  }
+
+  async submitInServiceTraining(userId: string): Promise<{
+    success: boolean;
+    attachmentsUploaded: number;
+    notificationSent: boolean;
+  }> {
+    this.logger.info(
+      { userId },
+      'Starting in-service training certificate submission to ICM',
+    );
+
+    const user = await this.userService.findOne(userId);
+    if (!user?.resource_case_id) {
+      throw new BadRequestException(
+        'No active resource case found for this user',
+      );
+    }
+
+    const resourceCaseId = user.resource_case_id;
+
+    const allAttachments = await this.attachmentsService.findByResourceCaseId(
+      resourceCaseId,
+      userId,
+    );
+
+    const pending = allAttachments.filter(
+      (att) =>
+        att.attachmentType === AttachmentType.IN_SERVICE_TRAINING_CERTIFICATE &&
+        !att.icmAttachmentId,
+    );
+
+    if (pending.length === 0) {
+      throw new BadRequestException(
+        'No in-service training certificate attachments found to submit',
+      );
+    }
+
+    const category =
+      AttachmentCategoryMap[AttachmentType.IN_SERVICE_TRAINING_CERTIFICATE] ??
+      'Training';
+
+    const subCategory =
+      AttachmentSubCategoryMap[
+        AttachmentType.IN_SERVICE_TRAINING_CERTIFICATE
+      ] ?? '';
+    let uploadedCount = 0;
+
+    for (const attachment of pending) {
+      try {
+        const fullAttachment = await this.attachmentsService.findById(
+          attachment.attachmentId,
+        );
+
+        if (!fullAttachment?.fileData) {
+          this.logger.warn(
+            { attachmentId: attachment.attachmentId },
+            'Skipping attachment with no file content',
+          );
+          continue;
+        }
+
+        await this.siebelApiService.createCaseAttachment(resourceCaseId, {
+          fileName: fullAttachment.fileName,
+          fileContent: fullAttachment.fileData,
+          fileType: fullAttachment.fileType,
+          category,
+          subCategory,
+          description: AttachmentType.IN_SERVICE_TRAINING_CERTIFICATE,
+        });
+
+        await this.attachmentsService.saveIcmAttachmentId(
+          attachment.attachmentId,
+          `submitted-${Date.now()}`,
+        );
+
+        uploadedCount++;
+      } catch (err) {
+        this.logger.error(
+          { attachmentId: attachment.attachmentId, err },
+          'Failed to upload in-service training certificate to ICM',
+        );
+        throw new InternalServerErrorException(
+          'Failed to upload in-service training certificate to ICM',
+        );
+      }
+    }
+
+    let notificationSent = false;
+    try {
+      if (!user.contact_id) {
+        this.logger.warn(
+          { userId },
+          'User has no contact_id; skipping notification',
+        );
+      } else {
+        const openCases =
+          await this.siebelApiService.getOpenResourceCasesByContactId(
+            user.contact_id,
+          );
+
+        const matchingCase = openCases.find((c) => c.Id === resourceCaseId);
+
+        if (!matchingCase) {
+          this.logger.warn(
+            { resourceCaseId, contactId: user.contact_id },
+            'Resource case not found in ICM; skipping notification',
+          );
+        } else if (!matchingCase['Assigned To Id']) {
+          this.logger.warn(
+            { resourceCaseId },
+            'Case missing Assigned To Id; notification would default to the API user/org — skipping',
+          );
+        } else {
+          await this.siebelApiService.createCaseNotification(resourceCaseId, {
+            owner: matchingCase['Assigned To Id'],
+            assignedTo: matchingCase['Assigned To'],
+            caseNumber: matchingCase['Case Num'],
+            description: `Caregiver has submitted in-service training certificate(s) (${matchingCase['Case Num'] ?? resourceCaseId})`,
+          });
+          notificationSent = true;
+        }
+      }
+    } catch (error) {
+      const isConnectivityFailure =
+        error instanceof SiebelApiError &&
+        (error.status === undefined ||
+          (error.status === 403 &&
+            error.message.includes('IP address not allowed')));
+      if (isConnectivityFailure) {
+        this.logger.warn(
+          { resourceCaseId, error },
+          'Siebel connectivity failure; skipping notification — certificates were uploaded',
+        );
+      } else {
+        this.logger.error(
+          { resourceCaseId, error },
+          'Failed to create case notification for in-service training certificates',
+        );
+      }
+    }
+
+    this.logger.info(
+      { userId, resourceCaseId, uploadedCount, notificationSent },
+      'In-service training certificates submitted',
+    );
+
+    return {
+      success: true,
+      attachmentsUploaded: uploadedCount,
+      notificationSent,
+    };
   }
 
   async validateHouseholdCompletion(
