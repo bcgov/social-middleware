@@ -1,0 +1,144 @@
+{{- if or (hasSuffix "-prod" .Release.Namespace) (hasSuffix "-test" .Release.Namespace) }}
+# Backup verification and health check.
+#
+# A backup that has never been read is a guess. This runs after the backup and
+# its cleanup and checks that a usable dump exists: recent enough, a plausible
+# size, and containing documents that actually decompress and parse.
+#
+# It is a pull check rather than a notification from the backup job, because a
+# job that fails to start sends nothing. Checking what is on disk has no such
+# blind spot. Any failure exits non-zero, surfacing as a failed Job.
+#
+# It never contacts MongoDB. Validation is gzip integrity plus bsondump over the
+# dump files, so it cannot add load to, or otherwise affect, the running site -
+# it needs no database credentials and no network path to the replica set.
+#
+# (mongorestore --dryRun was the obvious alternative and is weaker: it requires a
+# live connection, reports "0 document(s)" by design, and only plans a restore
+# rather than reading the data.)
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: mongodb-backup-verify
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: mongodb
+    component: backup-verify
+spec:
+  schedule: "30 3 * * *"  # After the 02:00 backup and 03:00 cleanup
+  timeZone: {{ .Values.mongodb.backup.timeZone | quote }}
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      # One attempt, then fail for real. Retrying would only delay the alert.
+      backoffLimit: 0
+      template:
+        metadata:
+          labels:
+            app: mongodb-backup-verify
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: verify
+              image: {{ .Values.mongodb.image }}
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  set -u
+                  FAILED=0
+                  MAXAGE={{ int .Values.mongodb.backup.maxAgeMinutes }}
+                  MINSIZE={{ int .Values.mongodb.backup.minSizeBytes }}
+                  MINDOCS={{ int .Values.mongodb.backup.minDocuments }}
+
+                  fail() { echo "FAIL: $*"; FAILED=1; }
+                  pass() { echo "ok:   $*"; }
+
+                  echo "=== Most recent backup ==="
+                  NEWEST=$(find /backup -mindepth 2 -maxdepth 2 -type d -name '20*' \
+                    -printf '%T@ %p\n' 2>/dev/null | sort -rn | head -1 | cut -d' ' -f2-)
+
+                  if [ -z "$NEWEST" ]; then
+                    fail "no backup directory found at all"
+                  else
+                    if [ "$(find "$NEWEST" -maxdepth 0 -mmin -$MAXAGE | wc -l)" -eq 0 ]; then
+                      fail "newest backup $NEWEST is older than $MAXAGE minutes"
+                    else
+                      pass "recent: $NEWEST"
+                    fi
+                    SIZE=$(du -sb "$NEWEST" | cut -f1)
+                    if [ "$SIZE" -lt "$MINSIZE" ]; then
+                      fail "newest backup is $SIZE bytes, below the $MINSIZE floor - truncated?"
+                    else
+                      pass "size $(du -sh "$NEWEST" | cut -f1)"
+                    fi
+                  fi
+
+                  echo "=== Contents decompress and parse ==="
+                  COLS=0
+                  DOCS=0
+                  if [ -n "$NEWEST" ]; then
+                    for f in $(find "$NEWEST" -name '*.bson.gz'); do
+                      if ! gzip -t "$f" 2>/dev/null; then
+                        fail "corrupt gzip: $f"
+                        continue
+                      fi
+                      n=$(gunzip -c "$f" | bsondump --quiet --type=json 2>/dev/null | wc -l)
+                      COLS=$((COLS + 1))
+                      DOCS=$((DOCS + n))
+                      echo "      $(basename "$f"): $n"
+                    done
+                  fi
+                  if [ "$COLS" -eq 0 ]; then
+                    fail "no BSON collections found in the backup"
+                  elif [ "$DOCS" -lt "$MINDOCS" ]; then
+                    fail "only $DOCS documents across $COLS collections, below the $MINDOCS floor"
+                  else
+                    pass "$COLS collections, $DOCS documents"
+                  fi
+
+                  echo "=== Tiers present ==="
+                  for tier in daily weekly monthly; do
+                    echo "      $tier: $(ls -1d /backup/$tier/*/ 2>/dev/null | wc -l)"
+                  done
+
+                  echo "=== Capacity ==="
+                  USED=$(df --output=pcent /backup | tail -1 | tr -dc '0-9')
+                  if [ "${USED:-100}" -lt 85 ]; then
+                    pass "volume ${USED}% used"
+                  else
+                    fail "backup volume ${USED}% used - retention is not keeping up"
+                  fi
+                  df -h /backup | tail -1
+
+                  if [ "$FAILED" -ne 0 ]; then
+                    echo
+                    echo "Backup verification FAILED."
+                    echo "Check the most recent mongodb-backup job's logs in {{ .Release.Namespace }}."
+                    exit 1
+                  fi
+                  echo "Backup verification passed."
+              volumeMounts:
+                - name: backup
+                  mountPath: /backup
+                  readOnly: true
+              resources:
+                limits:
+                  cpu: "500m"
+                  memory: 512Mi
+                requests:
+                  cpu: "100m"
+                  memory: 256Mi
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop:
+                    - ALL
+          volumes:
+            - name: backup
+              persistentVolumeClaim:
+                claimName: mongodb-backup
+                readOnly: true
+{{- end }}
