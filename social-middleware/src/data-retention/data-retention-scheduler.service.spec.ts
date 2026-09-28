@@ -68,11 +68,15 @@ describe('DataRetentionSchedulerService - purgeStaleRecords', () => {
     const after = new Date(Date.now() - 24 * 60 * 60 * 1000);
 
     expect(mockFormParametersDeleteMany).toHaveBeenCalledWith(
-      expect.objectContaining({ createdAt: { $lt: expect.any(Date) } }),
+      expect.objectContaining({ createdAt: { $lt: expect.any(Date) as Date } }),
     );
 
-    const cutoff: Date =
-      mockFormParametersDeleteMany.mock.calls[0][0].createdAt.$lt;
+    const cutoff = (
+      mockFormParametersDeleteMany.mock.calls[0][0] as unknown as {
+        createdAt: { $lt: Date };
+      }
+    ).createdAt.$lt;
+
     expect(cutoff.getTime()).toBeGreaterThanOrEqual(before.getTime());
     expect(cutoff.getTime()).toBeLessThanOrEqual(after.getTime());
   });
@@ -85,7 +89,7 @@ describe('DataRetentionSchedulerService - purgeStaleRecords', () => {
 
     expect(mockScreeningAccessCodeDeleteMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        createdAt: { $lt: expect.any(Date) },
+        createdAt: { $lt: expect.any(Date) as Date },
         isUsed: true,
       }),
     );
@@ -193,11 +197,13 @@ describe('DataRetentionSchedulerService - purgeCompletedPackages', () => {
     expect(mockFind).toHaveBeenCalledWith(
       expect.objectContaining({
         srStage: ServiceRequestStage.COMPLETED,
-        updatedAt: { $lt: expect.any(Date) },
+        updatedAt: { $lt: expect.any(Date) as Date },
       }),
     );
 
-    const cutoff: Date = mockFind.mock.calls[0][0].updatedAt.$lt;
+    const cutoff = (
+      mockFind.mock.calls[0][0] as unknown as { updatedAt: { $lt: Date } }
+    ).updatedAt.$lt;
     expect(cutoff.getTime()).toBeGreaterThanOrEqual(before.getTime());
     expect(cutoff.getTime()).toBeLessThanOrEqual(after.getTime());
   });
@@ -318,11 +324,13 @@ describe('DataRetentionSchedulerService - purgeAbandonedPackages', () => {
     expect(mockFind).toHaveBeenCalledWith(
       expect.objectContaining({
         $or: [{ srId: { $exists: false } }, { srId: null }, { srId: '' }],
-        createdAt: { $lt: expect.any(Date) },
+        createdAt: { $lt: expect.any(Date) as Date },
       }),
     );
 
-    const cutoff: Date = mockFind.mock.calls[0][0].createdAt.$lt;
+    const cutoff = (
+      mockFind.mock.calls[0][0] as unknown as { updatedAt: { $lt: Date } }
+    ).updatedAt.$lt;
     const sixMonthsAgo = new Date();
     sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
     expect(cutoff.getTime()).toBeCloseTo(sixMonthsAgo.getTime(), -3);

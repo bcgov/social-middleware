@@ -156,39 +156,6 @@ describe('ApplicationPackageProcessor', () => {
     screeningInfoProvided: false,
   };
 
-  const completePrimaryForms = [
-    {
-      householdMemberId: 'hm-primary-001',
-      type: ApplicationFormType.ABOUTME,
-      status: ApplicationFormStatus.COMPLETE,
-    },
-    {
-      householdMemberId: 'hm-primary-001',
-      type: ApplicationFormType.CHILDREN,
-      status: ApplicationFormStatus.COMPLETE,
-    },
-    {
-      householdMemberId: 'hm-primary-001',
-      type: ApplicationFormType.PLACEMENT,
-      status: ApplicationFormStatus.COMPLETE,
-    },
-    {
-      householdMemberId: 'hm-primary-001',
-      type: ApplicationFormType.REFERENCES,
-      status: ApplicationFormStatus.COMPLETE,
-    },
-    {
-      householdMemberId: 'hm-primary-001',
-      type: ApplicationFormType.DISCLOSURECONSENT,
-      status: ApplicationFormStatus.COMPLETE,
-    },
-    {
-      householdMemberId: 'hm-primary-001',
-      type: ApplicationFormType.PCCCONSENT,
-      status: ApplicationFormStatus.COMPLETE,
-    },
-  ];
-
   // ─── handleCompletenessCheck ────────────────────────────────────────────────
 
   describe('handleCompletenessCheck', () => {
@@ -607,7 +574,7 @@ describe('ApplicationPackageProcessor', () => {
         { attemptsMade: 3, attempts: 3 },
       );
 
-      await processor.onFailed(job as any, new Error('final error'));
+      await processor.onFailed(job, new Error('final error'));
 
       expect(mockFindOneAndUpdate).toHaveBeenCalledWith(
         { applicationPackageId: 'pkg-001' },
@@ -622,7 +589,7 @@ describe('ApplicationPackageProcessor', () => {
         { attemptsMade: 1, attempts: 3 },
       );
 
-      await processor.onFailed(job as any, new Error('transient error'));
+      await processor.onFailed(job, new Error('transient error'));
 
       expect(mockFindOneAndUpdate).not.toHaveBeenCalled();
     });

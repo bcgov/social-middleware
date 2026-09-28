@@ -72,7 +72,7 @@ describe('AuthController', () => {
       const req = {
         cookies: { app_session: 'valid.jwt.token' },
       } as unknown as Request;
-      mockJwt.verify.mockReturnValue(mockDecoded as any);
+      (mockJwt.verify as jest.Mock).mockReturnValue(mockDecoded);
 
       const result = controller.getStatus(req);
 
@@ -90,7 +90,10 @@ describe('AuthController', () => {
       const req = {
         cookies: { app_session: 'valid.jwt.token' },
       } as unknown as Request;
-      mockJwt.verify.mockReturnValue({ ...mockDecoded, exp: undefined } as any);
+      (mockJwt.verify as jest.Mock).mockReturnValue({
+        ...mockDecoded,
+        exp: undefined,
+      });
 
       const result = controller.getStatus(req);
 

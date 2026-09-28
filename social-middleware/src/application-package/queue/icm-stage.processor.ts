@@ -147,7 +147,7 @@ export class IcmStageProcessor {
         // basic error checking; should not happen unless we constructed our searchSpec wrong..
         if (!sr) {
           this.logger.warn(
-            { srId: pkg.srId, packageId: pkg._id },
+            { srId: pkg.srId, packageId: String(pkg._id) },
             'Service request not found in ICM response',
           );
           continue;
@@ -166,7 +166,7 @@ export class IcmStageProcessor {
           this.logger.info(
             {
               srId: pkg.srId,
-              packageId: pkg._id,
+              packageId: String(pkg._id),
               oldStage: pkg.srStage,
               newStage: icmStage,
             },
@@ -186,7 +186,7 @@ export class IcmStageProcessor {
               {
                 error,
                 srId: pkg.srId,
-                packageId: pkg._id,
+                packageId: String(pkg._id),
               },
               'Failed to update application package stage',
             );
