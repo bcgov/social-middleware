@@ -329,8 +329,8 @@ describe('DataRetentionSchedulerService - purgeAbandonedPackages', () => {
     );
 
     const cutoff = (
-      mockFind.mock.calls[0][0] as unknown as { updatedAt: { $lt: Date } }
-    ).updatedAt.$lt;
+      mockFind.mock.calls[0][0] as unknown as { createdAt: { $lt: Date } }
+    ).createdAt.$lt;
     const sixMonthsAgo = new Date();
     sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
     expect(cutoff.getTime()).toBeCloseTo(sixMonthsAgo.getTime(), -3);
