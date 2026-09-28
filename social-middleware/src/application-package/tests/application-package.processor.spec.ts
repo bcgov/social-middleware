@@ -69,10 +69,12 @@ describe('ApplicationPackageProcessor', () => {
     validateHouseholdCompletion: jest.fn(),
     findPrimaryApplicant: jest.fn(),
     updateHouseholdMember: jest.fn(),
+    findById: jest.fn(),
   };
   const mockUserService = {
     findOne: jest.fn(),
     update: jest.fn(),
+    findByBcServicesCardId: jest.fn(),
   };
   const mockSiebelApiService = {
     createServiceRequest: jest.fn(),
@@ -561,6 +563,94 @@ describe('ApplicationPackageProcessor', () => {
         { applicationPackageId: 'pkg-001' },
         expect.objectContaining({ submissionStatus: SubmissionStatus.ERROR }),
       );
+    });
+  });
+
+  // ─── handleProspectCreation ─────────────────────────────────────────────────
+
+  describe('handleProspectCreation', () => {
+    const prospectJobData = {
+      applicationPackageId: 'pkg-001',
+      bcscDid: 'BCSC123',
+      householdMemberId: 'hm-002',
+      srId: 'sr-001',
+    };
+
+    const mockMember = {
+      householdMemberId: 'hm-002',
+      relationshipToPrimary: RelationshipToPrimary.Child,
+      prospectId: null,
+    };
+
+    const mockUser = { bc_services_card_id: 'BCSC123' };
+
+    beforeEach(() => {
+      mockHouseholdService.findById.mockResolvedValue(mockMember);
+      mockUserService.findByBcServicesCardId.mockResolvedValue(mockUser);
+      mockProspectService.createKeyPlayerProspect.mockResolvedValue(
+        'prospect-001',
+      );
+    });
+
+    it('skips prospect creation when prospectId already exists (idempotency)', async () => {
+      mockHouseholdService.findById.mockResolvedValue({
+        ...mockMember,
+        prospectId: 'existing-prospect-001',
+      });
+
+      await processor.handleProspectCreation(
+        createMockJob('create-prospect', prospectJobData),
+      );
+
+      expect(
+        mockProspectService.createKeyPlayerProspect,
+      ).not.toHaveBeenCalled();
+    });
+
+    it('derives applicantFlag from the member relationship instead of defaulting to Y', async () => {
+      await processor.handleProspectCreation(
+        createMockJob('create-prospect', prospectJobData),
+      );
+
+      expect(mockProspectService.createKeyPlayerProspect).toHaveBeenCalledWith(
+        mockUser,
+        'sr-001',
+        expect.objectContaining({
+          householdMemberId: 'hm-002',
+          applicantFlag: 'N',
+        }),
+      );
+    });
+
+    it('sets applicantFlag to Y for a Spouse relationship', async () => {
+      mockHouseholdService.findById.mockResolvedValue({
+        ...mockMember,
+        relationshipToPrimary: RelationshipToPrimary.Spouse,
+      });
+
+      await processor.handleProspectCreation(
+        createMockJob('create-prospect', prospectJobData),
+      );
+
+      expect(mockProspectService.createKeyPlayerProspect).toHaveBeenCalledWith(
+        mockUser,
+        'sr-001',
+        expect.objectContaining({ applicantFlag: 'Y' }),
+      );
+    });
+
+    it('throws NotFoundException when household member is not found', async () => {
+      mockHouseholdService.findById.mockResolvedValue(null);
+
+      await expect(
+        processor.handleProspectCreation(
+          createMockJob('create-prospect', prospectJobData),
+        ),
+      ).rejects.toThrow(NotFoundException);
+
+      expect(
+        mockProspectService.createKeyPlayerProspect,
+      ).not.toHaveBeenCalled();
     });
   });
 
