@@ -16,6 +16,7 @@ import { UserService } from '../../auth/user.service';
 import { AttachmentsController } from '../attachments.controller';
 import { AttachmentsService } from '../attachments.service';
 import { AttachmentType } from '../enums/attachment-types.enum';
+import { CreateAttachmentDto } from '../dto/create-attachment.dto';
 
 describe('AttachmentsController', () => {
   let controller: AttachmentsController;
@@ -104,7 +105,7 @@ describe('AttachmentsController', () => {
     it('throws HttpException 500 when service throws', async () => {
       mockAttachmentsService.create.mockRejectedValue(new Error('DB error'));
       await expect(
-        controller.uploadAttachment(dto as any, mockRequest),
+        controller.uploadAttachment(dto as CreateAttachmentDto, mockRequest),
       ).rejects.toThrow(
         new HttpException(
           'Failed to upload attachment',
@@ -270,7 +271,10 @@ describe('AttachmentsController', () => {
     it('throws BadRequestException when user has no active resource case', async () => {
       mockUserService.findOne.mockResolvedValue({ resource_case_id: null });
       await expect(
-        controller.uploadInServiceTraining(dto as any, mockRequest),
+        controller.uploadInServiceTraining(
+          dto as CreateAttachmentDto,
+          mockRequest,
+        ),
       ).rejects.toThrow(BadRequestException);
     });
 

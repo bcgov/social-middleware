@@ -1691,10 +1691,10 @@ describe('ApplicationPackageService - submitApplicationPackage — BCSC re-prosp
       };
       jest
         .spyOn(service, 'getApplicationPackage')
-        .mockResolvedValue(pkg as any);
+        .mockResolvedValue(pkg as unknown as ApplicationPackage);
       jest
         .spyOn(service, 'updateApplicationPackageStage')
-        .mockResolvedValue(undefined as any);
+        .mockResolvedValue(undefined as unknown as ApplicationPackage);
 
       mockHouseholdService.findPrimaryApplicant.mockResolvedValue({
         householdMemberId: 'hm-self-001',
@@ -1735,10 +1735,10 @@ describe('ApplicationPackageService - submitApplicationPackage — BCSC re-prosp
       const pkg = { applicationPackageId: APPLICATION_PACKAGE_ID, srId: null };
       jest
         .spyOn(service, 'getApplicationPackage')
-        .mockResolvedValue(pkg as any);
+        .mockResolvedValue(pkg as unknown as ApplicationPackage);
       jest
         .spyOn(service, 'updateApplicationPackageStage')
-        .mockResolvedValue(undefined as any);
+        .mockResolvedValue(undefined as unknown as ApplicationPackage);
 
       await service.activateNewApplication(
         APPLICATION_PACKAGE_ID,

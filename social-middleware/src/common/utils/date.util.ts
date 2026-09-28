@@ -14,7 +14,7 @@ export function compareDates(date1: string, date2: string): boolean {
       d1.getMonth() === d2.getMonth() &&
       d1.getDate() === d2.getDate()
     );
-  } catch (error) {
+  } catch {
     return false;
   }
 }

@@ -254,17 +254,17 @@ export class BcscOAuthAuthStrategy
   /**
    * Validate PKCE challenge structure
    */
-  private isValidPKCEChallenge(obj: any): obj is {
+  private isValidPKCEChallenge(obj: unknown): obj is {
     codeVerifier: string;
     codeChallenge: string;
     state: string;
   } {
     return (
-      obj &&
       typeof obj === 'object' &&
-      typeof obj.codeVerifier === 'string' &&
-      typeof obj.codeChallenge === 'string' &&
-      typeof obj.state === 'string'
+      obj !== null &&
+      typeof (obj as Record<string, unknown>).codeVerifier === 'string' &&
+      typeof (obj as Record<string, unknown>).codeChallenge === 'string' &&
+      typeof (obj as Record<string, unknown>).state === 'string'
     );
   }
 }
