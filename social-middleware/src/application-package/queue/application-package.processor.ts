@@ -33,7 +33,10 @@ import {
 } from '@nestjs/common';
 //import { ApplicationFormType } from '../../application-form/enums/application-form-types.enum';
 import { ApplicationFormStatus } from '../../application-form/enums/application-form-status.enum';
-import { RelationshipToPrimary } from '../../household/enums/relationship-to-primary.enum';
+import {
+  RelationshipToPrimary,
+  getApplicantFlag,
+} from '../../household/enums/relationship-to-primary.enum';
 import {
   ApplicationFormType,
   getFormIdForFormType,
@@ -797,6 +800,13 @@ export class ApplicationPackageProcessor {
     const { applicationPackageId, bcscDid, householdMemberId, srId } = job.data;
 
     const member = await this.householdService.findById(householdMemberId);
+
+    if (!member) {
+      throw new NotFoundException(
+        `Household member ${householdMemberId} not found`,
+      );
+    }
+
     if (member?.prospectId) {
       this.logger.info(
         { applicationPackageId, householdMemberId },
@@ -808,6 +818,7 @@ export class ApplicationPackageProcessor {
     const user = await this.userService.findByBcServicesCardId(bcscDid);
     await this.prospectService.createKeyPlayerProspect(user, srId, {
       householdMemberId,
+      applicantFlag: getApplicantFlag(member.relationshipToPrimary),
     });
   }
 
