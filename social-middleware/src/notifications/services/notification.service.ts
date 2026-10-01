@@ -36,7 +36,7 @@ export class NotificationService {
         <p>Hello ${applicantName},</p>
         <p>Thank you for your interest in becoming a foster caregiver. We have received your request for an information session.</p>
         <p>Our team will review your request and contact you to schedule a session.</p>
-        <p>Thank you,<br>BC Caregiver Registry Team</p>
+        <p>Thank you,</p>
       `,
       bodyType: 'html',
       priority: 'normal',
@@ -63,7 +63,7 @@ export class NotificationService {
         <p>Hello ${applicantName},</p>
         <p>You may now complete your foster caregiver application through the <a href="${this.frontendUrl}">Foster & Care Provider Portal</a>.</p>
         <p>Sign in and continue the application from My Tasks.</p>
-        <p>Thank you,<br>BC Caregiver Registry Team</p>
+        <p>Thank you,</p>
       `,
       bodyType: 'html',
       priority: 'normal',
@@ -93,7 +93,7 @@ export class NotificationService {
           <p>You have been identified as a household member on an application to become a foster caregiver. As part of the assessment process, the Ministry of Children and Family Development requires all adult household members to provide background information and consent to screening activities.</p>
           <p>Please sign in to the <a href="${this.frontendUrl}">Foster & Care Provider Portal</a> using your BC Services Card and enter the access code <b>${accessCode}</b> to begin.</p>
           <p>Thank you for providing the information we need to continue your assessment.</p>
-          <p>Thank you,<br>BC Caregiver Registry Team</p>
+          <p>Thank you,</p>
         `,
       bodyType: 'html',
       priority: 'normal',
@@ -121,7 +121,7 @@ export class NotificationService {
             <p>You have been identified as a prospective Kinship Care Provider. As part of the assessment process, the Ministry of Children and Family Development requires a completed application to proceed.</p>
             <p>Please sign in to the <a href="${this.frontendUrl}">Foster & Care Provider Portal</a> using your BC Services Card and enter the access code <b>${accessCode}</b> to begin.</p>
             <p>Thank you for providing the information we need to continue your assessment.</p>
-            <p>Thank you,<br>BC Caregiver Registry Team</p>
+            <p>Thank you,</p>
           `,
       bodyType: 'html',
       priority: 'normal',
@@ -148,7 +148,7 @@ export class NotificationService {
             <p>Hello ${applicantName},</p>
             <p>${householdMemberName} has provided their screening and consent information via the Foster & Care Provider Portal.</p>
             <p>Once all household members have provided their information, your application will be forwarded along for processesing. You can track the status of your household members through the <a href="${this.frontendUrl}">Foster & Care Provider Portal</a>.</p>
-            <p>Thank you,<br>BC Caregiver Registry Team</p>
+            <p>Thank you,</p>
           `,
       bodyType: 'html',
       priority: 'normal',
