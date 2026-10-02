@@ -231,6 +231,10 @@ export class AccessCodeService {
           { applicationPackageId: accessCodeRecord.applicationPackageId },
           { userId: userId },
         );
+        await this.applicationFormModel.updateMany(
+          { householdMemberId: accessCodeRecord.householdMemberId },
+          { userId: userId },
+        );
         return {
           success: true,
           type: AccessCodeType.NEW_APPLICATION,
