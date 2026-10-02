@@ -341,7 +341,10 @@ describe('AccessCodeService - associateUserWithAccessCode', () => {
         validBcscData,
       );
 
-      expect(mockUpdateMany).not.toHaveBeenCalled();
+      expect(mockUpdateMany).toHaveBeenCalledWith(
+        { householdMemberId: 'hm-001' },
+        { userId: 'user-001' },
+      );
     });
   });
 });
