@@ -1,31 +1,32 @@
 import {
-  Controller,
-  Post,
-  Get,
   Body,
-  Res,
-  Req,
+  Controller,
+  Get,
   HttpException,
   HttpStatus,
-  UseGuards,
   Inject,
+  NotFoundException,
+  Post,
+  Req,
+  Res,
+  UseGuards,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Request, Response } from 'express';
-import * as jwt from 'jsonwebtoken';
-import { UserService } from './user.service';
 import {
+  ApiCookieAuth,
   ApiOperation,
   ApiResponse,
   ApiTags,
-  ApiCookieAuth,
 } from '@nestjs/swagger';
+import { Request, Response } from 'express';
+import * as jwt from 'jsonwebtoken';
 import { PinoLogger } from 'nestjs-pino';
+import { UserPayload } from '../common/interfaces';
 import { SessionUtil } from '../common/utils/session.util';
+import { UserProfileResponse } from './interfaces/user-profile-response.interface';
 import { SessionAuthGuard } from './session-auth.guard';
 import { AuthStrategy } from './strategies/auth-strategy.interface';
-import { UserProfileResponse } from './interfaces/user-profile-response.interface';
-import { UserPayload } from '../common/interfaces';
+import { UserService } from './user.service';
 
 @ApiTags('Authentication')
 @Controller('auth')
@@ -57,10 +58,8 @@ export class AuthController {
   @Get('login')
   @ApiOperation({ summary: 'Initiate login or handle Kong OIDC callback' })
   async login(@Req() req: Request, @Res() res: Response) {
-    this.logger.info('========== /auth/login reached ==========');
     this.logger.info(
       {
-        headers: req.headers,
         hasXUserinfo: !!req.headers['x-userinfo'],
         cookies: Object.keys(req.cookies || {}),
       },
@@ -85,11 +84,10 @@ export class AuthController {
     description: 'User is authenticated and redirected to frontend dashboard',
   })
   async authCallbackGet(@Req() req: Request, @Res() res: Response) {
-    this.logger.info('========== GET /auth/callback reached ==========');
     this.logger.info(
       {
-        query: req.query,
-        headers: req.headers,
+        hasCode: !!req.query.code,
+        hasState: !!req.query.state,
         hasXUserinfo: !!req.headers['x-userinfo'],
       },
       'Callback request details',
@@ -195,6 +193,9 @@ export class AuthController {
   async getUserProfile(@Req() req: Request): Promise<UserProfileResponse> {
     const userId = this.sessionUtil.extractUserIdFromRequest(req);
     const user = await this.userService.findOne(userId);
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
     const sendResourceDetails =
       this.configService.get<string>('TEST_RESOURCE_CASE') === 'true';
 
@@ -212,6 +213,9 @@ export class AuthController {
       alternate_phone: user.alternate_phone,
       ...(user.resource_case_active_date && sendResourceDetails // if they have an active resource case, send the date, otherwise send nothing
         ? { resource_case_active_date: user.resource_case_active_date }
+        : {}),
+      ...(sendResourceDetails
+        ? { non_key_player_caregiver: user.non_key_player_caregiver ?? null }
         : {}),
     };
   }

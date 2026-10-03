@@ -1,17 +1,22 @@
-import { Test, TestingModule } from '@nestjs/testing';
 import {
+  BadRequestException,
   ForbiddenException,
   HttpException,
   HttpStatus,
   NotFoundException,
+  UnauthorizedException,
 } from '@nestjs/common';
+import { Test, TestingModule } from '@nestjs/testing';
 import { Request } from 'express';
+import { ApplicationFormService } from 'src/application-form/services/application-form.service';
+import { SessionAuthGuard } from 'src/auth/session-auth.guard';
+import { SessionUtil } from 'src/common/utils/session.util';
+import { HouseholdService } from 'src/household/services/household.service';
+import { UserService } from '../../auth/user.service';
 import { AttachmentsController } from '../attachments.controller';
 import { AttachmentsService } from '../attachments.service';
-import { HouseholdService } from 'src/household/services/household.service';
-import { SessionUtil } from 'src/common/utils/session.util';
-import { SessionAuthGuard } from 'src/auth/session-auth.guard';
 import { AttachmentType } from '../enums/attachment-types.enum';
+import { CreateAttachmentDto } from '../dto/create-attachment.dto';
 
 describe('AttachmentsController', () => {
   let controller: AttachmentsController;
@@ -33,8 +38,16 @@ describe('AttachmentsController', () => {
     delete: jest.fn(),
   };
 
+  const mockUserService = {
+    findOne: jest.fn(),
+  };
+
   const mockHouseholdService = {
+    verifyUserOwnsPackage: jest.fn(),
     verifyUserOwnsHouseholdMemberPackage: jest.fn(),
+  };
+  const mockApplicationFormsService = {
+    confirmOwnership: jest.fn(),
   };
 
   const mockRequest = {} as Request;
@@ -49,6 +62,11 @@ describe('AttachmentsController', () => {
         { provide: AttachmentsService, useValue: mockAttachmentsService },
         { provide: SessionUtil, useValue: mockSessionUtil },
         { provide: HouseholdService, useValue: mockHouseholdService },
+        { provide: UserService, useValue: mockUserService },
+        {
+          provide: ApplicationFormService,
+          useValue: mockApplicationFormsService,
+        },
       ],
     })
       .overrideGuard(SessionAuthGuard)
@@ -59,6 +77,10 @@ describe('AttachmentsController', () => {
   });
 
   describe('uploadAttachment', () => {
+    beforeEach(() => {
+      mockHouseholdService.verifyUserOwnsPackage.mockResolvedValue(true);
+    });
+
     const dto = {
       applicationPackageId: APPLICATION_PACKAGE_ID,
       attachmentType: AttachmentType.MEDICAL_ASSESSMENT,
@@ -83,13 +105,22 @@ describe('AttachmentsController', () => {
     it('throws HttpException 500 when service throws', async () => {
       mockAttachmentsService.create.mockRejectedValue(new Error('DB error'));
       await expect(
-        controller.uploadAttachment(dto as any, mockRequest),
+        controller.uploadAttachment(dto as CreateAttachmentDto, mockRequest),
       ).rejects.toThrow(
         new HttpException(
           'Failed to upload attachment',
           HttpStatus.INTERNAL_SERVER_ERROR,
         ),
       );
+    });
+
+    it('throws UnauthorizedException when the target package is not owned', async () => {
+      mockHouseholdService.verifyUserOwnsPackage.mockResolvedValue(false);
+
+      await expect(
+        controller.uploadAttachment(dto, mockRequest),
+      ).rejects.toThrow(UnauthorizedException);
+      expect(mockAttachmentsService.create).not.toHaveBeenCalled();
     });
   });
 
@@ -225,6 +256,42 @@ describe('AttachmentsController', () => {
         controller.downloadAttachment(ATTACHMENT_ID, mockRequest),
       ).rejects.toThrow(
         new HttpException('Attachment not found', HttpStatus.NOT_FOUND),
+      );
+    });
+  });
+
+  describe('uploadInServiceTraining', () => {
+    const dto = {
+      attachmentType: AttachmentType.IN_SERVICE_TRAINING_CERTIFICATE,
+      fileName: 'cert',
+      fileType: 'pdf',
+      fileData: 'base64',
+    };
+
+    it('throws BadRequestException when user has no active resource case', async () => {
+      mockUserService.findOne.mockResolvedValue({ resource_case_id: null });
+      await expect(
+        controller.uploadInServiceTraining(
+          dto as CreateAttachmentDto,
+          mockRequest,
+        ),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('sets resourceCaseId and calls service', async () => {
+      mockUserService.findOne.mockResolvedValue({ resource_case_id: 'case-1' });
+      mockAttachmentsService.create.mockResolvedValue({
+        attachmentId: ATTACHMENT_ID,
+      });
+
+      await controller.uploadInServiceTraining(dto, mockRequest);
+
+      expect(mockAttachmentsService.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          resourceCaseId: 'case-1',
+          applicationPackageId: undefined,
+        }),
+        USER_ID,
       );
     });
   });

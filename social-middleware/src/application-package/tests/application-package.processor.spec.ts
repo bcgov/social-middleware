@@ -56,6 +56,7 @@ describe('ApplicationPackageProcessor', () => {
 
   const mockApplicationFormService = {
     findAllByApplicationPackageId: jest.fn(),
+    findIncompletePrimaryApplicantForms: jest.fn(),
     findByPackageAndUser: jest.fn(),
     convertFormDataToXml: jest.fn(),
     saveSiebelAttachmentId: jest.fn(),
@@ -68,10 +69,12 @@ describe('ApplicationPackageProcessor', () => {
     validateHouseholdCompletion: jest.fn(),
     findPrimaryApplicant: jest.fn(),
     updateHouseholdMember: jest.fn(),
+    findById: jest.fn(),
   };
   const mockUserService = {
     findOne: jest.fn(),
     update: jest.fn(),
+    findByBcServicesCardId: jest.fn(),
   };
   const mockSiebelApiService = {
     createServiceRequest: jest.fn(),
@@ -155,39 +158,6 @@ describe('ApplicationPackageProcessor', () => {
     screeningInfoProvided: false,
   };
 
-  const completePrimaryForms = [
-    {
-      householdMemberId: 'hm-primary-001',
-      type: ApplicationFormType.ABOUTME,
-      status: ApplicationFormStatus.COMPLETE,
-    },
-    {
-      householdMemberId: 'hm-primary-001',
-      type: ApplicationFormType.CHILDREN,
-      status: ApplicationFormStatus.COMPLETE,
-    },
-    {
-      householdMemberId: 'hm-primary-001',
-      type: ApplicationFormType.PLACEMENT,
-      status: ApplicationFormStatus.COMPLETE,
-    },
-    {
-      householdMemberId: 'hm-primary-001',
-      type: ApplicationFormType.REFERENCES,
-      status: ApplicationFormStatus.COMPLETE,
-    },
-    {
-      householdMemberId: 'hm-primary-001',
-      type: ApplicationFormType.DISCLOSURECONSENT,
-      status: ApplicationFormStatus.COMPLETE,
-    },
-    {
-      householdMemberId: 'hm-primary-001',
-      type: ApplicationFormType.PCCCONSENT,
-      status: ApplicationFormStatus.COMPLETE,
-    },
-  ];
-
   // ─── handleCompletenessCheck ────────────────────────────────────────────────
 
   describe('handleCompletenessCheck', () => {
@@ -259,7 +229,7 @@ describe('ApplicationPackageProcessor', () => {
       mockHouseholdService.findAllHouseholdMembers.mockResolvedValue([
         primaryApplicant,
       ]);
-      mockApplicationFormService.findAllByApplicationPackageId.mockResolvedValue(
+      mockApplicationFormService.findIncompletePrimaryApplicantForms.mockResolvedValue(
         [
           {
             householdMemberId: 'hm-primary-001',
@@ -288,8 +258,8 @@ describe('ApplicationPackageProcessor', () => {
       mockHouseholdService.findAllHouseholdMembers.mockResolvedValue([
         primaryApplicant,
       ]);
-      mockApplicationFormService.findAllByApplicationPackageId.mockResolvedValue(
-        completePrimaryForms,
+      mockApplicationFormService.findIncompletePrimaryApplicantForms.mockResolvedValue(
+        [],
       );
       mockHouseholdService.validateHouseholdCompletion.mockResolvedValue({
         isComplete: false,
@@ -321,8 +291,8 @@ describe('ApplicationPackageProcessor', () => {
         primaryApplicant,
         screeningMember,
       ]);
-      mockApplicationFormService.findAllByApplicationPackageId.mockResolvedValue(
-        completePrimaryForms,
+      mockApplicationFormService.findIncompletePrimaryApplicantForms.mockResolvedValue(
+        [],
       );
       mockHouseholdService.validateHouseholdCompletion.mockResolvedValue({
         isComplete: true,
@@ -350,8 +320,8 @@ describe('ApplicationPackageProcessor', () => {
       mockHouseholdService.findAllHouseholdMembers.mockResolvedValue([
         primaryApplicant,
       ]);
-      mockApplicationFormService.findAllByApplicationPackageId.mockResolvedValue(
-        completePrimaryForms,
+      mockApplicationFormService.findIncompletePrimaryApplicantForms.mockResolvedValue(
+        [],
       );
       mockHouseholdService.validateHouseholdCompletion.mockResolvedValue({
         isComplete: true,
@@ -596,6 +566,94 @@ describe('ApplicationPackageProcessor', () => {
     });
   });
 
+  // ─── handleProspectCreation ─────────────────────────────────────────────────
+
+  describe('handleProspectCreation', () => {
+    const prospectJobData = {
+      applicationPackageId: 'pkg-001',
+      bcscDid: 'BCSC123',
+      householdMemberId: 'hm-002',
+      srId: 'sr-001',
+    };
+
+    const mockMember = {
+      householdMemberId: 'hm-002',
+      relationshipToPrimary: RelationshipToPrimary.Child,
+      prospectId: null,
+    };
+
+    const mockUser = { bc_services_card_id: 'BCSC123' };
+
+    beforeEach(() => {
+      mockHouseholdService.findById.mockResolvedValue(mockMember);
+      mockUserService.findByBcServicesCardId.mockResolvedValue(mockUser);
+      mockProspectService.createKeyPlayerProspect.mockResolvedValue(
+        'prospect-001',
+      );
+    });
+
+    it('skips prospect creation when prospectId already exists (idempotency)', async () => {
+      mockHouseholdService.findById.mockResolvedValue({
+        ...mockMember,
+        prospectId: 'existing-prospect-001',
+      });
+
+      await processor.handleProspectCreation(
+        createMockJob('create-prospect', prospectJobData),
+      );
+
+      expect(
+        mockProspectService.createKeyPlayerProspect,
+      ).not.toHaveBeenCalled();
+    });
+
+    it('derives applicantFlag from the member relationship instead of defaulting to Y', async () => {
+      await processor.handleProspectCreation(
+        createMockJob('create-prospect', prospectJobData),
+      );
+
+      expect(mockProspectService.createKeyPlayerProspect).toHaveBeenCalledWith(
+        mockUser,
+        'sr-001',
+        expect.objectContaining({
+          householdMemberId: 'hm-002',
+          applicantFlag: 'N',
+        }),
+      );
+    });
+
+    it('sets applicantFlag to Y for a Spouse relationship', async () => {
+      mockHouseholdService.findById.mockResolvedValue({
+        ...mockMember,
+        relationshipToPrimary: RelationshipToPrimary.Spouse,
+      });
+
+      await processor.handleProspectCreation(
+        createMockJob('create-prospect', prospectJobData),
+      );
+
+      expect(mockProspectService.createKeyPlayerProspect).toHaveBeenCalledWith(
+        mockUser,
+        'sr-001',
+        expect.objectContaining({ applicantFlag: 'Y' }),
+      );
+    });
+
+    it('throws NotFoundException when household member is not found', async () => {
+      mockHouseholdService.findById.mockResolvedValue(null);
+
+      await expect(
+        processor.handleProspectCreation(
+          createMockJob('create-prospect', prospectJobData),
+        ),
+      ).rejects.toThrow(NotFoundException);
+
+      expect(
+        mockProspectService.createKeyPlayerProspect,
+      ).not.toHaveBeenCalled();
+    });
+  });
+
   // ─── onFailed ────────────────────────────────────────────────────────────────
 
   describe('onFailed', () => {
@@ -606,7 +664,7 @@ describe('ApplicationPackageProcessor', () => {
         { attemptsMade: 3, attempts: 3 },
       );
 
-      await processor.onFailed(job as any, new Error('final error'));
+      await processor.onFailed(job, new Error('final error'));
 
       expect(mockFindOneAndUpdate).toHaveBeenCalledWith(
         { applicationPackageId: 'pkg-001' },
@@ -621,7 +679,7 @@ describe('ApplicationPackageProcessor', () => {
         { attemptsMade: 1, attempts: 3 },
       );
 
-      await processor.onFailed(job as any, new Error('transient error'));
+      await processor.onFailed(job, new Error('transient error'));
 
       expect(mockFindOneAndUpdate).not.toHaveBeenCalled();
     });

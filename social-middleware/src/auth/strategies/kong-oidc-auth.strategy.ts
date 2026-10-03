@@ -169,12 +169,12 @@ export class KongOidcAuthStrategy
       let userInfo: UserInfo;
       try {
         const decoded = Buffer.from(userInfoHeader, 'base64').toString('utf-8');
-        const parsed = JSON.parse(decoded);
+        const parsed = JSON.parse(decoded) as unknown;
 
         this.logger.info(
           {
-            hasSub: !!parsed.sub,
-            hasEmail: !!parsed.email,
+            hasSub: !!(parsed as Record<string, unknown>)?.sub,
+            hasEmail: !!(parsed as Record<string, unknown>)?.email,
           },
           'X-Userinfo parsed',
         );

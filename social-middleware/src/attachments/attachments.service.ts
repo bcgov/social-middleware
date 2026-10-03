@@ -2,9 +2,9 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
-import { Attachment, AttachmentDocument } from './schemas/attachment.schema';
 import { CreateAttachmentDto } from './dto/create-attachment.dto';
 import { GetAttachmentDto } from './dto/get-attachment.dto';
+import { Attachment, AttachmentDocument } from './schemas/attachment.schema';
 
 @Injectable()
 export class AttachmentsService {
@@ -22,6 +22,7 @@ export class AttachmentsService {
     this.logger.info(
       {
         applicationPackageId: dto.applicationPackageId,
+        resourceCaseId: dto.resourceCaseId,
         attachmentType: dto.attachmentType,
         fileName: dto.fileName,
         userId,
@@ -59,6 +60,7 @@ export class AttachmentsService {
     return attachments.map((attachment) => ({
       attachmentId: attachment.attachmentId,
       applicationPackageId: attachment.applicationPackageId,
+      resourceCaseId: attachment.resourceCaseId,
       householdMemberId: attachment.householdMemberId,
       applicationFormId: attachment.applicationFormId,
       attachmentType: attachment.attachmentType,
@@ -87,6 +89,37 @@ export class AttachmentsService {
     return attachments.map((attachment) => ({
       attachmentId: attachment.attachmentId,
       applicationPackageId: attachment.applicationPackageId,
+      resourceCaseId: attachment.resourceCaseId,
+      householdMemberId: attachment.householdMemberId,
+      applicationFormId: attachment.applicationFormId,
+      attachmentType: attachment.attachmentType,
+      fileName: attachment.fileName,
+      fileType: attachment.fileType,
+      fileSize: attachment.fileSize,
+      description: attachment.description,
+      uploadedBy: attachment.uploadedBy,
+      icmAttachmentId: attachment.icmAttachmentId,
+      createdAt: attachment.createdAt,
+      updatedAt: attachment.updatedAt,
+      sentToICMAt: attachment.sentToICMAt,
+    }));
+  }
+
+  async findByResourceCaseId(
+    resourceCaseId: string,
+    userId: string,
+  ): Promise<GetAttachmentDto[]> {
+    const attachments = await this.attachmentModel
+      .find({ resourceCaseId, uploadedBy: userId })
+      .select('-fileData')
+      .sort({ createdAt: -1 })
+      .lean()
+      .exec();
+
+    return attachments.map((attachment) => ({
+      attachmentId: attachment.attachmentId,
+      applicationPackageId: attachment.applicationPackageId,
+      resourceCaseId: attachment.resourceCaseId,
       householdMemberId: attachment.householdMemberId,
       applicationFormId: attachment.applicationFormId,
       attachmentType: attachment.attachmentType,
@@ -111,7 +144,7 @@ export class AttachmentsService {
     userId: string,
   ): Promise<AttachmentDocument | null> {
     return await this.attachmentModel
-      .findOne({ attachmentId, userId })
+      .findOne({ attachmentId, uploadedBy: userId })
       .lean()
       .exec();
   }

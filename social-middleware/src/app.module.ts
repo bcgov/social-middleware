@@ -1,29 +1,31 @@
-import { Module, DynamicModule } from '@nestjs/common';
 import { HttpModule } from '@nestjs/axios';
-import { AuthModule } from './auth/auth.module';
-import { LoggerModule } from 'nestjs-pino';
+import { BullModule } from '@nestjs/bull';
+import { DynamicModule, Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-import { HealthModule } from './health/health.module';
-import { DatabaseModule } from './database/database.module';
-import { FormsModule } from './forms/forms.module';
+import { EventEmitterModule } from '@nestjs/event-emitter';
+import { ScheduleModule } from '@nestjs/schedule';
+import { LoggerModule } from 'nestjs-pino';
+import { buildPinoHttpOptions } from './common/logger/pino-options';
 import { ApplicationFormModule } from './application-form/application-form.module';
 import { ApplicationPackageModule } from './application-package/application-package.module';
-import { DevToolsModule } from './dev-tools/dev-tools.module';
-import { HouseholdModule } from './household/household.module';
-import { BullModule } from '@nestjs/bull';
-import { BullDashboardModule } from './bull-dashboard/bull-dashboard.module';
-import { SiebelModule } from './siebel/siebel.module';
-import { ScheduleModule } from '@nestjs/schedule';
 import { AttachmentsModule } from './attachments/attachments.module';
-import { NotificationModule } from './notifications/notification.module';
-import { EventEmitterModule } from '@nestjs/event-emitter';
-import pino from 'pino';
+import { AuthModule } from './auth/auth.module';
+import { BullDashboardModule } from './bull-dashboard/bull-dashboard.module';
 import { DataRetentionModule } from './data-retention/data-retention.module';
+import { DatabaseModule } from './database/database.module';
+import { DevToolsModule } from './dev-tools/dev-tools.module';
+import { FormsModule } from './forms/forms.module';
+import { HealthModule } from './health/health.module';
+import { HouseholdModule } from './household/household.module';
+import { NotificationModule } from './notifications/notification.module';
+import { SiebelModule } from './siebel/siebel.module';
 
 @Module({})
 export class AppModule {
   static register(): DynamicModule {
-    const isDevelopment = process.env.NODE_ENV !== 'production';
+    const isDevelopment = ['development', 'local'].includes(
+      process.env.NODE_ENV ?? '',
+    );
 
     return {
       module: AppModule,
@@ -52,27 +54,7 @@ export class AppModule {
           imports: [ConfigModule],
           inject: [ConfigService],
           useFactory: (config: ConfigService) => ({
-            pinoHttp: {
-              level: config.get('NODE_ENV') === 'production' ? 'info' : 'debug',
-              serializers: {
-                err: pino.stdSerializers.err,
-                error: pino.stdSerializers.err,
-              },
-              autoLogging: {
-                ignore: (req) => req.url === '/health',
-              },
-              transport:
-                config.get('NODE_ENV') !== 'production'
-                  ? {
-                      target: 'pino-pretty',
-                      options: {
-                        colorize: true,
-                        translateTime: 'SYS:standard',
-                        ignore: 'pid,hostname',
-                      },
-                    }
-                  : undefined,
-            },
+            pinoHttp: buildPinoHttpOptions(config),
           }),
         }),
         HealthModule,
@@ -82,8 +64,7 @@ export class AppModule {
         AttachmentsModule,
         ApplicationPackageModule,
         HouseholdModule,
-        ...(isDevelopment ? [DevToolsModule] : []),
-        BullDashboardModule,
+        ...(isDevelopment ? [DevToolsModule, BullDashboardModule] : []),
         SiebelModule,
         NotificationModule,
         EventEmitterModule.forRoot(),

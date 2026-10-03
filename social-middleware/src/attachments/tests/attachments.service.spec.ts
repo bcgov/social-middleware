@@ -95,7 +95,7 @@ describe('AttachmentsService', () => {
     const dto = {
       applicationPackageId: APPLICATION_PACKAGE_ID,
       householdMemberId: HOUSEHOLD_MEMBER_ID,
-      applicationFormId: null,
+      applicationFormId: undefined,
       attachmentType: AttachmentType.MEDICAL_ASSESSMENT,
       fileName: 'test-file',
       fileType: 'pdf',
@@ -104,7 +104,7 @@ describe('AttachmentsService', () => {
 
     it('constructs the model with dto fields and uploadedBy', async () => {
       mockSave.mockResolvedValue(mockAttachmentDoc);
-      await service.create(dto as any, USER_ID);
+      await service.create(dto, USER_ID);
       expect(mockAttachmentModel).toHaveBeenCalledWith(
         expect.objectContaining({ ...dto, uploadedBy: USER_ID }),
       );
@@ -112,7 +112,7 @@ describe('AttachmentsService', () => {
 
     it('calculates fileSize from base64 fileData', async () => {
       mockSave.mockResolvedValue(mockAttachmentDoc);
-      await service.create(dto as any, USER_ID);
+      await service.create(dto, USER_ID);
       const expectedSize = Buffer.from(dto.fileData, 'base64').length;
       expect(mockAttachmentModel).toHaveBeenCalledWith(
         expect.objectContaining({ fileSize: expectedSize }),
@@ -121,7 +121,7 @@ describe('AttachmentsService', () => {
 
     it('saves and returns the attachment document', async () => {
       mockSave.mockResolvedValue(mockAttachmentDoc);
-      const result = await service.create(dto as any, USER_ID);
+      const result = await service.create(dto, USER_ID);
       expect(mockSave).toHaveBeenCalled();
       expect(result).toEqual(mockAttachmentDoc);
     });

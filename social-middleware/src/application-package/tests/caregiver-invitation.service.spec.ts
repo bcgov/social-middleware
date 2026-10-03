@@ -1,7 +1,7 @@
-import { Test, TestingModule } from '@nestjs/testing';
 import { getModelToken } from '@nestjs/mongoose';
-import { CaregiverInvitationService } from '../services/caregiver-invitation.service';
-import { ApplicationPackage } from '../schema/application-package.schema';
+import { Test, TestingModule } from '@nestjs/testing';
+import { AccessCodeType } from '../../household/enums/access-code-type.enum';
+import { RelationshipToPrimary } from '../../household/enums/relationship-to-primary.enum';
 import { AccessCodeService } from '../../household/services/access-code.service';
 import { HouseholdService } from '../../household/services/household.service';
 import { NotificationService } from '../../notifications/services/notification.service';
@@ -10,13 +10,13 @@ import {
   ApplicationPackageStatus,
   ServiceRequestStage,
 } from '../enums/application-package-status.enum';
-import { AccessCodeType } from '../../household/enums/access-code-type.enum';
 import {
-  ApplicationPackageSubType,
   ApplicationPackageSubSubType,
+  ApplicationPackageSubType,
 } from '../enums/application-package-subtypes.enum';
-import { RelationshipToPrimary } from '../../household/enums/relationship-to-primary.enum';
 import { ProspectiveCaregiver } from '../interfaces/prospective-caregiver.interface';
+import { ApplicationPackage } from '../schema/application-package.schema';
+import { CaregiverInvitationService } from '../services/caregiver-invitation.service';
 
 jest.mock('uuid', () => ({
   v4: jest.fn().mockReturnValue('mock-package-uuid'),
@@ -58,7 +58,7 @@ describe('CaregiverInvitationService', () => {
     contactId: 'icm-contact-001',
     srId: 'sr-001',
     subtype: ApplicationPackageSubType.OOC,
-    subsubtype: ApplicationPackageSubSubType.EFP,
+    subsubtype: ApplicationPackageSubSubType._BLANK,
   };
 
   beforeEach(async () => {
@@ -198,7 +198,7 @@ describe('CaregiverInvitationService', () => {
             applicationPackageId: 'mock-package-uuid',
             userId: null,
             subtype: ApplicationPackageSubType.OOC,
-            subsubtype: ApplicationPackageSubSubType.EFP,
+            subsubtype: ApplicationPackageSubSubType._BLANK,
             status: ApplicationPackageStatus.DRAFT,
             contactId: 'icm-contact-001',
             srId: 'sr-001',
@@ -332,7 +332,7 @@ describe('CaregiverInvitationService', () => {
           contactId: 'contact-001',
           srId: 'sr-001',
           subtype: ApplicationPackageSubType.OOC,
-          subsubtype: ApplicationPackageSubSubType.EFP,
+          subsubtype: ApplicationPackageSubSubType._BLANK,
         }),
       );
     });

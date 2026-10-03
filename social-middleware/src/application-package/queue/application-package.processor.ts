@@ -33,7 +33,10 @@ import {
 } from '@nestjs/common';
 //import { ApplicationFormType } from '../../application-form/enums/application-form-types.enum';
 import { ApplicationFormStatus } from '../../application-form/enums/application-form-status.enum';
-import { RelationshipToPrimary } from '../../household/enums/relationship-to-primary.enum';
+import {
+  RelationshipToPrimary,
+  getApplicantFlag,
+} from '../../household/enums/relationship-to-primary.enum';
 import {
   ApplicationFormType,
   getFormIdForFormType,
@@ -231,11 +234,6 @@ export class ApplicationPackageProcessor {
         return { isComplete: false, status: applicationPackage.status };
       }
 
-      // get all the application forms
-      const allApplicationForms =
-        await this.applicationFormService.findAllByApplicationPackageId(
-          applicationPackageId,
-        );
       //get all household members
       const householdMembers =
         await this.householdService.findAllHouseholdMembers(
@@ -255,16 +253,11 @@ export class ApplicationPackageProcessor {
       }
 
       // Get all forms for the primary applicant
-      const primaryApplicantForms = allApplicationForms.filter(
-        (form) =>
-          form.householdMemberId === primaryApplicant.householdMemberId &&
-          form.type !== ApplicationFormType.REFERRAL &&
-          form.type !== ApplicationFormType.HOUSEHOLD,
-      );
-
-      const incompletePrimaryForms = primaryApplicantForms.filter(
-        (form) => form.status !== ApplicationFormStatus.COMPLETE,
-      );
+      const incompletePrimaryForms =
+        await this.applicationFormService.findIncompletePrimaryApplicantForms(
+          applicationPackageId,
+          primaryApplicant.householdMemberId,
+        );
 
       if (incompletePrimaryForms.length > 0) {
         // Self-heal a known status glitch: the package was submitted but the
@@ -300,7 +293,6 @@ export class ApplicationPackageProcessor {
         this.logger.info(
           {
             applicationPackageId,
-            totalPrimaryForms: primaryApplicantForms.length,
             incompleteCount: incompletePrimaryForms.length,
           },
           'Primary applicant forms not yet complete',
@@ -355,7 +347,6 @@ export class ApplicationPackageProcessor {
       this.logger.info(
         {
           applicationPackageId,
-          primaryFormsCompleted: primaryApplicantForms.length,
           screeningMembersCompleted: membersRequiringScreening.length,
         },
         'All primary applicant forms complete and all required screening info provided',
@@ -809,6 +800,13 @@ export class ApplicationPackageProcessor {
     const { applicationPackageId, bcscDid, householdMemberId, srId } = job.data;
 
     const member = await this.householdService.findById(householdMemberId);
+
+    if (!member) {
+      throw new NotFoundException(
+        `Household member ${householdMemberId} not found`,
+      );
+    }
+
     if (member?.prospectId) {
       this.logger.info(
         { applicationPackageId, householdMemberId },
@@ -820,6 +818,7 @@ export class ApplicationPackageProcessor {
     const user = await this.userService.findByBcServicesCardId(bcscDid);
     await this.prospectService.createKeyPlayerProspect(user, srId, {
       householdMemberId,
+      applicantFlag: getApplicantFlag(member.relationshipToPrimary),
     });
   }
 

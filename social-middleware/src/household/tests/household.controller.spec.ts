@@ -1,18 +1,19 @@
-import { Test, TestingModule } from '@nestjs/testing';
-import { PinoLogger } from 'nestjs-pino';
 import {
-  UnauthorizedException,
-  NotFoundException,
   BadRequestException,
+  NotFoundException,
+  UnauthorizedException,
 } from '@nestjs/common';
-import { HouseholdController } from '../household.controller';
-import { HouseholdService } from '../services/household.service';
-import { AccessCodeService } from '../services/access-code.service';
-import { ApplicationFormService } from '../../application-form/services/application-form.service';
-import { NotificationService } from '../../notifications/services/notification.service';
-import { SessionUtil } from '../../common/utils/session.util';
-import { SessionAuthGuard } from '../../auth/session-auth.guard';
+import { Test, TestingModule } from '@nestjs/testing';
 import { Request } from 'express';
+import { PinoLogger } from 'nestjs-pino';
+import { ApplicationFormService } from '../../application-form/services/application-form.service';
+import { SessionAuthGuard } from '../../auth/session-auth.guard';
+import { SessionUtil } from '../../common/utils/session.util';
+import { NotificationService } from '../../notifications/services/notification.service';
+import { RelationshipToPrimary } from '../enums/relationship-to-primary.enum';
+import { HouseholdController } from '../household.controller';
+import { AccessCodeService } from '../services/access-code.service';
+import { HouseholdService } from '../services/household.service';
 
 describe('HouseholdController', () => {
   let controller: HouseholdController;
@@ -23,6 +24,7 @@ describe('HouseholdController', () => {
     canResendAccessCode: jest.fn(),
     incrementResendTracking: jest.fn(),
     findPrimaryApplicant: jest.fn(),
+    markScreeningProvided: jest.fn(),
   };
 
   const mockAccessCodeService = {
@@ -31,6 +33,11 @@ describe('HouseholdController', () => {
 
   const mockNotificationService = {
     sendFCHAccessCode: jest.fn(),
+  };
+
+  const mockApplicationFormService = {
+    getApplicationFormByHouseholdId: jest.fn(),
+    markUserAttachedForms: jest.fn(),
   };
 
   const mockSessionUtil = {
@@ -52,7 +59,10 @@ describe('HouseholdController', () => {
       controllers: [HouseholdController],
       providers: [
         { provide: HouseholdService, useValue: mockHouseholdService },
-        { provide: ApplicationFormService, useValue: {} },
+        {
+          provide: ApplicationFormService,
+          useValue: mockApplicationFormService,
+        },
         { provide: AccessCodeService, useValue: mockAccessCodeService },
         { provide: NotificationService, useValue: mockNotificationService },
         { provide: SessionUtil, useValue: mockSessionUtil },
@@ -83,7 +93,7 @@ describe('HouseholdController', () => {
       firstName: 'Jerry',
       lastName: 'SERRANO',
       email: 'jerry@example.com',
-      userId: null,
+      userId: null as string | null,
       screeningInfoProvided: false,
     };
 
@@ -281,6 +291,173 @@ describe('HouseholdController', () => {
         isNew: true,
         resendsRemainingToday: 2,
       });
+    });
+  });
+
+  // ─── markScreeningDocumentsAttached ─────────────────────────────────────────
+
+  describe('markScreeningDocumentsAttached', () => {
+    const applicationPackageId = 'c3d4e5f6-a7b8-9012-cdef-123456789012';
+    const householdMemberId = 'd4e5f6a7-b8c9-0123-defa-234567890123';
+    const ownerId = 'owner-001';
+    const otherUserId = 'intruder-001';
+
+    const baseMember = {
+      householdMemberId,
+      applicationPackageId,
+      firstName: 'Member',
+      lastName: 'TEST',
+      screeningInfoProvided: false,
+      relationshipToPrimary: RelationshipToPrimary.Child,
+      userId: null as string | null,
+    };
+
+    const mockRequest = {} as Request;
+
+    const setupHappyPath = (member = baseMember) => {
+      mockSessionUtil.extractUserIdFromRequest.mockReturnValue(ownerId);
+      mockHouseholdService.verifyUserOwnsPackage.mockResolvedValue(true);
+      mockHouseholdService.findById.mockResolvedValue(member);
+      mockApplicationFormService.getApplicationFormByHouseholdId.mockResolvedValue(
+        [{ applicationFormId: 'form-1' }, { applicationFormId: 'form-2' }],
+      );
+      mockApplicationFormService.markUserAttachedForms.mockResolvedValue(
+        undefined,
+      );
+      mockHouseholdService.markScreeningProvided.mockResolvedValue(undefined);
+    };
+
+    it.each([
+      RelationshipToPrimary.Child,
+      RelationshipToPrimary.Parent,
+      RelationshipToPrimary.Sibling,
+    ])(
+      'allows the primary applicant to mark documents for a non-spouse member (%s)',
+      async (relationship) => {
+        setupHappyPath({
+          ...baseMember,
+          relationshipToPrimary: relationship,
+        });
+
+        const result = await controller.markScreeningDocumentsAttached(
+          applicationPackageId,
+          householdMemberId,
+          mockRequest,
+        );
+
+        expect(mockHouseholdService.verifyUserOwnsPackage).toHaveBeenCalledWith(
+          applicationPackageId,
+          ownerId,
+        );
+        expect(
+          mockApplicationFormService.markUserAttachedForms,
+        ).toHaveBeenCalledWith(householdMemberId, ownerId);
+        expect(mockHouseholdService.markScreeningProvided).toHaveBeenCalledWith(
+          householdMemberId,
+        );
+        expect(result).toEqual({ success: true, formsUpdated: 2 });
+      },
+    );
+
+    it.each([
+      RelationshipToPrimary.Spouse,
+      RelationshipToPrimary.Partner,
+      RelationshipToPrimary.CommonLaw,
+    ])(
+      'blocks the primary applicant from marking documents for a co-applicant (%s)',
+      async (relationship) => {
+        setupHappyPath({
+          ...baseMember,
+          relationshipToPrimary: relationship,
+        });
+
+        await expect(
+          controller.markScreeningDocumentsAttached(
+            applicationPackageId,
+            householdMemberId,
+            mockRequest,
+          ),
+        ).rejects.toThrow(
+          new UnauthorizedException(
+            'Not authorized to mark screening documents for this household member',
+          ),
+        );
+        expect(
+          mockApplicationFormService.markUserAttachedForms,
+        ).not.toHaveBeenCalled();
+        expect(
+          mockHouseholdService.markScreeningProvided,
+        ).not.toHaveBeenCalled();
+      },
+    );
+
+    it('throws UnauthorizedException when the caller is not the package owner, even if they are the member themselves', async () => {
+      setupHappyPath({ ...baseMember, userId: otherUserId });
+      mockSessionUtil.extractUserIdFromRequest.mockReturnValue(otherUserId);
+      mockHouseholdService.verifyUserOwnsPackage.mockResolvedValue(false);
+
+      await expect(
+        controller.markScreeningDocumentsAttached(
+          applicationPackageId,
+          householdMemberId,
+          mockRequest,
+        ),
+      ).rejects.toThrow(
+        new UnauthorizedException(
+          'Not authorized to mark screening documents for this household member',
+        ),
+      );
+      expect(
+        mockApplicationFormService.markUserAttachedForms,
+      ).not.toHaveBeenCalled();
+      expect(mockHouseholdService.markScreeningProvided).not.toHaveBeenCalled();
+    });
+
+    it('throws UnauthorizedException when the member belongs to a different package', async () => {
+      setupHappyPath({
+        ...baseMember,
+        applicationPackageId: 'other-package-id',
+      });
+
+      await expect(
+        controller.markScreeningDocumentsAttached(
+          applicationPackageId,
+          householdMemberId,
+          mockRequest,
+        ),
+      ).rejects.toThrow(
+        new UnauthorizedException(
+          'Household member does not belong to this application package',
+        ),
+      );
+    });
+
+    it('throws NotFoundException when the member is not found', async () => {
+      setupHappyPath();
+      mockHouseholdService.findById.mockResolvedValue(null);
+
+      await expect(
+        controller.markScreeningDocumentsAttached(
+          applicationPackageId,
+          householdMemberId,
+          mockRequest,
+        ),
+      ).rejects.toThrow(new NotFoundException('Household member not found'));
+    });
+
+    it('throws NotFoundException when the member has no forms', async () => {
+      setupHappyPath();
+      mockApplicationFormService.getApplicationFormByHouseholdId.mockResolvedValue(
+        [],
+      );
+
+      await expect(
+        controller.markScreeningDocumentsAttached(
+          applicationPackageId,
+          householdMemberId,
+          mockRequest,
+        ),
+      ).rejects.toThrow(NotFoundException);
     });
   });
 });

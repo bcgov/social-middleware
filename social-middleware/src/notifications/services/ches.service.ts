@@ -83,7 +83,10 @@ export class ChesService {
 
       return this.accessToken;
     } catch (err) {
-      this.logger.error({ err }, 'Failed to get CHES access token');
+      this.logger.error(
+        { err, operation: 'getAccessToken', outcome: 'failure' },
+        'Failed to get CHES access token',
+      );
       const axiosError = err as { response?: { status?: number } };
       throw new HttpException(
         'Failed to authenticate with CHES',
@@ -100,10 +103,7 @@ export class ChesService {
     const chesApiUrl = this.configService.get<string>('CHES_API_URL');
 
     this.logger.info(
-      {
-        to: data.to,
-        subject: data.subject,
-      },
+      { operation: 'sendEmail', subject: data.subject },
       'Sending email via CHES',
     );
 
@@ -133,8 +133,10 @@ export class ChesService {
 
       this.logger.info(
         {
+          operation: 'sendEmail',
           txId: response.data.txId,
           msgId: response.data.messages[0]?.msgId,
+          outcome: 'success',
         },
         'Email sent successfully via CHES',
       );
@@ -148,17 +150,15 @@ export class ChesService {
 
       this.logger.error(
         {
-          error:
-            errorData?.data ||
-            (err instanceof Error ? err.message : 'Unknown error'),
+          err,
+          operation: 'sendEmail',
           status: errorData?.status,
+          outcome: 'failure',
         },
         'Failed to send email via CHES',
       );
-      throw new HttpException(
-        errorData?.data || 'Failed to send email',
-        errorData?.status || 500,
-      );
+
+      throw new HttpException('Failed to send email', errorData?.status || 500);
     }
   }
 }

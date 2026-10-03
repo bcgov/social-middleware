@@ -61,7 +61,21 @@ import type { Connection } from 'mongoose';
           uri.replace(/:([^:@]+)@/, ':***@'),
         );
 
-        const connectionOptions: any = {
+        interface MongoConnectionOptions {
+          uri: string;
+          tls?: boolean;
+          tlsCAFile?: string;
+          tlsAllowInvalidCertificates?: boolean;
+          replicaSet?: string;
+          serverSelectionTimeoutMS?: number;
+          connectTimeoutMS?: number;
+          socketTimeoutMS?: number;
+          maxPoolSize?: number;
+          minPoolSize?: number;
+          onConnectionCreate?: (connection: Connection) => void;
+        }
+
+        const connectionOptions: MongoConnectionOptions = {
           uri,
         };
 
