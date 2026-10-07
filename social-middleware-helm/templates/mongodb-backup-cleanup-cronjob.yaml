@@ -9,6 +9,7 @@ metadata:
     component: backup-cleanup
 spec:
   schedule: "0 3 * * *"  # Daily at 3 AM (after backup completes)
+  timeZone: {{ .Values.mongodb.backup.timeZone | quote }}
   successfulJobsHistoryLimit: 3
   failedJobsHistoryLimit: 3
   concurrencyPolicy: Forbid
@@ -28,26 +29,50 @@ spec:
                 - -c
                 - |
                   set -e
-                  echo "Starting backup cleanup (keeping last 7 backups)"
 
+                  DAILY={{ .Values.mongodb.backup.daily }}
+                  WEEKLY={{ .Values.mongodb.backup.weekly }}
+                  MONTHLY={{ .Values.mongodb.backup.monthly }}
+
+                  echo "Rolling retention: daily=$DAILY weekly=$WEEKLY monthly=$MONTHLY"
+
+                  # Count-based rather than age-based on purpose: a run of failed
+                  # backups must not be able to age out the copies still on disk.
+                  prune_tier() {
+                    tier="$1"; keep="$2"
+                    [ -d "/backup/$tier" ] || { echo "  $tier: none yet"; return 0; }
+                    cd "/backup/$tier"
+                    total=$(ls -1d */ 2>/dev/null | wc -l)
+                    if [ "$total" -gt "$keep" ]; then
+                      n=$((total - keep))
+                      echo "  $tier: $total present, deleting $n oldest"
+                      ls -1dt */ | tail -n "$n" | xargs rm -rf
+                    else
+                      echo "  $tier: $total present, keeping all (limit $keep)"
+                    fi
+                  }
+
+                  prune_tier daily   "$DAILY"
+                  prune_tier weekly  "$WEEKLY"
+                  prune_tier monthly "$MONTHLY"
+
+                  # Transitional: before rolling tiers, dumps were written flat
+                  # into /backup/<timestamp>/. Age those out on the daily limit
+                  # so nothing is discarded abruptly. Once none remain this block
+                  # is a no-op and can be deleted.
                   cd /backup
-
-                  # Count total backups
-                  TOTAL=$(ls -1d */ 2>/dev/null | wc -l)
-                  echo "Total backups found: $TOTAL"
-
-                  # Keep only the last 3 backups (delete older ones)
-                  if [ $TOTAL -gt 3 ]; then
-                    TO_DELETE=$((TOTAL - 3))
-                    echo "Deleting $TO_DELETE old backup(s)"
-                    ls -1dt */ | tail -n $TO_DELETE | xargs rm -rf
-                    echo "Cleanup completed"
-                  else
-                    echo "No cleanup needed (3 or fewer backups)"
+                  legacy=$(ls -1d 20*/ 2>/dev/null | wc -l)
+                  if [ "$legacy" -gt 0 ]; then
+                    echo "  legacy (flat layout): $legacy present"
+                    if [ "$legacy" -gt "$DAILY" ]; then
+                      n=$((legacy - DAILY))
+                      echo "  legacy: deleting $n oldest"
+                      ls -1dt 20*/ | tail -n "$n" | xargs rm -rf
+                    fi
                   fi
 
-                  echo "Remaining backups:"
-                  ls -lh
+                  echo "Remaining:"
+                  du -sh /backup/daily /backup/weekly /backup/monthly 2>/dev/null || true
                   echo "Disk usage:"
                   df -h /backup
               volumeMounts:

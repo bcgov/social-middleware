@@ -217,7 +217,7 @@ export class SiebelApiService {
 
     const params = {
       searchspec: `[ICM BCSC DID]='${bcscId}' AND [SR Type]='Caregiver Application'`,
-      fields: 'Id, ICM Stage, Resolution',
+      fields: 'Id, ICM Stage, Resolution, SR Sub Type',
       ViewMode: 'Organization',
       ChildLinks: 'None',
       PageSize: 100,

@@ -481,6 +481,7 @@ export class ApplicationPackageService {
   async updateApplicationPackageStage(
     applicationPackage: ApplicationPackage,
     newStage: ServiceRequestStage,
+    newResolution?: string,
   ): Promise<ApplicationPackage> {
     try {
       this.logger.info(
@@ -534,6 +535,7 @@ export class ApplicationPackageService {
               $set: {
                 srStage: ServiceRequestStage.APPLICATION,
                 status: ApplicationPackageStatus.APPLICATION,
+                srResolution: newResolution ?? applicationPackage.srResolution,
                 updatedAt: new Date(),
               },
             },
@@ -635,6 +637,7 @@ export class ApplicationPackageService {
       // update the applicationPackage sr Stage to match the service request
       const updateObject: Partial<ApplicationPackage> = {
         srStage: newStage,
+        srResolution: newResolution,
         updatedAt: new Date(),
       };
 
@@ -1209,67 +1212,88 @@ export class ApplicationPackageService {
           }
           // form has not already been uploaded, and has some form data which indicates it is a valid form.
           if (form.formData) {
-            let fileName = form.type as string;
-
-            // files need to have unique names, so for screening forms, add the household member's name
-            if (
-              (form.type === ApplicationFormType.DISCLOSURECONSENT ||
-                form.type === ApplicationFormType.PCCCONSENT) &&
-              form.userId
-            ) {
-              const memberUser = await this.userService.findOne(form.userId);
-
-              if (memberUser) {
-                const { firstName } = this.userUtil.firstAndMiddleName(
-                  memberUser.first_name,
-                );
-                fileName = `${firstName}_${this.userUtil.toTitleCase(memberUser.last_name)}-${form.type}`;
-              } else {
-                this.logger.warn(
-                  {
-                    applicationFormId: form.applicationFormId,
-                    userId: form.userId,
-                  },
-                  'Could not find household member for screening form - using default filename',
-                );
-              }
-            }
-
-            const fileContent = form.formData; // Buffer.from(formDataString).toString('base64');
-            const formId = getFormIdForFormType(form.type);
-            const xmlHierarchy =
-              await this.applicationFormService.convertFormDataToXml(
+            // Atomically claim this form for attachment — only one concurrent caller wins.
+            const claimedForm =
+              await this.applicationFormService.claimFormForAttachment(
                 form.applicationFormId,
               );
 
-            const attachmentResult =
-              (await this.siebelApiService.createFormAttachment(
-                serviceRequestId,
-                {
-                  fileName: fileName,
-                  template: formId,
-                  xmlHierarchy: xmlHierarchy,
-                  fileContent: fileContent,
-                },
-              )) as { items: { Id: string } };
-            await this.applicationFormService.saveSiebelAttachmentId(
-              form.applicationFormId,
-              attachmentResult.items?.Id,
-            );
+            if (!claimedForm) {
+              this.logger.info(
+                { applicationFormId: form.applicationFormId },
+                'Form attachment already claimed by a concurrent submission — skipping',
+              );
+              continue;
+            }
 
-            attachmentResults.push({
-              applicationFormId: form.applicationFormId,
-              attachmentId: attachmentResult.items?.Id,
-            });
+            let fileName = form.type as string;
 
-            this.logger.info(
-              {
-                serviceRequestId: serviceRequestId,
+            try {
+              // files need to have unique names, so for screening forms, add the household member's name
+              if (
+                (form.type === ApplicationFormType.DISCLOSURECONSENT ||
+                  form.type === ApplicationFormType.PCCCONSENT) &&
+                form.userId
+              ) {
+                const memberUser = await this.userService.findOne(form.userId);
+
+                if (memberUser) {
+                  const { firstName } = this.userUtil.firstAndMiddleName(
+                    memberUser.first_name,
+                  );
+                  fileName = `${firstName}_${this.userUtil.toTitleCase(memberUser.last_name)}-${form.type}`;
+                } else {
+                  this.logger.warn(
+                    {
+                      applicationFormId: form.applicationFormId,
+                      userId: form.userId,
+                    },
+                    'Could not find household member for screening form - using default filename',
+                  );
+                }
+              }
+
+              const fileContent = form.formData; // Buffer.from(formDataString).toString('base64');
+              const formId = getFormIdForFormType(form.type);
+              const xmlHierarchy =
+                await this.applicationFormService.convertFormDataToXml(
+                  form.applicationFormId,
+                );
+
+              const attachmentResult =
+                (await this.siebelApiService.createFormAttachment(
+                  serviceRequestId,
+                  {
+                    fileName: fileName,
+                    template: formId,
+                    xmlHierarchy: xmlHierarchy,
+                    fileContent: fileContent,
+                  },
+                )) as { items: { Id: string } };
+              await this.applicationFormService.saveSiebelAttachmentId(
+                form.applicationFormId,
+                attachmentResult.items?.Id,
+              );
+
+              attachmentResults.push({
                 applicationFormId: form.applicationFormId,
-                fileName: fileName,
-              },
-              'Attachment created successfully for form',
-            );
+                attachmentId: attachmentResult.items?.Id,
+              });
+
+              this.logger.info(
+                {
+                  serviceRequestId: serviceRequestId,
+                  applicationFormId: form.applicationFormId,
+                  fileName: fileName,
+                },
+                'Attachment created successfully for form',
+              );
+            } catch (error) {
+              await this.applicationFormService.releaseAttachmentClaim(
+                form.applicationFormId,
+              );
+              throw error; // re-throw so the existing outer catch still logs it the same way
+            }
           } else {
             this.logger.warn(
               { applicationFormId: form.applicationFormId },
