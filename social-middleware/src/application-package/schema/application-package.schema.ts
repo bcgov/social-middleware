@@ -46,6 +46,9 @@ export class ApplicationPackage {
   @Prop({ required: false })
   srStage!: ServiceRequestStage;
 
+  @Prop({ required: false })
+  srResolution!: string;
+
   @Prop({
     required: true,
     enum: ApplicationPackageStatus,
