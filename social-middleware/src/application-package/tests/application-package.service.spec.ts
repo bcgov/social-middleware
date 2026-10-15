@@ -146,8 +146,8 @@ describe('ApplicationPackageService - updateApplicationPackageStage', () => {
   };
 
   const mockApplicationFormService = {
-    getApplicationFormByHouseholdId: jest.fn(),
     createApplicationForm: jest.fn(),
+    getApplicationFormByHouseholdId: jest.fn(),
   };
 
   const mockHouseholdService = {
@@ -1469,6 +1469,8 @@ describe('ApplicationPackageService - submitApplicationPackage — BCSC re-prosp
     convertFormDataToXml: jest.fn(),
     saveSiebelAttachmentId: jest.fn(),
     findByPackageAndUser: jest.fn(),
+    claimFormForAttachment: jest.fn(),
+    releaseAttachmentClaim: jest.fn(),
   };
 
   const mockUserService = {
@@ -1563,6 +1565,14 @@ describe('ApplicationPackageService - submitApplicationPackage — BCSC re-prosp
 
     mockUserService.findOne.mockResolvedValue(mockPrimaryUser);
     mockUserService.updateUser.mockResolvedValue(mockPrimaryUser);
+
+    // Default: claim always succeeds, so existing attachment tests behave as before
+    mockApplicationFormService.claimFormForAttachment.mockImplementation(
+      (applicationFormId: string) => ({ applicationFormId }),
+    );
+    mockApplicationFormService.releaseAttachmentClaim.mockResolvedValue(
+      undefined,
+    );
 
     mockProspectService.createKeyPlayerProspect.mockResolvedValue(
       'new-prospect-id',
@@ -2441,6 +2451,8 @@ describe('ApplicationPackageService - submitApplicationPackage — members, form
     findAllByApplicationPackageId: jest.fn(),
     convertFormDataToXml: jest.fn(),
     saveSiebelAttachmentId: jest.fn(),
+    claimFormForAttachment: jest.fn(),
+    releaseAttachmentClaim: jest.fn(),
   };
   const mockHousehold = {
     findAllHouseholdMembers: jest.fn(),
@@ -2507,6 +2519,10 @@ describe('ApplicationPackageService - submitApplicationPackage — members, form
     mockForms.findByPackageAndUser.mockResolvedValue([]);
     mockForms.findAllByApplicationPackageId.mockResolvedValue([]);
     mockForms.convertFormDataToXml.mockResolvedValue('<xml/>');
+    mockForms.claimFormForAttachment.mockImplementation(
+      (applicationFormId: string) => ({ applicationFormId }),
+    );
+    mockForms.releaseAttachmentClaim.mockResolvedValue(undefined);
 
     mockHousehold.findAllHouseholdMembers.mockResolvedValue([selfMember]);
     mockHousehold.updateHouseholdMember.mockResolvedValue({});

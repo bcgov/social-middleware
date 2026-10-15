@@ -1011,6 +1011,27 @@ export class ApplicationFormService {
     );
   }
 
+  /**
+   * Atomically claim a form for Siebel attachment — only one concurrent caller wins.
+   * Returns the claimed form, or null if it was already claimed/attached.
+   */
+  async claimFormForAttachment(
+    applicationFormId: string,
+  ): Promise<ApplicationFormDocument | null> {
+    return this.applicationFormModel.findOneAndUpdate(
+      { applicationFormId, siebelAttachmentId: null },
+      { $set: { siebelAttachmentId: 'PENDING' } },
+      { new: true },
+    );
+  }
+
+  async releaseAttachmentClaim(applicationFormId: string): Promise<void> {
+    await this.applicationFormModel.updateOne(
+      { applicationFormId, siebelAttachmentId: 'PENDING' },
+      { $set: { siebelAttachmentId: null } },
+    );
+  }
+
   async deleteByApplicationPackageId(
     applicationPackageId: string,
   ): Promise<void> {

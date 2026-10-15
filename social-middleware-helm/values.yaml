@@ -63,6 +63,30 @@ mongodb:
         memory: 512Mi
     storage:
       size: 3Gi
+  backup:
+    # Kubernetes schedules CronJobs in UTC unless told otherwise, which puts the
+    # backup, its cleanup and its verification at times nobody intended and in
+    # the wrong order relative to each other.
+    timeZone: America/Vancouver
+    # Rolling retention. A backup is filed into exactly ONE tier: monthly on the
+    # last day of the month, weekly on Sundays, daily otherwise. So "daily: 14"
+    # is 14 non-Sunday, non-month-end days - roughly 16 calendar days of cover.
+    #
+    # At ~34Mi a dump, 14+8+6 is about 950Mi of the 3Gi volume. Revisit if the
+    # database grows much beyond its current ~72Mi.
+    daily: 14
+    weekly: 8
+    monthly: 6
+    # Freshness window for the verification job, in minutes. 25h so a run that
+    # slips slightly does not raise a false alarm.
+    maxAgeMinutes: 1500
+    # Smallest plausible dump. A "does the directory exist" check passes happily
+    # on a truncated or empty backup; a size floor does not.
+    minSizeBytes: 5000000
+    # Smallest plausible document count across all collections. Catches a dump
+    # that is structurally valid but empty - which a size floor alone can miss,
+    # since gzip headers and metadata give an empty dump non-zero size.
+    minDocuments: 50
 
 redis:
   replicas: 3
