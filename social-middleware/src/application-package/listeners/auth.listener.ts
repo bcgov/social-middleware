@@ -347,13 +347,17 @@ export class AuthListener implements OnModuleInit {
           );
           // update the stage if it has changed
 
-          if (existingPackage.srStage !== srStage) {
+          if (
+            existingPackage.srStage !== srStage ||
+            existingPackage.srResolution !== resolution
+          ) {
             this.logger.info(
               `Updating application package stage for service request ID: ${srId} from ${existingPackage.srStage} to ${srStage}`,
             );
             await this.applicationPackageService.updateApplicationPackageStage(
               existingPackage,
               srStage,
+              resolution,
             );
             continue;
           }

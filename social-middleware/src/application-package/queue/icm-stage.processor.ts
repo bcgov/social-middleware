@@ -101,7 +101,8 @@ export class IcmStageProcessor {
           const rawResponse = await this.siebelApiService.getServiceRequests({
             searchspec: searchSpec,
             ViewMode: 'Organization',
-            fields: 'Id, Type, SR Sub Type, SR Sub Sub Type, ICM Stage, Status',
+            fields:
+              'Id, Type, SR Sub Type, SR Sub Sub Type, ICM Stage, Status, Resolution',
             PageSize: 20,
           });
 
@@ -154,6 +155,7 @@ export class IcmStageProcessor {
         }
 
         const icmStage = sr['ICM Stage'] as ServiceRequestStage;
+        const resolution = sr['Resolution'] as string | undefined;
 
         // again, should not happen unless the service runs at the exact moment a service request is being created by the portal
         if (!icmStage) {
@@ -162,13 +164,15 @@ export class IcmStageProcessor {
         }
 
         // check if the stage has changed
-        if (pkg.srStage !== icmStage) {
+        if (pkg.srStage !== icmStage || pkg.srResolution !== resolution) {
           this.logger.info(
             {
               srId: pkg.srId,
               packageId: String(pkg._id),
               oldStage: pkg.srStage,
               newStage: icmStage,
+              oldResolution: pkg.srResolution,
+              newResolution: resolution,
             },
             'Stage change detected - updating',
           );
@@ -179,6 +183,7 @@ export class IcmStageProcessor {
             await this.applicationPackageService.updateApplicationPackageStage(
               pkg as ApplicationPackage,
               icmStage,
+              resolution,
             );
             stagesUpdated++;
           } catch (error) {

@@ -481,6 +481,7 @@ export class ApplicationPackageService {
   async updateApplicationPackageStage(
     applicationPackage: ApplicationPackage,
     newStage: ServiceRequestStage,
+    newResolution?: string,
   ): Promise<ApplicationPackage> {
     try {
       this.logger.info(
@@ -534,6 +535,7 @@ export class ApplicationPackageService {
               $set: {
                 srStage: ServiceRequestStage.APPLICATION,
                 status: ApplicationPackageStatus.APPLICATION,
+                srResolution: newResolution ?? applicationPackage.srResolution,
                 updatedAt: new Date(),
               },
             },
@@ -635,6 +637,7 @@ export class ApplicationPackageService {
       // update the applicationPackage sr Stage to match the service request
       const updateObject: Partial<ApplicationPackage> = {
         srStage: newStage,
+        srResolution: newResolution,
         updatedAt: new Date(),
       };
 
