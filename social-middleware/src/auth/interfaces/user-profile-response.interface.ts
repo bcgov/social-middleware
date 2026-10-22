@@ -1,4 +1,7 @@
-import { NonKeyPlayerCaregiver } from '../schemas/user.schema';
+import {
+  NonKeyPlayerCaregiver,
+  HouseholdContact,
+} from '../schemas/user.schema';
 export interface UserProfileResponse {
   first_name: string;
   last_name: string;
@@ -15,4 +18,5 @@ export interface UserProfileResponse {
   previous_last_name?: string;
   resource_case_active_date?: Date;
   non_key_player_caregiver?: NonKeyPlayerCaregiver | null;
+  household_contacts?: HouseholdContact[];
 }

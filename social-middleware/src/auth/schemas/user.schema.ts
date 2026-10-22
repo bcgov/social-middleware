@@ -11,6 +11,18 @@ export interface NonKeyPlayerCaregiver {
   relationship: string;
 }
 
+export interface HouseholdContact {
+  icm_contact_id: string;
+  first_name: string;
+  last_name: string;
+  relationship: string;
+  contact_end_date: string | null; // ISO string from ICM 'End Date'
+  is_relief_provider: boolean;
+  removal_requested: boolean;
+  removal_departure_date?: string | null;
+  removal_requested_at?: string | null;
+}
+
 @Schema({ timestamps: true })
 export class User {
   id!: string;
@@ -71,6 +83,9 @@ export class User {
 
   @Prop({ required: false, type: Object, default: null })
   non_key_player_caregiver?: NonKeyPlayerCaregiver | null;
+
+  @Prop({ required: false, type: [Object], default: [] })
+  household_contacts?: HouseholdContact[];
 
   @Prop({ default: Date.now })
   last_login!: Date;
