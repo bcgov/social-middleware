@@ -12,7 +12,8 @@ export interface NonKeyPlayerCaregiver {
 }
 
 export interface HouseholdContact {
-  icm_contact_id: string;
+  case_contact_id: string;
+  person_id: string;
   first_name: string;
   last_name: string;
   relationship: string;
