@@ -215,7 +215,10 @@ export class AuthController {
         ? { resource_case_active_date: user.resource_case_active_date }
         : {}),
       ...(sendResourceDetails
-        ? { non_key_player_caregiver: user.non_key_player_caregiver ?? null }
+        ? {
+            non_key_player_caregiver: user.non_key_player_caregiver ?? null,
+            household_contacts: user.household_contacts ?? [],
+          }
         : {}),
     };
   }

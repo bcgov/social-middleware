@@ -154,6 +154,7 @@ describe('Auth profile cross-applicant authorization', () => {
       };
       expect(body).toHaveProperty('non_key_player_caregiver');
       expect(body.resource_case_active_date).toBeDefined();
+      expect(body).toHaveProperty('household_contacts');
     });
   });
 });

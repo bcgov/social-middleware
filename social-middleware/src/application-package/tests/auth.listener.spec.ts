@@ -13,6 +13,7 @@ import {
 import { AuthListener } from '../listeners/auth.listener';
 import { ApplicationPackageService } from '../services/application-package.service';
 import { BcscSyncService } from '../services/bcsc-sync.service';
+import { UserUtil } from '../../common/utils/user.util';
 
 const mockLogger = {
   setContext: jest.fn(),
@@ -121,6 +122,7 @@ async function buildAndTrigger(
       { provide: UserService, useValue: mocks.userService },
       { provide: BcscSyncService, useValue: mocks.bcscSyncService },
       { provide: ConfigService, useValue: { get: jest.fn() } },
+      { provide: UserUtil, useValue: new UserUtil() },
       { provide: 'PinoLogger:AuthListener', useValue: mockLogger },
     ],
   }).compile();
