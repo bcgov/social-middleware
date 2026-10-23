@@ -258,6 +258,7 @@ describe('AuthListener.syncContactId', () => {
         { provide: UserService, useValue: userService },
         { provide: BcscSyncService, useValue: { syncOnLogin: jest.fn() } },
         { provide: ConfigService, useValue: { get: jest.fn() } },
+        { provide: UserUtil, useValue: new UserUtil() },
         { provide: 'PinoLogger:AuthListener', useValue: mockLogger },
       ],
     }).compile();
@@ -444,6 +445,7 @@ describe('AuthListener.syncNonKeyPlayerCaregiver', () => {
           },
         },
         { provide: UserService, useValue: userService },
+        { provide: UserUtil, useValue: new UserUtil() },
         { provide: BcscSyncService, useValue: { syncOnLogin: jest.fn() } },
         {
           provide: ConfigService,
