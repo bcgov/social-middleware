@@ -303,6 +303,9 @@ describe('SiebelApiService - getCaseContacts()', () => {
         'First Name': 'Molly',
         'Last Name': 'Moore',
         'End Date': '',
+        'Date of Birth': '08/29/1985',
+        Age: '41',
+        'Person ID ICM': '1-11066245830',
       },
     ];
     const httpGet = jest

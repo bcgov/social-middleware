@@ -71,6 +71,9 @@ export interface SiebelCaseContact {
   'First Name'?: string;
   'Last Name'?: string;
   'End Date'?: string;
+  'Date of Birth'?: string;
+  Age?: string;
+  'Person ID ICM'?: string;
   [key: string]: unknown;
 }
 
@@ -122,7 +125,8 @@ export class SiebelApiService {
     const endpoint = `/Cases/Case/${caseId}/Contact`;
     const params = {
       ViewMode: 'Organization',
-      fields: 'Relationship,Last Name,First Name,End Date',
+      fields:
+        'Id,Relationship,Last Name,First Name,End Date,Date of Birth,Age,Person ID ICM',
     };
 
     try {
