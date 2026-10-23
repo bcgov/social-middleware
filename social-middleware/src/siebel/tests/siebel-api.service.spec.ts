@@ -289,7 +289,8 @@ describe('SiebelApiService - getCaseContacts()', () => {
       expect.objectContaining({
         params: {
           ViewMode: 'Organization',
-          fields: 'Relationship,Last Name,First Name,End Date',
+          fields:
+            'Id,Relationship,Last Name,First Name,End Date,Date of Birth,Age,Person ID ICM',
         },
       }),
     );
