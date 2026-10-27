@@ -205,4 +205,28 @@ describe('UserService', () => {
       expect(createSpy).not.toHaveBeenCalled();
     });
   });
+
+  describe('findIdsByContactIds', () => {
+    const chain = (rows: unknown[]) => ({
+      select: () => ({ lean: () => ({ exec: () => Promise.resolve(rows) }) }),
+    });
+
+    it('returns an empty map without querying for an empty list', async () => {
+      mockUserModel.find.mockClear();
+      expect((await service.findIdsByContactIds([])).size).toBe(0);
+      expect(mockUserModel.find).not.toHaveBeenCalled();
+    });
+
+    it('maps contact_id to the user id for matching users only', async () => {
+      mockUserModel.find.mockReturnValue(
+        chain([{ _id: 'u1', contact_id: 'icm-1' }]),
+      );
+      const result = await service.findIdsByContactIds(['icm-1', 'icm-2']);
+      expect(mockUserModel.find).toHaveBeenCalledWith({
+        contact_id: { $in: ['icm-1', 'icm-2'] },
+      });
+      expect(result.get('icm-1')).toBe('u1');
+      expect(result.has('icm-2')).toBe(false);
+    });
+  });
 });

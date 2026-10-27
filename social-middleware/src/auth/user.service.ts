@@ -134,11 +134,28 @@ export class UserService {
     diff.bcsc_last_synced = new Date();
 
     // update the user record with the changes
-    const updated = await this.updateUser((existing as any).id, diff);
+    const updated = await this.updateUser(existing.id, diff);
     // return the updated user object
 
     return { user: updated, changed: true };
     //return { user: existing, changed: false };
+  }
+
+  // ICM person id (contact_id) -> user id, for ids that belong to registered users
+  async findIdsByContactIds(
+    contactIds: string[],
+  ): Promise<Map<string, string>> {
+    if (contactIds.length === 0) return new Map();
+    const users = await this.userModel
+      .find({ contact_id: { $in: contactIds } })
+      .select('contact_id')
+      .lean()
+      .exec();
+    const map = new Map<string, string>();
+    for (const u of users) {
+      if (u.contact_id) map.set(u.contact_id, String(u._id));
+    }
+    return map;
   }
 
   async updateUser(id: string, updateData: Partial<User>): Promise<User> {
