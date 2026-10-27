@@ -714,7 +714,7 @@ describe('AuthListener.syncNonKeyPlayerCaregiver', () => {
 
       const synced = householdContactService.syncFromIcm.mock
         .calls[0][1] as Array<{ case_contact_id: string }>;
-      expect(synced.map((c) => c.case_contact_id)).toEqual(['ok']);
+      expect(synced.map((c) => c.case_contact_id)).toEqual(['ok', 'relief']);
       expect(mockLogger.debug).toHaveBeenCalledWith(
         expect.objectContaining({
           relationships: expect.arrayContaining([
@@ -724,6 +724,10 @@ describe('AuthListener.syncNonKeyPlayerCaregiver', () => {
         }),
         expect.stringContaining('skipped'),
       );
+      const logged = (
+        mockLogger.debug.mock.calls as Array<[{ relationships: string[] }]>
+      ).flatMap(([ctx]) => ctx.relationships);
+      expect(logged).not.toContain('Relief Caregiver');
     });
 
     it('keeps caregiver rows and links them to registered users', async () => {
