@@ -16,6 +16,7 @@ import { CommonModule } from '../common/common.module';
 import { AuthListener } from './listeners/auth.listener';
 import { AttachmentsModule } from '../attachments/attachments.module';
 import { NotificationModule } from '../notifications/notification.module';
+import { ResourceCaseModule } from 'src/resource-case/resource-case.module';
 import { IcmStageProcessor } from './queue/icm-stage.processor';
 import { IcmStageQueueModule } from './queue/icm-stage-queue.module';
 import { IcmStageSchedulerService } from './services/icm-stage-scheduler.service';
@@ -36,6 +37,7 @@ import { ProspectService } from './services/prospect.service';
     AttachmentsModule,
     NotificationModule,
     IcmStageQueueModule,
+    ResourceCaseModule,
     forwardRef(() => ApplicationPackageQueueModule),
   ],
   controllers: [ApplicationPackageController],

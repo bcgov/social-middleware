@@ -19,6 +19,7 @@ import { HealthModule } from './health/health.module';
 import { HouseholdModule } from './household/household.module';
 import { NotificationModule } from './notifications/notification.module';
 import { SiebelModule } from './siebel/siebel.module';
+import { ResourceCaseModule } from './resource-case/resource-case.module';
 
 @Module({})
 export class AppModule {
@@ -66,6 +67,7 @@ export class AppModule {
         HouseholdModule,
         ...(isDevelopment ? [DevToolsModule, BullDashboardModule] : []),
         SiebelModule,
+        ResourceCaseModule,
         NotificationModule,
         EventEmitterModule.forRoot(),
       ],
