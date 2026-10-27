@@ -2,11 +2,7 @@ import { Injectable, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
 import { UserService } from 'src/auth/user.service';
-import {
-  HouseholdContact,
-  NonKeyPlayerCaregiver,
-  User,
-} from '../../auth/schemas/user.schema';
+import { NonKeyPlayerCaregiver, User } from '../../auth/schemas/user.schema';
 import {
   AuthEventsService,
   UserLoggedInEvent,
@@ -18,6 +14,10 @@ import {
 } from '../../siebel/siebel-api.service';
 import { ServiceRequestStage } from '../enums/application-package-status.enum';
 import { ApplicationPackageService } from '../services/application-package.service';
+import {
+  HouseholdContactService,
+  IcmContactFields,
+} from 'src/resource-case/household-contact.service';
 import { BcscSyncService } from '../services/bcsc-sync.service';
 import { UserUtil } from '../../common/utils/user.util';
 
@@ -29,8 +29,9 @@ function resolveActiveCaseDate(c: SiebelResourceCase): Date {
 }
 import {
   ADULT_AGE,
+  CAREGIVER_RELATIONSHIPS,
+  isStoredRelationship,
   NON_KEY_PLAYER_RELATIONSHIPS,
-  RELIEF_RELATIONSHIP,
 } from '../../siebel/enums/icm-case-contact-relationship.enum';
 import { calculateAge } from '../../common/utils/age.util';
 
@@ -44,6 +45,7 @@ export class AuthListener implements OnModuleInit {
     private readonly bcscSyncService: BcscSyncService,
     private readonly configService: ConfigService,
     private readonly userUtil: UserUtil,
+    private readonly householdContactService: HouseholdContactService,
     @InjectPinoLogger(AuthListener.name)
     private readonly logger: PinoLogger,
   ) {}
@@ -62,16 +64,19 @@ export class AuthListener implements OnModuleInit {
     );
   }
 
+  // the user logs in, let's check ICM for anything that may have changed
   private async handleUserLogin(userData: UserLoggedInEvent) {
     try {
       this.logger.info(`Handling user login for userId: ${userData.userId}`);
 
-      // sync the ICM Contact ID (if available)
+      // sync the ICM Contact ID based on BCSC DID (if available)
       await this.syncContactId(userData);
 
-      // sync resource case status (requires contact_id to be est)
+      // sync resource case status (requires contact_id to be set)
       if (this.configService.get<string>('TEST_RESOURCE_CASE') === 'true') {
+        // get the resource case that has the ICM Contact ID as the key player
         await this.syncResourceCase(userData);
+        //
         await this.syncNonKeyPlayerCaregiver(userData);
         await this.syncHouseholdContacts(userData);
       }
@@ -308,6 +313,8 @@ export class AuthListener implements OnModuleInit {
     }
   }
 
+  // loads the contacts of the resource case belonging to this user. The rows are
+  // shared by every caregiver on the case; caregiver rows are linked to users.
   private async syncHouseholdContacts(
     userData: UserLoggedInEvent,
   ): Promise<void> {
@@ -316,10 +323,10 @@ export class AuthListener implements OnModuleInit {
 
       // no resource case, or it was closed: nothing valid to keep
       if (!user.resource_case_id || user.resource_case_closed) {
-        if (user.household_contacts?.length) {
-          await this.userService.updateUser(userData.userId, {
-            household_contacts: [],
-          });
+        if (user.resource_case_id) {
+          await this.householdContactService.deleteAllForCase(
+            user.resource_case_id,
+          );
         }
         return;
       }
@@ -327,20 +334,15 @@ export class AuthListener implements OnModuleInit {
       const contacts = await this.siebelApiService.getCaseContacts(
         user.resource_case_id,
       );
+      const syncedAt = new Date();
+      const today = syncedAt.toLocaleDateString('en-CA'); // YYYY-MM-DD, local time
 
-      // removal state is entered in the portal, not ICM; carry it across syncs
-      const prior = new Map(
-        (user.household_contacts ?? []).map((c) => [c.case_contact_id, c]),
-      );
-
-      const today = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD, local time
-
-      const householdContacts: HouseholdContact[] = contacts
+      const skippedRelationships = new Set<string>();
+      const base: Omit<IcmContactFields, 'linked_user_id'>[] = contacts
         .filter((c) => c.Id && c['Person ID ICM'])
         .filter((c) => {
           const endDate = this.userUtil.icmDateToIso(c['End Date']);
-          // keep open-ended contacts and those ending later than today
-          return !endDate || endDate > today;
+          return !endDate || endDate > today; // keep open-ended and later-ending
         })
         .filter((c) => {
           const age = c.Age
@@ -348,31 +350,55 @@ export class AuthListener implements OnModuleInit {
             : calculateAge(
                 this.userUtil.icmDateToIso(c['Date of Birth']) ?? '',
               );
-          // procedurally there should be no minors on the case
-          return Number.isNaN(age) || age >= ADULT_AGE;
+          return Number.isNaN(age) || age >= ADULT_AGE; // no minors on the case
         })
-        .map((c) => {
-          const before = prior.get(c.Id as string);
-          const relationship = c.Relationship ?? '';
-          return {
-            case_contact_id: c.Id as string,
-            person_id: c['Person ID ICM'] as string,
-            first_name: c['First Name'] ?? '',
-            last_name: c['Last Name'] ?? '',
-            relationship,
-            contact_end_date: this.userUtil.icmDateToIso(c['End Date']),
-            is_relief_provider: relationship
-              .toLowerCase()
-              .includes(RELIEF_RELATIONSHIP),
-            removal_requested: before?.removal_requested ?? false,
-            removal_departure_date: before?.removal_departure_date ?? null,
-            removal_requested_at: before?.removal_requested_at ?? null,
-          };
+        .flatMap((c) => {
+          // only relationships the portal manages are stored
+          if (!isStoredRelationship(c.Relationship)) {
+            skippedRelationships.add(c.Relationship || '(none)');
+            return [];
+          }
+          return [
+            {
+              case_contact_id: c.Id as string,
+              person_id: c['Person ID ICM'] as string,
+              first_name: c['First Name'] ?? '',
+              last_name: c['Last Name'] ?? '',
+              relationship: c.Relationship,
+              contact_end_date: this.userUtil.icmDateToIso(c['End Date']),
+            },
+          ];
         });
 
-      await this.userService.updateUser(userData.userId, {
-        household_contacts: householdContacts,
-      });
+      if (skippedRelationships.size > 0) {
+        this.logger.debug(
+          {
+            userId: userData.userId,
+            caseId: user.resource_case_id,
+            relationships: [...skippedRelationships],
+          },
+          'Contacts skipped: relationship not stored',
+        );
+      }
+
+      // link caregiver rows (key player / spouse types) to registered users
+      const userIdByContactId = await this.userService.findIdsByContactIds(
+        base
+          .filter((c) => CAREGIVER_RELATIONSHIPS.includes(c.relationship))
+          .map((c) => c.person_id),
+      );
+      const householdContacts: IcmContactFields[] = base.map((c) => ({
+        ...c,
+        linked_user_id: CAREGIVER_RELATIONSHIPS.includes(c.relationship)
+          ? (userIdByContactId.get(c.person_id) ?? null)
+          : null,
+      }));
+
+      await this.householdContactService.syncFromIcm(
+        user.resource_case_id,
+        householdContacts,
+        syncedAt,
+      );
 
       this.logger.info(
         { userId: userData.userId, count: householdContacts.length },
@@ -385,7 +411,6 @@ export class AuthListener implements OnModuleInit {
       );
     }
   }
-
   private async syncUserApplicationPackages(
     userData: UserLoggedInEvent,
     serviceRequestsResponse: SiebelSRsResponse,

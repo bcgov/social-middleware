@@ -14,6 +14,7 @@ import { AuthListener } from '../listeners/auth.listener';
 import { ApplicationPackageService } from '../services/application-package.service';
 import { BcscSyncService } from '../services/bcsc-sync.service';
 import { UserUtil } from '../../common/utils/user.util';
+import { HouseholdContactService } from '../../resource-case/household-contact.service';
 
 const mockLogger = {
   setContext: jest.fn(),
@@ -124,6 +125,13 @@ async function buildAndTrigger(
       { provide: ConfigService, useValue: { get: jest.fn() } },
       { provide: UserUtil, useValue: new UserUtil() },
       { provide: 'PinoLogger:AuthListener', useValue: mockLogger },
+      {
+        provide: HouseholdContactService,
+        useValue: {
+          syncFromIcm: jest.fn().mockResolvedValue(undefined),
+          deleteAllForCase: jest.fn().mockResolvedValue(undefined),
+        },
+      },
     ],
   }).compile();
 
@@ -259,6 +267,13 @@ describe('AuthListener.syncContactId', () => {
         { provide: BcscSyncService, useValue: { syncOnLogin: jest.fn() } },
         { provide: ConfigService, useValue: { get: jest.fn() } },
         { provide: UserUtil, useValue: new UserUtil() },
+        {
+          provide: HouseholdContactService,
+          useValue: {
+            syncFromIcm: jest.fn().mockResolvedValue(undefined),
+            deleteAllForCase: jest.fn().mockResolvedValue(undefined),
+          },
+        },
         { provide: 'PinoLogger:AuthListener', useValue: mockLogger },
       ],
     }).compile();
@@ -410,10 +425,12 @@ describe('AuthListener.syncNonKeyPlayerCaregiver', () => {
   async function triggerLogin(
     user: User,
     caseContacts: SiebelCaseContact[] | Error,
+    linkedUserIds: Map<string, string> = new Map(),
   ) {
     const userService = {
       findOne: jest.fn().mockResolvedValue(user),
       updateUser: jest.fn().mockResolvedValue(user),
+      findIdsByContactIds: jest.fn().mockResolvedValue(linkedUserIds),
     };
     const siebelApiService = {
       getContactByBcscId: jest.fn().mockResolvedValue(null),
@@ -431,6 +448,10 @@ describe('AuthListener.syncNonKeyPlayerCaregiver', () => {
       completeUserSync: jest.fn(),
       emitUserLoggedInEvent: jest.fn(),
     };
+    const householdContactService = {
+      syncFromIcm: jest.fn().mockResolvedValue(undefined),
+      deleteAllForCase: jest.fn().mockResolvedValue(undefined),
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -447,6 +468,7 @@ describe('AuthListener.syncNonKeyPlayerCaregiver', () => {
         { provide: UserService, useValue: userService },
         { provide: UserUtil, useValue: new UserUtil() },
         { provide: BcscSyncService, useValue: { syncOnLogin: jest.fn() } },
+        { provide: HouseholdContactService, useValue: householdContactService },
         {
           provide: ConfigService,
           useValue: {
@@ -475,7 +497,12 @@ describe('AuthListener.syncNonKeyPlayerCaregiver', () => {
     loginCallback(mockUserEvent);
     await done;
 
-    return { userService, siebelApiService, authEventsService };
+    return {
+      userService,
+      siebelApiService,
+      authEventsService,
+      householdContactService,
+    };
   }
 
   const activeCaseUser = (overrides: Partial<User> = {}): User =>
@@ -640,5 +667,163 @@ describe('AuthListener.syncNonKeyPlayerCaregiver', () => {
       expect.objectContaining({ userId: 'user-001' }),
       expect.stringContaining('login not blocked'),
     );
+  });
+
+  describe('household contacts sync', () => {
+    const contact = (
+      o: Partial<SiebelCaseContact> = {},
+    ): SiebelCaseContact => ({
+      Id: 'cc-1',
+      'Person ID ICM': 'p-1',
+      Relationship: 'Parent',
+      'First Name': 'John',
+      'Last Name': 'Smith',
+      'End Date': '',
+      Age: '40',
+      ...o,
+    });
+    it('syncs adults for the case', async () => {
+      const { householdContactService } = await triggerLogin(activeCaseUser(), [
+        contact(),
+      ]);
+
+      expect(householdContactService.syncFromIcm).toHaveBeenCalledWith(
+        'case-001',
+        [
+          {
+            case_contact_id: 'cc-1',
+            person_id: 'p-1',
+            first_name: 'John',
+            last_name: 'Smith',
+            relationship: 'Parent',
+            contact_end_date: null,
+            linked_user_id: null,
+          },
+        ],
+        expect.any(Date),
+      );
+    });
+
+    it('skips relationships the portal does not store, and logs them', async () => {
+      const { householdContactService } = await triggerLogin(activeCaseUser(), [
+        contact({ Id: 'ok', Relationship: 'Boarder' }),
+        contact({ Id: 'relief', Relationship: 'Relief Caregiver' }),
+        contact({ Id: 'unknown', Relationship: 'Unknown' }),
+        contact({ Id: 'none', Relationship: undefined }),
+      ]);
+
+      const synced = householdContactService.syncFromIcm.mock
+        .calls[0][1] as Array<{ case_contact_id: string }>;
+      expect(synced.map((c) => c.case_contact_id)).toEqual(['ok']);
+      expect(mockLogger.debug).toHaveBeenCalledWith(
+        expect.objectContaining({
+          relationships: expect.arrayContaining([
+            'Unknown',
+            '(none)',
+          ]) as string[],
+        }),
+        expect.stringContaining('skipped'),
+      );
+    });
+
+    it('keeps caregiver rows and links them to registered users', async () => {
+      const { householdContactService, userService } = await triggerLogin(
+        activeCaseUser(),
+        [
+          contact({
+            Id: 'kp',
+            'Person ID ICM': 'p-kp',
+            Relationship: 'Key player',
+          }),
+          contact({
+            Id: 'sp',
+            'Person ID ICM': 'p-sp',
+            Relationship: 'Spouse',
+          }),
+          contact({
+            Id: 'sp2',
+            'Person ID ICM': 'p-sp2',
+            Relationship: 'Partner',
+          }),
+          contact({ Id: 'ad', 'Person ID ICM': 'p-ad' }),
+        ],
+        new Map([
+          ['p-kp', 'user-kp'],
+          ['p-sp', 'user-sp'],
+          ['p-ad', 'user-not-a-caregiver'], // must never be applied to a non-caregiver row
+        ]),
+      );
+
+      expect(userService.findIdsByContactIds).toHaveBeenCalledWith([
+        'p-kp',
+        'p-sp',
+        'p-sp2',
+      ]);
+      const synced = householdContactService.syncFromIcm.mock
+        .calls[0][1] as Array<{
+        case_contact_id: string;
+        linked_user_id: string | null;
+      }>;
+      expect(
+        Object.fromEntries(
+          synced.map((c) => [c.case_contact_id, c.linked_user_id]),
+        ),
+      ).toEqual({ kp: 'user-kp', sp: 'user-sp', sp2: null, ad: null });
+    });
+
+    it('drops ended contacts, minors and rows missing an id or person id', async () => {
+      const { householdContactService } = await triggerLogin(activeCaseUser(), [
+        contact({ Id: 'ended', 'End Date': '01/15/2025' }),
+        contact({ Id: 'future', 'End Date': '01/15/2099' }),
+        contact({ Id: 'minor', Age: '12' }),
+        contact({ Id: 'no-person', 'Person ID ICM': undefined }),
+      ]);
+
+      const synced = householdContactService.syncFromIcm.mock
+        .calls[0][1] as Array<{ case_contact_id: string }>;
+      expect(synced.map((c) => c.case_contact_id)).toEqual(['future']);
+    });
+
+    it('clears the case rows when the resource case is closed, without calling ICM', async () => {
+      const { householdContactService, siebelApiService } = await triggerLogin(
+        activeCaseUser({ resource_case_closed: true }),
+        [],
+      );
+      expect(householdContactService.deleteAllForCase).toHaveBeenCalledWith(
+        'case-001',
+      );
+      expect(householdContactService.syncFromIcm).not.toHaveBeenCalled();
+      expect(siebelApiService.getCaseContacts).not.toHaveBeenCalled();
+    });
+
+    it('does nothing when the user has never had a resource case', async () => {
+      const user = mockUser({
+        contact_id: 'contact-abc',
+        resource_case_last_checked: new Date(),
+      });
+      const { householdContactService, siebelApiService } = await triggerLogin(
+        user,
+        [],
+      );
+      expect(householdContactService.deleteAllForCase).not.toHaveBeenCalled();
+      expect(householdContactService.syncFromIcm).not.toHaveBeenCalled();
+      expect(siebelApiService.getCaseContacts).not.toHaveBeenCalled();
+    });
+
+    it('leaves stored contacts alone and does not block login when ICM fails', async () => {
+      const { householdContactService, authEventsService } = await triggerLogin(
+        activeCaseUser(),
+        new Error('Siebel unavailable'),
+      );
+      expect(householdContactService.syncFromIcm).not.toHaveBeenCalled();
+      expect(householdContactService.deleteAllForCase).not.toHaveBeenCalled();
+      expect(authEventsService.completeUserSync).toHaveBeenCalledWith(
+        'user-001',
+      );
+      expect(mockLogger.error).toHaveBeenCalledWith(
+        expect.objectContaining({ userId: 'user-001' }),
+        expect.stringContaining('household contacts'),
+      );
+    });
   });
 });

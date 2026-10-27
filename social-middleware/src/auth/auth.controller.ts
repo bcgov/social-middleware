@@ -217,7 +217,6 @@ export class AuthController {
       ...(sendResourceDetails
         ? {
             non_key_player_caregiver: user.non_key_player_caregiver ?? null,
-            household_contacts: user.household_contacts ?? [],
           }
         : {}),
     };
