@@ -905,3 +905,52 @@ describe('SiebelApiService - get() 404 logging', () => {
     });
   });
 });
+
+describe('SiebelApiService - createHouseholdRemovalNotification()', () => {
+  let service: SiebelApiService;
+
+  beforeEach(async () => {
+    jest.clearAllMocks();
+    mockSiebelAuthService.getAccessToken.mockResolvedValue('mock-token');
+    service = await makeModule({ put: jest.fn() });
+  });
+
+  const data = {
+    owner: 'sw-1',
+    assignedTo: 'SWORKER',
+    caseNumber: 'RC-1',
+    memberName: 'Sam Lee',
+    departureDate: '2026-11-01',
+  };
+
+  it('creates a case notification naming the member and the departure date', async () => {
+    const spy = jest
+      .spyOn(service, 'createCaseNotification')
+      .mockResolvedValue({});
+    await service.createHouseholdRemovalNotification('case-1', data);
+
+    expect(spy).toHaveBeenCalledWith('case-1', {
+      owner: 'sw-1',
+      assignedTo: 'SWORKER',
+      caseNumber: 'RC-1',
+      description: expect.stringMatching(/Sam Lee.*2026-11-01.*RC-1/) as string,
+    });
+  });
+
+  it('falls back to the case id in the text when there is no case number', async () => {
+    const spy = jest
+      .spyOn(service, 'createCaseNotification')
+      .mockResolvedValue({});
+    await service.createHouseholdRemovalNotification('case-1', {
+      ...data,
+      caseNumber: undefined,
+    });
+
+    expect(spy).toHaveBeenCalledWith(
+      'case-1',
+      expect.objectContaining({
+        description: expect.stringContaining('(case-1)') as string,
+      }),
+    );
+  });
+});

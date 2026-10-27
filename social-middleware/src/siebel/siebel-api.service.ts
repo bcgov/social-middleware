@@ -597,6 +597,24 @@ export class SiebelApiService {
     );
   }
 
+  async createHouseholdRemovalNotification(
+    caseId: string,
+    data: {
+      owner: string;
+      assignedTo: string;
+      caseNumber?: string;
+      memberName: string;
+      departureDate: string;
+    },
+  ) {
+    return this.createCaseNotification(caseId, {
+      owner: data.owner,
+      assignedTo: data.assignedTo,
+      caseNumber: data.caseNumber,
+      description: `Caregiver reports household member ${data.memberName} is leaving the home on ${data.departureDate} (${data.caseNumber ?? caseId}). Please set the contact end date.`,
+    });
+  }
+
   async getIcmContactById(contactId: string): Promise<IcmContactDetail | null> {
     const endpoint = `/ICMContact/ICMContact/${contactId}`;
     const params = {
