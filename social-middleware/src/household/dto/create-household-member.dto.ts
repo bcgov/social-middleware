@@ -6,6 +6,7 @@ import {
   IsOptional,
   MinLength,
   MaxLength,
+  Matches,
   IsEmail,
   ValidateIf,
   IsDateString,
@@ -25,11 +26,6 @@ export class CreateHouseholdMemberDto {
   @IsOptional() // will be auto-generated if not provided
   @IsUUID()
   householdMemberId?: string; // Unique ID for the household member (UUID)
-
-  //@IsOptional() // when created for a family member, we will not have a userId
-  //@IsString()
-  //@MaxLength(30)
-  //userId?: string; // ID of the user this member represents (UUID)
 
   @IsString()
   @MinLength(1, { message: 'First name is required' })
@@ -52,6 +48,11 @@ export class CreateHouseholdMemberDto {
   @MaxLength(255, { message: 'Email cannot exceed 255 characters' })
   @IsOptional()
   email?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'moveInDate must be YYYY-MM-DD' })
+  moveInDate?: string;
 
   @ApiProperty({ enum: RelationshipToPrimary })
   @IsEnum(RelationshipToPrimary)

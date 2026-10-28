@@ -2,6 +2,7 @@
 
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   InternalServerErrorException,
   NotFoundException,
@@ -31,6 +32,13 @@ import { ApplicationPackage } from '../schema/application-package.schema';
 import { ConfigService } from '@nestjs/config';
 import { Model } from 'mongoose';
 import { UserService } from '../../auth/user.service';
+import { ResourceCaseService } from '../../resource-case/resource-case.service';
+import { CreateAdditionalAdultDto } from '../dto/create-additional-adult.dto';
+import { ADULT_AGE } from '../../siebel/enums/icm-case-contact-relationship.enum';
+import {
+  assertWithinCaseWindow,
+  isRealIsoDate,
+} from '../../common/utils/case-window.util';
 import { calculateAge } from '../../common/utils/age.util';
 import { formatDateForSiebel } from '../../common/utils/date.util';
 import { UserUtil } from '../../common/utils/user.util';
@@ -59,7 +67,10 @@ import {
   AttachmentType,
 } from '../../attachments/enums/attachment-types.enum';
 import { GenderTypes } from '../../household/enums/gender-types.enum';
-import { ApplicationPackageSubType } from '../enums/application-package-subtypes.enum';
+import {
+  ApplicationPackageSubType,
+  ApplicationPackageSubSubType,
+} from '../enums/application-package-subtypes.enum';
 import { ProspectService } from './prospect.service';
 
 /*
@@ -87,6 +98,7 @@ export class ApplicationPackageService {
     private readonly notificationService: NotificationService,
     private readonly attachmentsService: AttachmentsService,
     private readonly prospectService: ProspectService,
+    private readonly resourceCaseService: ResourceCaseService,
     @InjectPinoLogger(ApplicationFormService.name)
     private readonly logger: PinoLogger,
   ) {
@@ -164,6 +176,115 @@ export class ApplicationPackageService {
     }
 
     return appPackage;
+  }
+
+  // An adult moving into the home of a caregiver with an open resource case.
+  // Creates an Additional Adult package holding the caregiver and the new member,
+  // the member's screening forms, and the access code email. Returns the ids the
+  // portal needs to open the Consents summary.
+  async createAdditionalAdultPackage(
+    userId: string,
+    dto: CreateAdditionalAdultDto,
+  ): Promise<{ applicationPackageId: string; householdMemberId: string }> {
+    if (this.configService.get<string>('TEST_RESOURCE_CASE') !== 'true') {
+      throw new NotFoundException();
+    }
+
+    // 403 unless the caller has an open resource case (confirmed against ICM)
+    const { user } = await this.resourceCaseService.getOpenCaseForUser(userId);
+
+    if (
+      !isRealIsoDate(dto.dateOfBirth) ||
+      calculateAge(dto.dateOfBirth) < ADULT_AGE
+    ) {
+      throw new BadRequestException('The household member must be an adult');
+    }
+    assertWithinCaseWindow(
+      dto.moveInDate,
+      user.resource_case_active_date,
+      'Move-in date',
+    );
+
+    // the same person cannot be added twice
+    const existing = await this.getApplicationPackages(userId);
+    for (const p of existing) {
+      if (
+        p.subtype !== ApplicationPackageSubType.ADDITIONAL_ADULT ||
+        p.status === ApplicationPackageStatus.WITHDRAWN
+      ) {
+        continue;
+      }
+      const { isDuplicate } = await this.householdService.checkForDuplicate(
+        p.applicationPackageId,
+        dto.firstName,
+        dto.lastName,
+        dto.dateOfBirth,
+      );
+      if (isDuplicate) {
+        throw new ConflictException(
+          'This household member has already been added',
+        );
+      }
+    }
+
+    const pkg = await this.createApplicationPackage(
+      {
+        subtype: ApplicationPackageSubType.ADDITIONAL_ADULT,
+        subsubtype: ApplicationPackageSubSubType._BLANK,
+      },
+      userId,
+    );
+
+    try {
+      const member = await this.householdService.createMember({
+        applicationPackageId: pkg.applicationPackageId,
+        firstName: dto.firstName,
+        lastName: dto.lastName,
+        dateOfBirth: dto.dateOfBirth,
+        email: dto.email,
+        relationshipToPrimary: dto.relationshipToPrimary,
+        genderType: dto.genderType,
+        moveInDate: dto.moveInDate,
+      });
+
+      await this.applicationPackageModel.updateOne(
+        { applicationPackageId: pkg.applicationPackageId },
+        {
+          $set: {
+            status: ApplicationPackageStatus.CONSENT,
+            updatedAt: new Date(),
+          },
+        },
+      );
+
+      await this.applicationFormService.createScreeningFormsAndAccessCode(
+        pkg.applicationPackageId,
+        member.householdMemberId,
+      );
+
+      this.logger.info(
+        {
+          userId,
+          applicationPackageId: pkg.applicationPackageId,
+          householdMemberId: member.householdMemberId,
+        },
+        'Additional adult package created',
+      );
+      return {
+        applicationPackageId: pkg.applicationPackageId,
+        householdMemberId: member.householdMemberId,
+      };
+    } catch (error) {
+      // leave nothing half-built: a withdrawn package is deleted at the next login
+      await this.markPackageWithdrawn(pkg.applicationPackageId).catch(
+        (e: unknown) =>
+          this.logger.error(
+            { error: e, applicationPackageId: pkg.applicationPackageId },
+            'Failed to withdraw incomplete additional adult package',
+          ),
+      );
+      throw error;
+    }
   }
 
   // when a NEW_APPLICATION access code is redeemed,
@@ -247,6 +368,20 @@ export class ApplicationPackageService {
       throw new NotFoundException(
         'Application package not found or access denied',
       );
+    }
+
+    // An Additional Adult package that was never sent to ICM has nobody to notify.
+    // Delete it outright, which also stops the access code already emailed from working.
+    if (
+      appPackage.subtype === ApplicationPackageSubType.ADDITIONAL_ADULT &&
+      !appPackage.srId
+    ) {
+      await this.deletePackageData([dto.applicationPackageId]);
+      this.logger.info(
+        { applicationPackageId: dto.applicationPackageId, userId: dto.userId },
+        'Additional adult package cancelled and deleted',
+      );
+      return;
     }
 
     // if there is a service request ID on the application package, we can notify staff about it;
@@ -364,8 +499,11 @@ export class ApplicationPackageService {
       .lean();
 
     if (withdrawn.length === 0) return;
-    const packageIds = withdrawn.map((p) => p.applicationPackageId);
+    await this.deletePackageData(withdrawn.map((p) => p.applicationPackageId));
+  }
 
+  // forms, access codes, household members, then the packages themselves
+  private async deletePackageData(packageIds: string[]): Promise<void> {
     for (const applicationPackageId of packageIds) {
       await this.applicationFormService.deleteByApplicationPackageId(
         applicationPackageId,

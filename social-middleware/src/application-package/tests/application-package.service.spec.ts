@@ -40,6 +40,7 @@ import { ApplicationPackageQueueService } from '../queue/application-package-que
 import { ApplicationPackage } from '../schema/application-package.schema';
 import { ApplicationPackageService } from '../services/application-package.service';
 import { ProspectService } from '../services/prospect.service';
+import { ResourceCaseService } from 'src/resource-case/resource-case.service';
 
 const queryFor = (value: unknown): Record<string, unknown> => {
   const exec = jest.fn().mockResolvedValue(value);
@@ -94,6 +95,10 @@ const compileService = (mocks: {
       {
         provide: getModelToken(ApplicationPackage.name),
         useValue: mocks.model ?? [],
+      },
+      {
+        provide: ResourceCaseService,
+        useValue: { getOpenCaseForUser: jest.fn() },
       },
       { provide: ApplicationFormService, useValue: mocks.forms ?? {} },
       { provide: HouseholdService, useValue: mocks.household ?? {} },
@@ -218,6 +223,10 @@ describe('ApplicationPackageService - updateApplicationPackageStage', () => {
         {
           provide: 'ApplicationFormService',
           useValue: mockApplicationFormService,
+        },
+        {
+          provide: ResourceCaseService,
+          useValue: { getOpenCaseForUser: jest.fn() },
         },
         { provide: HouseholdService, useValue: mockHouseholdService },
         { provide: NotificationService, useValue: mockNotificationService },
@@ -643,6 +652,10 @@ describe('ApplicationPackageService - createApplicationPackage', () => {
           useValue: mockApplicationFormService,
         },
         { provide: AccessCodeService, useValue: {} },
+        {
+          provide: ResourceCaseService,
+          useValue: { getOpenCaseForUser: jest.fn() },
+        },
         { provide: HouseholdService, useValue: mockHouseholdService },
         { provide: UserService, useValue: mockUserService },
         { provide: ConfigService, useValue: { get: jest.fn() } },
@@ -844,6 +857,10 @@ describe('ApplicationPackageService - lockApplicationPackage', () => {
             sendApplicationReady: jest.fn(),
             sendApplicationSubmitted: jest.fn(),
           },
+        },
+        {
+          provide: ResourceCaseService,
+          useValue: { getOpenCaseForUser: jest.fn() },
         },
         { provide: AccessCodeService, useValue: {} },
         { provide: UserService, useValue: {} },
@@ -1203,6 +1220,10 @@ describe('ApplicationPackageService - submitDocumentsToICM', () => {
         { provide: AccessCodeService, useValue: {} },
         { provide: UserService, useValue: {} },
         { provide: UserUtil, useValue: {} },
+        {
+          provide: ResourceCaseService,
+          useValue: { getOpenCaseForUser: jest.fn() },
+        },
         { provide: ApplicationPackageQueueService, useValue: {} },
         { provide: ConfigService, useValue: { get: jest.fn() } },
         { provide: ProspectService, useValue: mockProspectService },
@@ -1597,6 +1618,10 @@ describe('ApplicationPackageService - submitApplicationPackage — BCSC re-prosp
             sendApplicationReady: jest.fn(),
             sendApplicationSubmitted: jest.fn(),
           },
+        },
+        {
+          provide: ResourceCaseService,
+          useValue: { getOpenCaseForUser: jest.fn() },
         },
         { provide: AccessCodeService, useValue: {} },
         { provide: UserService, useValue: mockUserService },

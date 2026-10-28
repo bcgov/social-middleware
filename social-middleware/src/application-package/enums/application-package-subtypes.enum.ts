@@ -4,6 +4,7 @@ export enum ApplicationPackageSubType {
   FCH = 'FCH',
   OOC = 'Kinship',
   PROSPECTIVE = 'Prospective Caregiver',
+  ADDITIONAL_ADULT = 'Additional Adult',
 }
 
 export enum ApplicationPackageSubSubType {

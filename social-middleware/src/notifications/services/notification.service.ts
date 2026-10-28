@@ -86,7 +86,7 @@ export class NotificationService {
       from:
         this.configService.get<string>('CHES_FROM_EMAIL') ||
         'noreply@gov.bc.ca',
-      subject: 'Foster Caregiver Screening Request',
+      subject: 'Caregiver Screening Request',
       body: `
           <h2>You’ve been identified as a household member for a caregiver application</h2>
           <p>Hello ${householdMemberName},</p>
