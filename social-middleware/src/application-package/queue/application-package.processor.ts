@@ -13,7 +13,7 @@ import {
   ApplicationPackageDocument,
 } from '../schema/application-package.schema';
 import {
-  //ApplicationPackageSubType,
+  ApplicationPackageSubType,
   //ApplicationPackageSubSubType,
   getDefaultSrStage,
 } from '../enums/application-package-subtypes.enum';
@@ -48,6 +48,14 @@ import { UserService } from '../../auth/user.service';
 import { UserUtil } from '../../common/utils/user.util';
 import { NotificationService } from '../../notifications/services/notification.service';
 
+// TODO: Additional Adult packages have no ICM service request yet, so there is nothing to submit to.
+// Remove this once the SR is created for them.
+const SUBMITTABLE = {
+  $or: [
+    { subtype: { $ne: ApplicationPackageSubType.ADDITIONAL_ADULT } },
+    { srId: { $nin: [null, ''] } },
+  ],
+};
 @Injectable()
 @Processor('applicationPackageQueue')
 export class ApplicationPackageProcessor {
@@ -88,6 +96,7 @@ export class ApplicationPackageProcessor {
         .find({
           status: ApplicationPackageStatus.CONSENT,
           submissionStatus: { $in: ['pending', 'error'] }, // Skip 'success' and 'failed'
+          ...SUBMITTABLE,
         })
         .lean()
         .exec();
@@ -117,6 +126,7 @@ export class ApplicationPackageProcessor {
         .find({
           status: ApplicationPackageStatus.READY,
           submissionStatus: { $in: ['pending', 'error'] },
+          ...SUBMITTABLE,
         })
         .lean()
         .exec();
@@ -226,6 +236,19 @@ export class ApplicationPackageProcessor {
       }
 
       // Only check packages in CONSENT status
+      // TODO Remove once ADDITIONAL ADULT EXISTS
+      if (
+        applicationPackage.subtype ===
+          ApplicationPackageSubType.ADDITIONAL_ADULT &&
+        !applicationPackage.srId
+      ) {
+        this.logger.info(
+          { applicationPackageId },
+          'Additional Adult package has no service request yet, skipping completeness check',
+        );
+        return { isComplete: false, status: applicationPackage.status };
+      }
+
       if (applicationPackage.status !== ApplicationPackageStatus.CONSENT) {
         this.logger.info(
           { applicationPackageId, status: applicationPackage.status },
