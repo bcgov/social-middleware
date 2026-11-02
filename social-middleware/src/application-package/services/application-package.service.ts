@@ -222,7 +222,7 @@ export class ApplicationPackageService {
       );
       if (isDuplicate) {
         throw new ConflictException(
-          'This household member has already been added',
+          'This household member has already been added. Finish or cancel their New Household Member Screening on your dashboard.',
         );
       }
     }
