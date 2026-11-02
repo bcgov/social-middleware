@@ -580,6 +580,58 @@ describe('AuthListener.syncNonKeyPlayerCaregiver', () => {
     });
   });
 
+  it('stores only the spouse when the household also has a boarder, a child and a relief caregiver', async () => {
+    const { userService } = await triggerLogin(activeCaseUser(), [
+      {
+        Id: '1',
+        Relationship: 'Key player',
+        'First Name': 'Molly',
+        'Last Name': 'Moore',
+        'End Date': '',
+      },
+      {
+        Id: '2',
+        Relationship: 'Boarder',
+        'First Name': 'Bo',
+        'Last Name': 'Arder',
+        'End Date': '',
+      },
+      {
+        Id: '3',
+        Relationship: 'Spouse',
+        'First Name': 'John',
+        'Last Name': 'Smith',
+        'End Date': '',
+      },
+      {
+        Id: '4',
+        Relationship: 'Child',
+        'First Name': 'Cher',
+        'Last Name': 'Ild',
+        'End Date': '',
+      },
+      {
+        Id: '5',
+        Relationship: 'Relief Caregiver',
+        'First Name': 'Rae',
+        'Last Name': 'Lief',
+        'End Date': '',
+      },
+    ]);
+
+    expect(userService.updateUser).toHaveBeenCalledWith('user-001', {
+      non_key_player_caregiver: {
+        first_name: 'John',
+        last_name: 'Smith',
+        relationship: 'Spouse',
+      },
+    });
+    expect(mockLogger.warn).not.toHaveBeenCalledWith(
+      expect.anything(),
+      expect.stringContaining('Multiple non-key player caregivers'),
+    );
+  });
+
   it('warns and uses the first match when multiple non-key players exist', async () => {
     const { userService } = await triggerLogin(activeCaseUser(), [
       {
