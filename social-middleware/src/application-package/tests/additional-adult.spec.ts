@@ -207,4 +207,44 @@ describe('POST /application-package/additional-adult', () => {
       .send(valid);
     expect([401, 403]).toContain(res.status);
   });
+
+  it('GET lists the members whose screening is in progress, without the caregiver', async () => {
+    const created = (await post()).body as { applicationPackageId: string };
+    const res = await request(harness.httpServer)
+      .get('/application-package/additional-adult')
+      .set('Cookie', cookieA);
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual([
+      expect.objectContaining({
+        applicationPackageId: created.applicationPackageId,
+        firstName: 'Sam',
+        lastName: 'Lee',
+        relationshipToPrimary: 'Boarder',
+        moveInDate: today,
+        submitted: false,
+      }),
+    ]);
+  });
+
+  it('GET lists nothing once the package is cancelled', async () => {
+    const created = (await post()).body as { applicationPackageId: string };
+    await request(harness.httpServer)
+      .delete(`/application-package/${created.applicationPackageId}`)
+      .set('Cookie', cookieA);
+    const res = await request(harness.httpServer)
+      .get('/application-package/additional-adult')
+      .set('Cookie', cookieA);
+    expect(res.body).toEqual([]);
+  });
+  it('GET marks members of a submitted package as submitted', async () => {
+    const created = (await post()).body as { applicationPackageId: string };
+    await harness.models.applicationPackage.updateOne(
+      { applicationPackageId: created.applicationPackageId },
+      { $set: { submissionStatus: 'success' } },
+    );
+    const res = await request(harness.httpServer)
+      .get('/application-package/additional-adult')
+      .set('Cookie', cookieA);
+    expect(res.body).toEqual([expect.objectContaining({ submitted: true })]);
+  });
 });

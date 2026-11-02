@@ -26,6 +26,7 @@ import {
   ApplicationPackageStatus,
   ServiceRequestStage,
 } from '../enums/application-package-status.enum';
+import { SubmissionStatus } from '../enums/submission-status.enum';
 import { ApplicationPackageQueueService } from '../queue/application-package-queue.service';
 import { ApplicationPackage } from '../schema/application-package.schema';
 
@@ -285,6 +286,57 @@ export class ApplicationPackageService {
       );
       throw error;
     }
+  }
+
+  //Members added through Additional Adult packages, with submitted set once the package has gone to ICM.
+  // Manage Household shows the pending ones and the dashboard shows the submitted ones.
+  async listAdditionalAdultMembers(userId: string): Promise<
+    {
+      applicationPackageId: string;
+      householdMemberId: string;
+      firstName: string;
+      lastName: string;
+      relationshipToPrimary: string;
+      moveInDate: string | null;
+      submitted: boolean;
+    }[]
+  > {
+    if (this.configService.get<string>('TEST_RESOURCE_CASE') !== 'true') {
+      return [];
+    }
+
+    const packages = await this.getApplicationPackages(userId);
+
+    const active = packages.filter(
+      (p) =>
+        p.subtype === ApplicationPackageSubType.ADDITIONAL_ADULT &&
+        p.status !== ApplicationPackageStatus.WITHDRAWN,
+    );
+
+    const result = [];
+    for (const p of active) {
+      const submitted =
+        p.submissionStatus === (SubmissionStatus.SUCCESS as string) ||
+        String(p.srStage ?? '')
+          .trim()
+          .toLowerCase() === 'completed';
+      const members = await this.householdService.findAllHouseholdMembers(
+        p.applicationPackageId,
+      );
+      for (const m of members) {
+        if (m.relationshipToPrimary === RelationshipToPrimary.Self) continue;
+        result.push({
+          applicationPackageId: p.applicationPackageId,
+          householdMemberId: m.householdMemberId,
+          firstName: m.firstName,
+          lastName: m.lastName,
+          relationshipToPrimary: m.relationshipToPrimary,
+          moveInDate: m.moveInDate ?? null,
+          submitted,
+        });
+      }
+    }
+    return result;
   }
 
   // when a NEW_APPLICATION access code is redeemed,

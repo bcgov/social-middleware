@@ -144,6 +144,15 @@ export class ApplicationPackageController {
     );
   }
 
+  @Get('additional-adult')
+  @ApiOperation({
+    summary: 'List household members added through Additional Adult packages',
+  })
+  async listAdditionalAdultMembers(@Req() request: Request) {
+    const userId = this.sessionUtil.extractUserIdFromRequest(request);
+    return this.applicationPackageService.listAdditionalAdultMembers(userId);
+  }
+
   @Patch(':applicationPackageId')
   @ApiOperation({
     summary: 'Update the status elements of an application package',
