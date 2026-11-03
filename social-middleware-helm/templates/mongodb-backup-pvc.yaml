@@ -14,7 +14,7 @@ spec:
   resources:
     requests:
       {{- if hasSuffix "-prod" .Release.Namespace }}
-      storage: 3Gi
+      storage: 5Gi
       {{- else }}
       storage: 2Gi
       {{- end }}
