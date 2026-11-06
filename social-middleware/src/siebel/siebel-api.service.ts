@@ -62,6 +62,7 @@ export interface SiebelResourceCase {
   'Assigned To Id'?: string;
   'Created Date': string;
   'Reopened Date': string;
+  'Office Name'?: string;
   [key: string]: unknown;
 }
 
@@ -274,53 +275,6 @@ export class SiebelApiService {
     }
   }
 
-  /*
-  async createCaregiverApplicationSR(
-    subtype: ApplicationPackageSubType,
-    subsubtype: ApplicationPackageSubSubType,
-    bcscDID: string,
-    contactId?: string,
-    activityId?: string,
-  ): Promise<{ srId: string }> {
-    const nodeEnv = this.configService.get<string>('NODE_ENV', 'development');
-    const envSuffix = nodeEnv.toLowerCase().includes('prod') ? '' : nodeEnv;
-
-    const srPayload = {
-      Id: 'NULL',
-      Status: 'Open',
-      Priority: '3-Standard',
-      Type: 'Caregiver Application',
-      'SR Sub Type': subtype,
-      'SR Sub Sub Type': subsubtype,
-      'ICM BCSC DID': bcscDID,
-      'Service Office': 'XRA',
-      'Comm Method': 'Client Portal',
-      Memo: `Created By ${envSuffix} Portal`,
-    };
-
-    const siebelResponse = await this.createServiceRequest(srPayload);
-
-    if (!siebelResponse) {
-      throw new InternalServerErrorException(
-        'Failed to create service request',
-      );
-    }
-
-    const srId = (siebelResponse as { items?: { Id?: string } })?.items?.Id;
-
-    if (!srId) {
-      this.logger.error(
-        { siebelResponse },
-        'No service request ID in response',
-      );
-      throw new InternalServerErrorException(
-        'Failed to get service request ID from Siebel',
-      );
-    }
-
-    return { srId };
-  }
-*/
   async createServiceRequest(serviceRequestData: unknown) {
     const endpoint = '/ServiceRequest/ServiceRequest';
     try {
@@ -337,6 +291,39 @@ export class SiebelApiService {
       );
       throw error;
     }
+  }
+
+  // the cases an SR is linked to (the SR's Case child)
+  async getServiceRequestCaseIds(serviceRequestId: string): Promise<string[]> {
+    const endpoint = `/ServiceRequest/ServiceRequest/${serviceRequestId}/Case`;
+    try {
+      const result = await this.get<{
+        items?: { Id?: string } | { Id?: string }[];
+        Id?: string;
+      }>(endpoint, { ViewMode: 'Organization', fields: 'Id' });
+      const rows = result.items
+        ? Array.isArray(result.items)
+          ? result.items
+          : [result.items]
+        : result.Id
+          ? [result]
+          : [];
+      return rows.map((r) => r.Id).filter((id): id is string => !!id);
+    } catch (error) {
+      if (error instanceof SiebelApiError && error.status === 404) {
+        return [];
+      }
+      throw error;
+    }
+  }
+
+  // links a service request to a case: the case becomes the SR's primary case
+  async linkServiceRequestToCase(serviceRequestId: string, caseId: string) {
+    const endpoint = `/ServiceRequest/ServiceRequest/${serviceRequestId}/Case`;
+    return await this.put(endpoint, {
+      Id: caseId,
+      'SSA Primary Field': 'Y',
+    });
   }
 
   async updateServiceRequestStage(
@@ -659,7 +646,7 @@ export class SiebelApiService {
       SearchSpec: `([Key Player Id] = '${contactId}' AND [Type] = 'Resource' AND [Status] = 'Open')`,
       ViewMode: 'Catalog',
       fields:
-        'Id,Status,Created Date,Reopened Date,Assigned To Id,Assigned To,Case Num',
+        'Id,Status,Created Date,Reopened Date,Assigned To Id,Assigned To,Case Num,Office Name',
       ChildLinks: 'None',
     };
 

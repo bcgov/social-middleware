@@ -20,8 +20,9 @@ export interface OpenResourceCase {
   user: User;
   caseId: string;
   caseNumber?: string;
-  assigneeId: string; // ICM 'Assigned To Id'
-  assignee: string; // ICM 'Assigned To' (trusted username for the activity)
+  officeName?: string; // ICM 'Office Name': the case's local office
+  assigneeId: string;
+  assignee: string;
 }
 
 // must exceed the Siebel request timeout, so a live claim is never treated as stale
@@ -68,6 +69,7 @@ export class ResourceCaseService {
     return {
       caseId: icmCase.Id,
       caseNumber: icmCase['Case Num'],
+      officeName: icmCase['Office Name'],
       assigneeId,
       assignee: icmCase['Assigned To'],
     };

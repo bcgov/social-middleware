@@ -24,6 +24,7 @@ import { CaregiverInvitationService } from './services/caregiver-invitation.serv
 import { BcscSyncService } from './services/bcsc-sync.service';
 import { ProspectService } from './services/prospect.service';
 import { SrAttachmentService } from './services/sr-attachment.service';
+import { ScreeningSrService } from './services/screening-sr.service';
 
 @Module({
   imports: [
@@ -46,6 +47,7 @@ import { SrAttachmentService } from './services/sr-attachment.service';
     ApplicationPackageService,
     ProspectService,
     SrAttachmentService,
+    ScreeningSrService,
     AuthListener,
     ApplicationPackageSchedulerService,
     BcscSyncService,
