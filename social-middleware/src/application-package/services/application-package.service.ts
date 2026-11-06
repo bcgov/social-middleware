@@ -29,7 +29,7 @@ import {
 import { SubmissionStatus } from '../enums/submission-status.enum';
 import { ApplicationPackageQueueService } from '../queue/application-package-queue.service';
 import { ApplicationPackage } from '../schema/application-package.schema';
-
+import { SrAttachmentService } from './sr-attachment.service';
 import { ConfigService } from '@nestjs/config';
 import { Model } from 'mongoose';
 import { UserService } from '../../auth/user.service';
@@ -43,10 +43,7 @@ import {
 import { calculateAge } from '../../common/utils/age.util';
 import { formatDateForSiebel } from '../../common/utils/date.util';
 import { UserUtil } from '../../common/utils/user.util';
-import {
-  getApplicantFlag,
-  RelationshipToPrimary,
-} from '../../household/enums/relationship-to-primary.enum';
+import { RelationshipToPrimary } from '../../household/enums/relationship-to-primary.enum';
 import { AccessCodeService } from '../../household/services/access-code.service';
 import { HouseholdService } from '../../household/services/household.service';
 import {
@@ -74,14 +71,6 @@ import {
 } from '../enums/application-package-subtypes.enum';
 import { ProspectService } from './prospect.service';
 
-/*
-interface SiebelServiceRequestResponse {
-  items?: {
-    Id?: string;
-    [key: string]: unknown;
-  };
-}
-*/
 @Injectable()
 export class ApplicationPackageService {
   private readonly TEST_KINSHIP: boolean;
@@ -99,6 +88,7 @@ export class ApplicationPackageService {
     private readonly notificationService: NotificationService,
     private readonly attachmentsService: AttachmentsService,
     private readonly prospectService: ProspectService,
+    private readonly srAttachmentService: SrAttachmentService,
     private readonly resourceCaseService: ResourceCaseService,
     @InjectPinoLogger(ApplicationFormService.name)
     private readonly logger: PinoLogger,
@@ -1248,67 +1238,18 @@ export class ApplicationPackageService {
             );
             continue;
           }
-          let prospectPayload;
 
-          // if they have a userId, it means they have logged in via BC Services card and we have their info in the user record
-          if (householdMember.userId) {
-            // adult household member with their own user account
-            const memberUser = await this.userService.findOne(
-              householdMember.userId,
+          const memberUser = householdMember.userId
+            ? await this.userService.findOne(householdMember.userId)
+            : null;
+
+          const prospectPayload =
+            this.prospectService.buildHouseholdMemberPayload(
+              householdMember,
+              memberUser,
+              primaryApplicant,
+              serviceRequestId,
             );
-
-            const { firstName, middleName } = this.userUtil.firstAndMiddleName(
-              memberUser.first_name,
-            );
-
-            prospectPayload = {
-              ServiceRequestId: serviceRequestId,
-              IcmBcscDid: memberUser.bc_services_card_id,
-              FirstName: firstName,
-              MiddleName: middleName,
-              LastName: this.userUtil.toTitleCase(memberUser.last_name),
-              DateofBirth: formatDateForSiebel(memberUser.dateOfBirth),
-              StreetAddress: memberUser.street_address,
-              City: memberUser.city,
-              Prov: memberUser.region,
-              PostalCode: memberUser.postal_code,
-              EmailAddress: memberUser.email,
-              HomePhone: memberUser.home_phone || '',
-              AlternatePhone: memberUser.alternate_phone || '',
-              Gender: householdMember.genderType || GenderTypes.Unspecified,
-              Relationship: householdMember.relationshipToPrimary,
-              ApplicantFlag: getApplicantFlag(
-                householdMember.relationshipToPrimary,
-              ),
-            };
-          } else {
-            // household member without user account (typically minors)
-
-            const { firstName, middleName } = this.userUtil.firstAndMiddleName(
-              householdMember.firstName,
-            );
-
-            prospectPayload = {
-              ServiceRequestId: serviceRequestId,
-              IcmBcscDid: '',
-              FirstName: firstName,
-              MiddleName: middleName,
-              LastName: this.userUtil.toTitleCase(householdMember.lastName),
-              DateofBirth: formatDateForSiebel(householdMember.dateOfBirth),
-              StreetAddress: primaryApplicant.street_address,
-              City: primaryApplicant.city,
-              Prov: primaryApplicant.region,
-              PostalCode: primaryApplicant.postal_code,
-              EmailAddress: '', //householdMember.email,
-              HomePhone: '', //memberUser.homePhone || '',
-              AlternatePhone: '', // memberUser.alternatePhone || '',
-              Gender: householdMember.genderType || GenderTypes.Unspecified,
-              Relationship: householdMember.relationshipToPrimary,
-              ApplicantFlag: getApplicantFlag(
-                householdMember.relationshipToPrimary,
-              ),
-            };
-          }
 
           const memberProspectResponse =
             await this.siebelApiService.createProspect(prospectPayload);
@@ -1366,269 +1307,11 @@ export class ApplicationPackageService {
         'Subsequent submission: attaching non-REFERRAL forms',
       );
 
-      // track householdMemberIds that should use attachments instead of forms
-      const householdMembersUsingAttachments = new Set<string>();
-
-      const attachmentResults = [];
-      for (const form of formsToAttach) {
-        try {
-          // if this form uses attached files, skip it and track the householdMemberId
-          if (form.userAttachedForm) {
-            householdMembersUsingAttachments.add(form.householdMemberId);
-            this.logger.info(
-              {
-                applicationFormId: form.applicationFormId,
-                householdMemberId: form.householdMemberId,
-                formType: form.type,
-              },
-              'Form marked with userAttachedForm - will use attachments instead',
-            );
-            continue; // skip this form
-          }
-
-          if (form.siebelAttachmentId) {
-            this.logger.info(
-              {
-                applicationFormId: form.applicationFormId,
-                siebelAttachmentId: form.siebelAttachmentId,
-              },
-              'Form already attached to Siebel, skipping',
-            );
-            attachmentResults.push({
-              applicationFormId: form.applicationFormId,
-              attachmentId: form.siebelAttachmentId,
-            });
-            continue;
-          }
-          // form has not already been uploaded, and has some form data which indicates it is a valid form.
-          if (form.formData) {
-            // Atomically claim this form for attachment — only one concurrent caller wins.
-            const claimedForm =
-              await this.applicationFormService.claimFormForAttachment(
-                form.applicationFormId,
-              );
-
-            if (!claimedForm) {
-              this.logger.info(
-                { applicationFormId: form.applicationFormId },
-                'Form attachment already claimed by a concurrent submission — skipping',
-              );
-              continue;
-            }
-
-            let fileName = form.type as string;
-
-            try {
-              // files need to have unique names, so for screening forms, add the household member's name
-              if (
-                (form.type === ApplicationFormType.DISCLOSURECONSENT ||
-                  form.type === ApplicationFormType.PCCCONSENT) &&
-                form.userId
-              ) {
-                const memberUser = await this.userService.findOne(form.userId);
-
-                if (memberUser) {
-                  const { firstName } = this.userUtil.firstAndMiddleName(
-                    memberUser.first_name,
-                  );
-                  fileName = `${firstName}_${this.userUtil.toTitleCase(memberUser.last_name)}-${form.type}`;
-                } else {
-                  this.logger.warn(
-                    {
-                      applicationFormId: form.applicationFormId,
-                      userId: form.userId,
-                    },
-                    'Could not find household member for screening form - using default filename',
-                  );
-                }
-              }
-
-              const fileContent = form.formData; // Buffer.from(formDataString).toString('base64');
-              const formId = getFormIdForFormType(form.type);
-              const xmlHierarchy =
-                await this.applicationFormService.convertFormDataToXml(
-                  form.applicationFormId,
-                );
-
-              const attachmentResult =
-                (await this.siebelApiService.createFormAttachment(
-                  serviceRequestId,
-                  {
-                    fileName: fileName,
-                    template: formId,
-                    xmlHierarchy: xmlHierarchy,
-                    fileContent: fileContent,
-                  },
-                )) as { items: { Id: string } };
-              await this.applicationFormService.saveSiebelAttachmentId(
-                form.applicationFormId,
-                attachmentResult.items?.Id,
-              );
-
-              attachmentResults.push({
-                applicationFormId: form.applicationFormId,
-                attachmentId: attachmentResult.items?.Id,
-              });
-
-              this.logger.info(
-                {
-                  serviceRequestId: serviceRequestId,
-                  applicationFormId: form.applicationFormId,
-                  fileName: fileName,
-                },
-                'Attachment created successfully for form',
-              );
-            } catch (error) {
-              await this.applicationFormService.releaseAttachmentClaim(
-                form.applicationFormId,
-              );
-              throw error; // re-throw so the existing outer catch still logs it the same way
-            }
-          } else {
-            this.logger.warn(
-              { applicationFormId: form.applicationFormId },
-              'Skipping form with no data for attachment',
-            );
-          }
-        } catch (error) {
-          this.logger.error(
-            {
-              error,
-              applicationFormId: form.applicationFormId,
-              serviceRequestId: serviceRequestId,
-            },
-            'Failed to create attachment for form',
-          );
-        }
-      }
-
-      // Attach all attachments for householdMembers using attachments
-      for (const householdMemberId of householdMembersUsingAttachments) {
-        try {
-          this.logger.info(
-            { householdMemberId },
-            'Fetching attachments for household member',
-          );
-
-          // Get all attachments for this household member (without file data)
-          const attachmentList =
-            await this.attachmentsService.findByHouseholdMemberId(
-              householdMemberId,
-            );
-
-          this.logger.info(
-            { householdMemberId, attachmentCount: attachmentList.length },
-            'Found attachments to upload',
-          );
-
-          // Upload each attachment to Siebel
-          for (const attachmentMeta of attachmentList) {
-            try {
-              if (attachmentMeta.icmAttachmentId) {
-                this.logger.info(
-                  {
-                    attachmentId: attachmentMeta.attachmentId,
-                    icmAttachmentId: attachmentMeta.icmAttachmentId,
-                  },
-                  'Attachment already uploaded to ICM, skipping',
-                );
-                attachmentResults.push({
-                  attachmentId: attachmentMeta.attachmentId,
-                  siebelAttachmentId: attachmentMeta.icmAttachmentId,
-                });
-                continue;
-              }
-
-              // Get the full attachment with file data
-              const fullAttachment = await this.attachmentsService.findById(
-                attachmentMeta.attachmentId,
-              );
-
-              if (!fullAttachment || !fullAttachment.fileData) {
-                this.logger.warn(
-                  { attachmentId: attachmentMeta.attachmentId },
-                  'Attachment not found or has no file data',
-                );
-                continue;
-              }
-
-              const attachmentResult =
-                (await this.siebelApiService.createAttachment(
-                  serviceRequestId,
-                  {
-                    fileName: fullAttachment.fileName,
-                    fileContent: fullAttachment.fileData,
-                    fileType: fullAttachment.fileType,
-                    category: 'Consent',
-                    description:
-                      fullAttachment.description ||
-                      `Attachment for household member`,
-                  },
-                )) as { items: { Id: string } };
-
-              await this.attachmentsService.saveIcmAttachmentId(
-                fullAttachment.attachmentId,
-                attachmentResult.items.Id,
-              );
-
-              attachmentResults.push({
-                attachmentId: fullAttachment.attachmentId,
-                siebelAttachmentId: attachmentResult.items.Id,
-              });
-
-              this.logger.info(
-                {
-                  serviceRequestId: serviceRequestId,
-                  attachmentId: fullAttachment.attachmentId,
-                  fileName: fullAttachment.fileName,
-                  householdMemberId,
-                },
-                'Attachment uploaded successfully for household member',
-              );
-            } catch (error) {
-              this.logger.error(
-                {
-                  error,
-                  attachmentId: attachmentMeta.attachmentId,
-                  householdMemberId,
-                },
-                'Failed to upload attachment for household member',
-              );
-            }
-          }
-        } catch (error) {
-          this.logger.error(
-            {
-              error,
-              householdMemberId,
-            },
-            'Failed to fetch attachments for household member',
-          );
-        }
-      }
-
-      this.logger.info(
-        {
-          serviceRequestId: serviceRequestId,
-          totalForms: formsToAttach.length,
-          successfulAttachments: attachmentResults.length,
-        },
-        `Completed attachment creation for ${attachmentResults.length}/${formsToAttach.length} forms`,
+      await this.srAttachmentService.attachFormsToSr(
+        serviceRequestId,
+        formsToAttach,
+        { applicationPackageId },
       );
-
-      // After the attachment loop, add this check:
-      if (attachmentResults.length !== formsToAttach.length) {
-        const failedCount = formsToAttach.length - attachmentResults.length;
-        this.logger.warn(
-          {
-            applicationPackageId,
-            expectedAttachments: formsToAttach.length,
-            successfulAttachments: attachmentResults.length,
-            failedAttachments: failedCount,
-          },
-          'Some forms failed to attach to Siebel - submission continuing with partial attachments',
-        );
-      }
 
       // now we need to update the service request to indicate the application has been submitted
       try {

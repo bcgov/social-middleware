@@ -2495,7 +2495,10 @@ describe('ApplicationPackageService - submitApplicationPackage — members, form
     findById: jest.fn(),
     saveIcmAttachmentId: jest.fn(),
   };
-  const mockProspects = { createKeyPlayerProspect: jest.fn() };
+  const mockProspects = {
+    createKeyPlayerProspect: jest.fn(),
+    buildHouseholdMemberPayload: jest.fn(),
+  };
   const mockUserUtil = {
     firstAndMiddleName: jest.fn().mockImplementation((name: string) => ({
       firstName: name?.split(' ')[0] ?? '',
@@ -2559,6 +2562,7 @@ describe('ApplicationPackageService - submitApplicationPackage — members, form
       items: { Id: 'siebel-1' },
     });
     mockSiebel.createAttachment.mockResolvedValue({ items: { Id: 'icm-1' } });
+    mockProspects.buildHouseholdMemberPayload.mockReset();
     mockSiebel.updateServiceRequestFields.mockResolvedValue({});
 
     mockProspects.createKeyPlayerProspect.mockResolvedValue(
@@ -2720,23 +2724,21 @@ describe('ApplicationPackageService - submitApplicationPackage — members, form
         id === MEMBER_USER_ID ? memberUser : primaryUser,
       );
 
+      const builtPayload = {
+        ServiceRequestId: SR_ID,
+        IcmBcscDid: 'did-member-1',
+      };
+      mockProspects.buildHouseholdMemberPayload.mockReturnValue(builtPayload);
+
       await service.submitApplicationPackage(PACKAGE_ID, USER_ID);
 
-      expect(mockSiebel.createProspect).toHaveBeenCalledWith(
-        expect.objectContaining({
-          ServiceRequestId: SR_ID,
-          IcmBcscDid: 'did-member-1',
-          FirstName: 'Bob',
-          LastName: 'smith',
-          Relationship: RelationshipToPrimary.Spouse,
-        }),
+      expect(mockProspects.buildHouseholdMemberPayload).toHaveBeenCalledWith(
+        expect.objectContaining({ householdMemberId: 'hm-spouse' }),
+        memberUser,
+        primaryUser,
+        SR_ID,
       );
-      expect(mockHousehold.updateHouseholdMember).toHaveBeenCalledWith(
-        'hm-spouse',
-        {
-          prospectId: 'prospect-member-1',
-        },
-      );
+      expect(mockSiebel.createProspect).toHaveBeenCalledWith(builtPayload);
     });
 
     it('builds the prospect payload from the primary applicant address for members without a user account', async () => {
@@ -2751,17 +2753,20 @@ describe('ApplicationPackageService - submitApplicationPackage — members, form
         },
       ]);
 
+      const builtPayload = { ServiceRequestId: SR_ID, IcmBcscDid: '' };
+      mockProspects.buildHouseholdMemberPayload.mockReturnValue(builtPayload);
+
       await service.submitApplicationPackage(PACKAGE_ID, USER_ID);
 
-      expect(mockSiebel.createProspect).toHaveBeenCalledWith(
+      expect(mockProspects.buildHouseholdMemberPayload).toHaveBeenCalledWith(
         expect.objectContaining({
-          ServiceRequestId: SR_ID,
-          IcmBcscDid: '',
-          FirstName: 'Sara',
-          StreetAddress: '123 Main St',
-          Relationship: RelationshipToPrimary.Child,
+          relationshipToPrimary: RelationshipToPrimary.Child,
         }),
+        null,
+        primaryUser,
+        SR_ID,
       );
+      expect(mockSiebel.createProspect).toHaveBeenCalledWith(builtPayload);
     });
 
     it('skips members that already have a prospect id', async () => {

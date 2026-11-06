@@ -23,6 +23,7 @@ import { IcmStageSchedulerService } from './services/icm-stage-scheduler.service
 import { CaregiverInvitationService } from './services/caregiver-invitation.service';
 import { BcscSyncService } from './services/bcsc-sync.service';
 import { ProspectService } from './services/prospect.service';
+import { SrAttachmentService } from './services/sr-attachment.service';
 
 @Module({
   imports: [
@@ -44,6 +45,7 @@ import { ProspectService } from './services/prospect.service';
   providers: [
     ApplicationPackageService,
     ProspectService,
+    SrAttachmentService,
     AuthListener,
     ApplicationPackageSchedulerService,
     BcscSyncService,
