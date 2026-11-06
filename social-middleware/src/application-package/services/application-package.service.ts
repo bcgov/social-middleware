@@ -68,6 +68,7 @@ import { GenderTypes } from '../../household/enums/gender-types.enum';
 import {
   ApplicationPackageSubType,
   ApplicationPackageSubSubType,
+  isScreeningSubtype,
 } from '../enums/application-package-subtypes.enum';
 import { ProspectService } from './prospect.service';
 
@@ -411,17 +412,28 @@ export class ApplicationPackageService {
         'Application package not found or access denied',
       );
     }
+    // A screening package (Additional Adult, Relief Provider) has no ICM service request until it
+    // is submitted, so there is nobody to notify. Cancelling deletes it outright, which also stops the
+    // access code already emailed from working.
+    // Once the person has finished their forms the package is on its way to ICM and can no longer be cancelled:
+    // that is true when it has a service request, has moved past Consent, or every form is complete
+    // (the completeness poller may not have moved it to Ready yet).
+    if (isScreeningSubtype(appPackage.subtype)) {
+      const finished =
+        !!appPackage.srId ||
+        appPackage.status !== ApplicationPackageStatus.CONSENT ||
+        (await this.isApplicationPackageComplete(appPackage));
 
-    // An Additional Adult package that was never sent to ICM has nobody to notify.
-    // Delete it outright, which also stops the access code already emailed from working.
-    if (
-      appPackage.subtype === ApplicationPackageSubType.ADDITIONAL_ADULT &&
-      !appPackage.srId
-    ) {
+      if (finished) {
+        throw new ConflictException(
+          'This screening has been completed and can no longer be cancelled.',
+        );
+      }
+
       await this.deletePackageData([dto.applicationPackageId]);
       this.logger.info(
         { applicationPackageId: dto.applicationPackageId, userId: dto.userId },
-        'Additional adult package cancelled and deleted',
+        'Screening package cancelled and deleted',
       );
       return;
     }
