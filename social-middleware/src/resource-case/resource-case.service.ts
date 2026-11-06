@@ -21,8 +21,8 @@ export interface OpenResourceCase {
   caseId: string;
   caseNumber?: string;
   officeName?: string; // ICM 'Office Name': the case's local office
-  assigneeId: string;
-  assignee: string;
+  assigneeId: string; // ICM 'Assigned To Id'
+  assignee: string; // ICM 'Assigned To' (trusted username for the activity)
 }
 
 // must exceed the Siebel request timeout, so a live claim is never treated as stale

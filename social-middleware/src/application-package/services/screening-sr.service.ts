@@ -2,6 +2,7 @@ import {
   Injectable,
   InternalServerErrorException,
   NotFoundException,
+  HttpException,
   UnprocessableEntityException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -16,10 +17,23 @@ import { HouseholdService } from '../../household/services/household.service';
 import { ResourceCaseService } from '../../resource-case/resource-case.service';
 import { SiebelApiService } from '../../siebel/siebel-api.service';
 import { ApplicationPackage } from '../schema/application-package.schema';
+import { ApplicationFormService } from '../../application-form/services/application-form.service';
+import { AttachmentsService } from '../../attachments/attachments.service';
+import { ApplicationPackageStatus } from '../enums/application-package-status.enum';
+import { ProspectService } from './prospect.service';
+import { SrAttachmentService } from './sr-attachment.service';
 
 export interface ScreeningSubject {
   member: HouseholdMembersDocument;
   user: User;
+}
+
+// A submission failure that retrying cannot fix. The submission job marks the package FAILED immediately.
+export class NonRetryableSubmissionError extends Error {
+  constructor(message: string, cause?: unknown) {
+    super(message, { cause });
+    this.name = 'NonRetryableSubmissionError';
+  }
 }
 
 /**
@@ -39,6 +53,10 @@ export class ScreeningSrService {
     private readonly resourceCaseService: ResourceCaseService,
     private readonly siebelApiService: SiebelApiService,
     private readonly configService: ConfigService,
+    private readonly prospectService: ProspectService,
+    private readonly applicationFormService: ApplicationFormService,
+    private readonly srAttachmentService: SrAttachmentService,
+    private readonly attachmentsService: AttachmentsService,
     @InjectPinoLogger(ScreeningSrService.name)
     private readonly logger: PinoLogger,
   ) {}
@@ -76,9 +94,11 @@ export class ScreeningSrService {
    * Make sure the package has a Caregiver Screening SR linked to the primary applicant's resource case.
    * Safe to repeat: each stage is skipped if it is already done, and the srId is saved as soon as it exists.
    */
-  async ensureScreeningSr(
-    applicationPackageId: string,
-  ): Promise<{ srId: string; subject: ScreeningSubject }> {
+  async ensureScreeningSr(applicationPackageId: string): Promise<{
+    srId: string;
+    subject: ScreeningSubject;
+    ownerUserId: string;
+  }> {
     const pkg = await this.applicationPackageModel
       .findOne({ applicationPackageId })
       .exec();
@@ -122,7 +142,108 @@ export class ScreeningSrService {
         'Caregiver Screening service request linked to resource case',
       );
     }
-    return { srId, subject };
+    return { srId, subject, ownerUserId: pkg.userId };
+  }
+
+  /**
+   * Submit a READY screening package to ICM: SR, case link, the screened person's prospect, then their forms.
+   * Each stage is skipped if already done, so a retry resumes where it stopped.
+   * Throws NonRetryableSubmissionError for failures a retry cannot fix.
+   */
+  async submitScreening(
+    applicationPackageId: string,
+  ): Promise<{ serviceRequestId: string }> {
+    try {
+      return await this.runSubmission(applicationPackageId);
+    } catch (error) {
+      if (error instanceof HttpException && error.getStatus() < 500) {
+        throw new NonRetryableSubmissionError(error.message, error);
+      }
+      throw error;
+    }
+  }
+
+  private async runSubmission(
+    applicationPackageId: string,
+  ): Promise<{ serviceRequestId: string }> {
+    const { srId, subject, ownerUserId } =
+      await this.ensureScreeningSr(applicationPackageId);
+
+    // the screened person is the only prospect on this SR
+    if (!subject.member.prospectId) {
+      const owner = await this.userService.findOne(ownerUserId);
+      const payload = this.prospectService.buildHouseholdMemberPayload(
+        subject.member,
+        subject.user,
+        owner,
+        srId,
+      );
+      const response = (await this.siebelApiService.createProspect(
+        payload,
+      )) as { Id?: string; items?: { Id?: string } };
+      const prospectId = response?.items?.Id ?? response?.Id;
+      if (!prospectId) {
+        throw new InternalServerErrorException(
+          'Failed to get prospect ID from Siebel',
+        );
+      }
+      await this.householdService.updateHouseholdMember(
+        subject.member.householdMemberId,
+        { prospectId },
+      );
+      this.logger.info(
+        { applicationPackageId, srId, prospectId },
+        'Prospect created for the person being screened',
+      );
+    }
+    const forms =
+      await this.applicationFormService.findAllByApplicationPackageId(
+        applicationPackageId,
+      );
+    await this.srAttachmentService.attachFormsToSr(srId, forms, {
+      applicationPackageId,
+    });
+    await this.assertEverythingAttached(applicationPackageId, subject);
+
+    await this.applicationPackageModel.updateOne(
+      { applicationPackageId },
+      {
+        status: ApplicationPackageStatus.SUBMITTED,
+        submittedAt: new Date(),
+        updatedAt: new Date(),
+      },
+    );
+    this.logger.info(
+      { applicationPackageId, srId },
+      'Screening package submitted to ICM',
+    );
+    return { serviceRequestId: srId };
+  }
+
+  // attachFormsToSr logs and skips individual failures; a screening must not be marked submitted with something missing
+  private async assertEverythingAttached(
+    applicationPackageId: string,
+    subject: ScreeningSubject,
+  ): Promise<void> {
+    const forms =
+      await this.applicationFormService.findAllByApplicationPackageId(
+        applicationPackageId,
+      );
+    const formsMissing = forms.filter(
+      (f) => !f.userAttachedForm && !f.siebelAttachmentId,
+    ).length;
+    let uploadsMissing = 0;
+    if (forms.some((f) => f.userAttachedForm)) {
+      const uploads = await this.attachmentsService.findByHouseholdMemberId(
+        subject.member.householdMemberId,
+      );
+      uploadsMissing = uploads.filter((a) => !a.icmAttachmentId).length;
+    }
+    if (formsMissing || uploadsMissing) {
+      throw new Error(
+        `Not everything is attached to the service request yet (${formsMissing} form(s), ${uploadsMissing} upload(s)); will retry`,
+      );
+    }
   }
 
   private async createScreeningSr(
