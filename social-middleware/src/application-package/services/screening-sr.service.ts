@@ -256,6 +256,11 @@ export class ScreeningSrService {
       const uploads = await this.attachmentsService.findByHouseholdMemberId(
         subject.member.householdMemberId,
       );
+      if (uploads.length === 0) {
+        throw new NonRetryableSubmissionError(
+          'Screening documents were marked as attached but none were uploaded',
+        );
+      }
       uploadsMissing = uploads.filter((a) => !a.icmAttachmentId).length;
     }
     if (formsMissing || uploadsMissing) {
