@@ -1593,7 +1593,7 @@ export class ApplicationPackageService {
     }
   }
 
-  private async isApplicationPackageComplete(
+  async isApplicationPackageComplete(
     applicationPackage: ApplicationPackage,
   ): Promise<boolean> {
     // check that all required forms are complete

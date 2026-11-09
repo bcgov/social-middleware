@@ -60,6 +60,7 @@ import { ScreeningSrService } from './services/screening-sr.service';
     ApplicationFormModule,
     HouseholdModule,
     ProspectService,
+    ScreeningSrService,
   ],
 })
 export class ApplicationPackageModule {}
