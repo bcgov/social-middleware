@@ -214,6 +214,26 @@ describe('ScreeningSrService', () => {
       expect(result.srId).toBe(SR_ID);
       expect(result.ownerUserId).toBe(OWNER_ID);
     });
+
+    it('names the environment in the SR memo outside production', async () => {
+      mockConfig.get.mockReturnValue('development');
+
+      await service.ensureScreeningSr(PACKAGE_ID);
+
+      expect(mockSiebel.createServiceRequest).toHaveBeenCalledWith(
+        expect.objectContaining({ Memo: 'Created By development Portal' }),
+      );
+    });
+
+    it('leaves the environment out of the SR memo in production', async () => {
+      mockConfig.get.mockReturnValue('production');
+
+      await service.ensureScreeningSr(PACKAGE_ID);
+
+      expect(mockSiebel.createServiceRequest).toHaveBeenCalledWith(
+        expect.objectContaining({ Memo: 'Created By  Portal' }),
+      );
+    });
     it('saves the srId before linking, so a failed link never loses the SR', async () => {
       mockSiebel.linkServiceRequestToCase.mockRejectedValue(new Error('boom'));
 

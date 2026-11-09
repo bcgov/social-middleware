@@ -276,5 +276,51 @@ describe('SrAttachmentService', () => {
         'icm-2',
       );
     });
+
+    it('skips an upload that has no file data', async () => {
+      mockAttachments.findByHouseholdMemberId.mockResolvedValue([
+        { attachmentId: 'att-empty' },
+      ]);
+      mockAttachments.findById.mockResolvedValue({
+        attachmentId: 'att-empty',
+        fileName: 'empty.pdf',
+        fileData: undefined,
+      });
+
+      await service.attachFormsToSr(SR_ID, [uploadedForm], CONTEXT);
+
+      expect(mockSiebel.createAttachment).not.toHaveBeenCalled();
+      expect(mockAttachments.saveIcmAttachmentId).not.toHaveBeenCalled();
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        { attachmentId: 'att-empty' },
+        'Attachment not found or has no file data',
+      );
+    });
+
+    it('skips an upload that cannot be found', async () => {
+      mockAttachments.findByHouseholdMemberId.mockResolvedValue([
+        { attachmentId: 'att-gone' },
+      ]);
+      mockAttachments.findById.mockResolvedValue(null);
+
+      await service.attachFormsToSr(SR_ID, [uploadedForm], CONTEXT);
+
+      expect(mockSiebel.createAttachment).not.toHaveBeenCalled();
+    });
+
+    it('logs and carries on when the member uploads cannot be listed', async () => {
+      mockAttachments.findByHouseholdMemberId.mockRejectedValue(
+        new Error('db down'),
+      );
+
+      await expect(
+        service.attachFormsToSr(SR_ID, [uploadedForm], CONTEXT),
+      ).resolves.toEqual({ attempted: 1, succeeded: 0 });
+
+      expect(mockLogger.error).toHaveBeenCalledWith(
+        expect.objectContaining({ householdMemberId: 'hm-1' }),
+        'Failed to fetch attachments for household member',
+      );
+    });
   });
 });
