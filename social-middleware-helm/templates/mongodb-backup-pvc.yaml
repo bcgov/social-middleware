@@ -16,6 +16,8 @@ spec:
       {{- if hasSuffix "-prod" .Release.Namespace }}
       storage: 5Gi
       {{- else }}
-      storage: 2Gi
+      # Test: ~8Mi per dump, ~250Mi at full retention. 2Gi was 9% used and the
+      # namespace has a 6Gi total storage quota shared with the data volumes.
+      storage: 1Gi
       {{- end }}
 {{- end }}
