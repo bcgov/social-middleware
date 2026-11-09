@@ -75,6 +75,8 @@ import { SiebelApiService } from 'src/siebel/siebel-api.service';
 import { ResourceCaseController } from 'src/resource-case/resource-case.controller';
 import { ResourceCaseService } from 'src/resource-case/resource-case.service';
 import { HouseholdContactService } from 'src/resource-case/household-contact.service';
+import { SrAttachmentService } from 'src/application-package/services/sr-attachment.service';
+import { ScreeningSrService } from 'src/application-package/services/screening-sr.service';
 
 export interface SiebelMock {
   getCaseContacts: jest.Mock;
@@ -259,6 +261,9 @@ export async function startAuthorizationApp(): Promise<AuthorizationHarness> {
       HouseholdService,
       ResourceCaseService,
       HouseholdContactService,
+      ProspectService,
+      SrAttachmentService,
+      ScreeningSrService,
       AccessCodeService,
       UserService,
       SessionUtil,

@@ -20,6 +20,7 @@ import { UserUtil } from '../../common/utils/user.util';
 import { RelationshipToPrimary } from '../../household/enums/relationship-to-primary.enum';
 import { ApplicationFormType } from '../../application-form/enums/application-form-types.enum';
 import { ApplicationFormStatus } from '../../application-form/enums/application-form-status.enum';
+import { ScreeningSrService } from '../services/screening-sr.service';
 import { Job } from 'bull';
 
 const createMockJob = <T extends Record<string, unknown>>(
@@ -83,6 +84,7 @@ describe('ApplicationPackageProcessor', () => {
     updateServiceRequestStage: jest.fn(),
   };
   const mockProspectService = { createKeyPlayerProspect: jest.fn() };
+  const mockScreeningSrService = { submitScreening: jest.fn() };
   const mockNotificationService = {
     sendReferralRequested: jest.fn(),
   };
@@ -125,6 +127,7 @@ describe('ApplicationPackageProcessor', () => {
         { provide: UserService, useValue: mockUserService },
         { provide: SiebelApiService, useValue: mockSiebelApiService },
         { provide: ProspectService, useValue: mockProspectService },
+        { provide: ScreeningSrService, useValue: mockScreeningSrService },
         {
           provide: ConfigService,
           useValue: { get: jest.fn().mockReturnValue('development') },

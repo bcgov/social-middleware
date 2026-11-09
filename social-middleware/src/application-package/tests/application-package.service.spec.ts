@@ -7,10 +7,7 @@ import { ConfigService } from '@nestjs/config';
 import { getModelToken } from '@nestjs/mongoose';
 import { Test, TestingModule } from '@nestjs/testing';
 import { ApplicationFormStatus } from '../../application-form/enums/application-form-status.enum';
-import {
-  ApplicationFormType,
-  getFormIdForFormType,
-} from '../../application-form/enums/application-form-types.enum';
+import { ApplicationFormType } from '../../application-form/enums/application-form-types.enum';
 import { ApplicationFormService } from '../../application-form/services/application-form.service';
 import { AttachmentsService } from '../../attachments/attachments.service';
 import { AttachmentType } from '../../attachments/enums/attachment-types.enum';
@@ -41,6 +38,7 @@ import { ApplicationPackage } from '../schema/application-package.schema';
 import { ApplicationPackageService } from '../services/application-package.service';
 import { ProspectService } from '../services/prospect.service';
 import { ResourceCaseService } from 'src/resource-case/resource-case.service';
+import { SrAttachmentService } from '../services/sr-attachment.service';
 
 const queryFor = (value: unknown): Record<string, unknown> => {
   const exec = jest.fn().mockResolvedValue(value);
@@ -88,6 +86,7 @@ const compileService = (mocks: {
   queue?: Record<string, unknown>;
   attachments?: Record<string, unknown>;
   prospects?: Record<string, unknown>;
+  srAttachments?: Record<string, unknown>;
 }): Promise<ApplicationPackageService> => {
   const moduleRef = Test.createTestingModule({
     providers: [
@@ -130,6 +129,10 @@ const compileService = (mocks: {
         useValue: testLogger,
       },
       { provide: ProspectService, useValue: mocks.prospects ?? {} },
+      {
+        provide: SrAttachmentService,
+        useValue: mocks.srAttachments ?? { attachFormsToSr: jest.fn() },
+      },
     ],
   });
   return moduleRef
@@ -249,6 +252,10 @@ describe('ApplicationPackageService - updateApplicationPackageStage', () => {
         {
           provide: HouseholdService,
           useValue: mockHouseholdService,
+        },
+        {
+          provide: SrAttachmentService,
+          useValue: { attachFormsToSr: jest.fn() },
         },
       ],
     }).compile();
@@ -669,6 +676,10 @@ describe('ApplicationPackageService - createApplicationPackage', () => {
           provide: `PinoLogger:${ApplicationFormService.name}`,
           useValue: mockLogger,
         },
+        {
+          provide: SrAttachmentService,
+          useValue: { attachFormsToSr: jest.fn() },
+        },
       ],
     }).compile();
 
@@ -873,6 +884,10 @@ describe('ApplicationPackageService - lockApplicationPackage', () => {
         {
           provide: `PinoLogger:${ApplicationFormService.name}`,
           useValue: mockLogger,
+        },
+        {
+          provide: SrAttachmentService,
+          useValue: { attachFormsToSr: jest.fn() },
         },
       ],
     }).compile();
@@ -1228,6 +1243,10 @@ describe('ApplicationPackageService - submitDocumentsToICM', () => {
         { provide: ConfigService, useValue: { get: jest.fn() } },
         { provide: ProspectService, useValue: mockProspectService },
         { provide: getModelToken('ApplicationForm'), useValue: {} },
+        {
+          provide: SrAttachmentService,
+          useValue: { attachFormsToSr: jest.fn() },
+        },
       ],
     }).compile();
 
@@ -1638,6 +1657,10 @@ describe('ApplicationPackageService - submitApplicationPackage — BCSC re-prosp
           useValue: mockLogger,
         },
         { provide: ProspectService, useValue: mockProspectService },
+        {
+          provide: SrAttachmentService,
+          useValue: { attachFormsToSr: jest.fn() },
+        },
       ],
     }).compile();
 
@@ -2499,6 +2522,7 @@ describe('ApplicationPackageService - submitApplicationPackage — members, form
     createKeyPlayerProspect: jest.fn(),
     buildHouseholdMemberPayload: jest.fn(),
   };
+  const mockSrAttachments = { attachFormsToSr: jest.fn() };
   const mockUserUtil = {
     firstAndMiddleName: jest.fn().mockImplementation((name: string) => ({
       firstName: name?.split(' ')[0] ?? '',
@@ -2533,6 +2557,10 @@ describe('ApplicationPackageService - submitApplicationPackage — members, form
 
   beforeEach(async () => {
     jest.clearAllMocks();
+    mockSrAttachments.attachFormsToSr.mockResolvedValue({
+      attempted: 0,
+      succeeded: 0,
+    });
     mockUserUtil.firstAndMiddleName.mockImplementation((name: string) => ({
       firstName: name?.split(' ')[0] ?? '',
       middleName: '',
@@ -2578,6 +2606,7 @@ describe('ApplicationPackageService - submitApplicationPackage — members, form
       attachments: mockAttachments,
       prospects: mockProspects,
       userUtil: mockUserUtil,
+      srAttachments: mockSrAttachments,
     });
   });
 
@@ -2811,163 +2840,29 @@ describe('ApplicationPackageService - submitApplicationPackage — members, form
   });
 
   describe('form attachments', () => {
-    const formBase = {
-      applicationFormId: 'form-1',
-      householdMemberId: 'hm-self-1',
-      userId: USER_ID,
-    };
-
-    it('attaches forms with data and saves the Siebel attachment id', async () => {
-      mockForms.findAllByApplicationPackageId.mockResolvedValue([
+    it('hands the package forms to SrAttachmentService for the service request', async () => {
+      const forms = [
         {
-          ...formBase,
-          type: ApplicationFormType.ABOUTME,
-          status: ApplicationFormStatus.COMPLETE,
-          formData: '{"q":"a"}',
-        },
-      ]);
-
-      const result = await service.submitApplicationPackage(
-        PACKAGE_ID,
-        USER_ID,
-      );
-
-      expect(mockSiebel.createFormAttachment).toHaveBeenCalledWith(
-        SR_ID,
-        expect.objectContaining({
-          fileName: 'About Me',
-          template: getFormIdForFormType(ApplicationFormType.ABOUTME),
-          xmlHierarchy: '<xml/>',
-          fileContent: '{"q":"a"}',
-        }),
-      );
-      expect(mockForms.saveSiebelAttachmentId).toHaveBeenCalledWith(
-        'form-1',
-        'siebel-1',
-      );
-      expect(result.isComplete).toBe(true);
-    });
-
-    it('names screening forms after the household member', async () => {
-      mockForms.findAllByApplicationPackageId.mockResolvedValue([
-        {
-          ...formBase,
-          type: ApplicationFormType.DISCLOSURECONSENT,
-          status: ApplicationFormStatus.COMPLETE,
-          formData: '{"q":"a"}',
-        },
-      ]);
-
-      await service.submitApplicationPackage(PACKAGE_ID, USER_ID);
-
-      expect(mockSiebel.createFormAttachment).toHaveBeenCalledWith(
-        SR_ID,
-        expect.objectContaining({
-          fileName: `Jane_Doe-${ApplicationFormType.DISCLOSURECONSENT}`,
-        }),
-      );
-    });
-
-    it('falls back to the form type as filename when the member user cannot be found', async () => {
-      mockUsers.findOne.mockImplementation((id: string) =>
-        id === MEMBER_USER_ID ? null : primaryUser,
-      );
-      mockForms.findAllByApplicationPackageId.mockResolvedValue([
-        {
-          ...formBase,
-          userId: MEMBER_USER_ID,
-          type: ApplicationFormType.PCCCONSENT,
-          status: ApplicationFormStatus.COMPLETE,
-          formData: '{"q":"a"}',
-        },
-      ]);
-
-      await service.submitApplicationPackage(PACKAGE_ID, USER_ID);
-
-      expect(mockSiebel.createFormAttachment).toHaveBeenCalledWith(
-        SR_ID,
-        expect.objectContaining({ fileName: ApplicationFormType.PCCCONSENT }),
-      );
-      expect(testLogger.warn).toHaveBeenCalledWith(
-        expect.objectContaining({ userId: MEMBER_USER_ID }),
-        'Could not find household member for screening form - using default filename',
-      );
-    });
-
-    it('skips forms that were already attached to Siebel', async () => {
-      mockForms.findAllByApplicationPackageId.mockResolvedValue([
-        {
-          ...formBase,
-          type: ApplicationFormType.ABOUTME,
-          status: ApplicationFormStatus.COMPLETE,
-          formData: '{"q":"a"}',
-          siebelAttachmentId: 'siebel-old',
-        },
-      ]);
-
-      const result = await service.submitApplicationPackage(
-        PACKAGE_ID,
-        USER_ID,
-      );
-
-      expect(mockSiebel.createFormAttachment).not.toHaveBeenCalled();
-      expect(mockForms.saveSiebelAttachmentId).not.toHaveBeenCalled();
-      expect(result.isComplete).toBe(true);
-    });
-
-    it('skips forms with no form data', async () => {
-      mockForms.findAllByApplicationPackageId.mockResolvedValue([
-        {
-          ...formBase,
-          type: ApplicationFormType.ABOUTME,
-          status: ApplicationFormStatus.COMPLETE,
-          formData: undefined,
-        },
-      ]);
-
-      const result = await service.submitApplicationPackage(
-        PACKAGE_ID,
-        USER_ID,
-      );
-
-      expect(mockSiebel.createFormAttachment).not.toHaveBeenCalled();
-      expect(result.isComplete).toBe(true);
-    });
-
-    it('warns but continues when some forms fail to attach', async () => {
-      mockForms.findAllByApplicationPackageId.mockResolvedValue([
-        {
-          applicationFormId: 'form-ok',
+          applicationFormId: 'form-1',
           householdMemberId: 'hm-self-1',
           type: ApplicationFormType.ABOUTME,
           status: ApplicationFormStatus.COMPLETE,
           formData: '{"q":"a"}',
         },
-        {
-          applicationFormId: 'form-bad',
-          householdMemberId: 'hm-self-1',
-          type: ApplicationFormType.HOUSEHOLD,
-          status: ApplicationFormStatus.COMPLETE,
-          formData: '{"q":"b"}',
-        },
-      ]);
-      mockSiebel.createFormAttachment.mockImplementation(
-        (_srId: string, payload: { fileName: string }) =>
-          payload.fileName === 'About Me'
-            ? Promise.resolve({ items: { Id: 'siebel-1' } })
-            : Promise.reject(new Error('upload failed')),
-      );
+      ];
+      mockForms.findAllByApplicationPackageId.mockResolvedValue(forms);
 
       const result = await service.submitApplicationPackage(
         PACKAGE_ID,
         USER_ID,
       );
 
-      expect(result.isComplete).toBe(true);
-      expect(testLogger.warn).toHaveBeenCalledWith(
-        expect.objectContaining({ failedAttachments: 1 }),
-        'Some forms failed to attach to Siebel - submission continuing with partial attachments',
+      expect(mockSrAttachments.attachFormsToSr).toHaveBeenCalledWith(
+        SR_ID,
+        forms,
+        { applicationPackageId: PACKAGE_ID },
       );
+      expect(result.isComplete).toBe(true);
     });
   });
 
