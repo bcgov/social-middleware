@@ -422,7 +422,7 @@ export class ApplicationPackageService {
       const finished =
         !!appPackage.srId ||
         appPackage.status !== ApplicationPackageStatus.CONSENT ||
-        (await this.isApplicationPackageComplete(appPackage));
+        (await this.isScreeningPackageFinished(appPackage));
 
       if (finished) {
         throw new ConflictException(
@@ -1657,6 +1657,22 @@ export class ApplicationPackageService {
     }
 
     return true;
+  }
+
+  // A screening package is finished when its forms are complete and the person being screened
+  // has reviewed and confirmed their package (confirm-screening-package sets screeningInfoProvided).
+  async isScreeningPackageFinished(
+    applicationPackage: ApplicationPackage,
+  ): Promise<boolean> {
+    if (!(await this.isApplicationPackageComplete(applicationPackage))) {
+      return false;
+    }
+    const members = await this.householdService.findAllHouseholdMembers(
+      applicationPackage.applicationPackageId,
+    );
+    return members
+      .filter((m) => m.relationshipToPrimary !== RelationshipToPrimary.Self)
+      .every((m) => m.screeningInfoProvided === true);
   }
 
   // upload medical assessment attachments to ICM and mark as complete

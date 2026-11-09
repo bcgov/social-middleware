@@ -241,7 +241,7 @@ export class ApplicationPackageProcessor {
       // below (primary applicant forms, household, partner, members requiring screening) don't apply to it.
       if (isScreeningSubtype(applicationPackage.subtype)) {
         const complete =
-          await this.applicationPackageService.isApplicationPackageComplete(
+          await this.applicationPackageService.isScreeningPackageFinished(
             applicationPackage,
           );
         if (!complete) {
@@ -1066,7 +1066,7 @@ export class ApplicationPackageProcessor {
     pkg: ApplicationPackage,
   ): Promise<{ serviceRequestId: string; isComplete: boolean }> {
     const complete =
-      await this.applicationPackageService.isApplicationPackageComplete(pkg);
+      await this.applicationPackageService.isScreeningPackageFinished(pkg);
     if (!complete) {
       return { serviceRequestId: pkg.srId ?? '', isComplete: false };
     }
