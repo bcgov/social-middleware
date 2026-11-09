@@ -22,11 +22,19 @@ import { AttachmentsService } from '../../attachments/attachments.service';
 import { ApplicationPackageStatus } from '../enums/application-package-status.enum';
 import { ProspectService } from './prospect.service';
 import { SrAttachmentService } from './sr-attachment.service';
+import { ApplicationPackageSubType } from '../enums/application-package-subtypes.enum';
 
 export interface ScreeningSubject {
   member: HouseholdMembersDocument;
-  user: User;
+  user: User | null; // null when the person never signed in (the primary uploaded their forms)
 }
+
+// Screening subtypes where the person does not have to sign in with their BC Services Card: the primary
+// applicant may complete the screening for them by uploading signed forms. Any subtype not listed here
+// requires sign-in (a Relief Provider must, because ICM deals with them afterwards).
+const SIGN_IN_OPTIONAL_SUBTYPES: readonly string[] = [
+  ApplicationPackageSubType.ADDITIONAL_ADULT,
+];
 
 // A submission failure that retrying cannot fix. The submission job marks the package FAILED immediately.
 export class NonRetryableSubmissionError extends Error {
@@ -39,10 +47,9 @@ export class NonRetryableSubmissionError extends Error {
 /**
  * Caregiver Screening service requests: an SR that belongs to one person being screened
  * (an additional adult, later a relief provider). That person is the SR's only prospect and their
- * BCSC DID is on the SR. The SR is linked to the primary applicant's resource case, and is created
+ * BCSC DID is on the SR when they have signed in. The SR is linked to the primary applicant's resource case, and is created
  * only at submission.
  */
-
 @Injectable()
 export class ScreeningSrService {
   constructor(
@@ -61,9 +68,14 @@ export class ScreeningSrService {
     private readonly logger: PinoLogger,
   ) {}
 
-  /** The one person a screening package is about: the non-Self member, who has signed in with their BC Services Card. */
+  /**
+   * The one person a screening package is about: the non-Self member.
+   * They have signed in with their BC Services Card unless the subtype allows the primary applicant
+   * to complete the screening for them, in which case user is null.
+   */
   async resolveSubject(
     applicationPackageId: string,
+    signInRequired: boolean,
   ): Promise<ScreeningSubject> {
     const members =
       await this.householdService.findAllHouseholdMembers(applicationPackageId);
@@ -77,9 +89,12 @@ export class ScreeningSrService {
     }
     const member = subjects[0];
     if (!member.userId) {
-      throw new UnprocessableEntityException(
-        'The person being screened has not redeemed their access code',
-      );
+      if (signInRequired) {
+        throw new UnprocessableEntityException(
+          'The person being screened has not redeemed their access code',
+        );
+      }
+      return { member, user: null };
     }
     const user = await this.userService.findOne(member.userId);
     if (!user?.bc_services_card_id) {
@@ -105,7 +120,11 @@ export class ScreeningSrService {
     if (!pkg?.userId) {
       throw new NotFoundException('Application package not found');
     }
-    const subject = await this.resolveSubject(applicationPackageId);
+    const signInRequired = !SIGN_IN_OPTIONAL_SUBTYPES.includes(pkg.subtype);
+    const subject = await this.resolveSubject(
+      applicationPackageId,
+      signInRequired,
+    );
     const icmCase = await this.resourceCaseService.getOpenCaseForUser(
       pkg.userId,
     );
@@ -117,7 +136,7 @@ export class ScreeningSrService {
     let srId = pkg.srId;
     if (!srId) {
       srId = await this.createScreeningSr(
-        subject.user.bc_services_card_id,
+        subject.user?.bc_services_card_id,
         icmCase.officeName,
       );
       // save immediately so a retry never creates a second SR
@@ -247,7 +266,7 @@ export class ScreeningSrService {
   }
 
   private async createScreeningSr(
-    bcscDid: string,
+    bcscDid: string | undefined,
     serviceOffice: string,
   ): Promise<string> {
     const nodeEnv = this.configService.get<string>('NODE_ENV', 'development');
@@ -258,7 +277,7 @@ export class ScreeningSrService {
       Status: 'Open',
       Priority: '3-Standard',
       Type: 'Caregiver Screening',
-      'ICM BCSC DID': bcscDid,
+      ...(bcscDid ? { 'ICM BCSC DID': bcscDid } : {}), // DID is only known if the person signed in
       'Service Office': serviceOffice,
       'Comm Method': 'Client Portal',
       Memo: `Created By ${envSuffix} Portal`,
