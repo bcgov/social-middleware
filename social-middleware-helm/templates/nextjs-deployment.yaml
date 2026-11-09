@@ -6,7 +6,7 @@ metadata:
   labels:
     app: {{ .Values.nextjs.podlabel }}
 spec:
-  {{- if hasSuffix "-test" .Release.Namespace }}
+  {{- if or (hasSuffix "-test" .Release.Namespace) (hasSuffix "-dev" .Release.Namespace) }}
   replicas: 2
   {{- else if not (hasSuffix "-prod" .Release.Namespace) }}
   replicas: {{ .Values.nextjs.replicas | default 1 }}
@@ -29,12 +29,15 @@ spec:
       initContainers:
         - name: wait-for-dependencies
           image: busybox:1.36
+          {{- with include "sm.devInitResources" . | trim }}
+          {{- . | nindent 10 }}
+          {{- end }}
           command:
             - sh
             - -c
             - |
               echo "Waiting for MongoDB and Redis to be ready..."
-              {{- if or (hasSuffix "-prod" .Release.Namespace) (hasSuffix "-test" .Release.Namespace) }}
+              {{- if include "sm.replicated" . }}
               echo "Production mode - waiting 30 seconds for MongoDB replica set to initialize..."
               sleep 30
               {{- else }}
@@ -66,7 +69,7 @@ spec:
                   name: mongodb
                   key: database-name
             - name: MONGO_HOST
-              {{- if or (hasSuffix "-prod" .Release.Namespace) (hasSuffix "-test" .Release.Namespace) }}
+              {{- if include "sm.replicated" . }}
               value: "mongodb-0.{{ .Values.mongodb.podlabel }}.{{ .Release.Namespace }}.svc.cluster.local,mongodb-1.{{ .Values.mongodb.podlabel }}.{{ .Release.Namespace }}.svc.cluster.local,mongodb-2.{{ .Values.mongodb.podlabel }}.{{ .Release.Namespace }}.svc.cluster.local"
               {{- else }}
               value: "{{ .Values.mongodb.podlabel }}.{{ .Release.Namespace }}.svc"
@@ -76,12 +79,12 @@ spec:
             - name: MONGO_USE_TLS
               value: "true"
             - name: MONGO_TLS_CA_FILE
-              {{- if or (hasSuffix "-prod" .Release.Namespace) (hasSuffix "-test" .Release.Namespace) }}
+              {{- if include "sm.replicated" . }}
               value: "/etc/mongodb-custom-ca/ca.crt"
               {{- else }}
               value: "/etc/mongodb-ca/service-ca.crt"
               {{- end }}
-            {{- if or (hasSuffix "-prod" .Release.Namespace) (hasSuffix "-test" .Release.Namespace) }}
+            {{- if include "sm.replicated" . }}
             - name: MONGO_REPLICA_SET
               value: "rs0"
             {{- end }}
@@ -110,7 +113,7 @@ spec:
             - name: mongodb-ca
               mountPath: /etc/mongodb-ca
               readOnly: true
-            {{- if or (hasSuffix "-prod" .Release.Namespace) (hasSuffix "-test" .Release.Namespace) }}
+            {{- if include "sm.replicated" . }}
             - name: mongodb-custom-ca
               mountPath: /etc/mongodb-custom-ca
               readOnly: true
@@ -159,7 +162,7 @@ spec:
         - name: mongodb-ca
           configMap:
             name: mongodb-ca-bundle
-        {{- if or (hasSuffix "-prod" .Release.Namespace) (hasSuffix "-test" .Release.Namespace) }}
+        {{- if include "sm.replicated" . }}
         - name: mongodb-custom-ca
           secret:
             secretName: mongodb-tls

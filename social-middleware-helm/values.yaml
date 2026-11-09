@@ -11,10 +11,10 @@ nextjs:
   dev:
     resources:
       limits:
-        cpu: "500m"
+        cpu: "100m"
         memory: 512Mi
       requests:
-        cpu: "20m"
+        cpu: "15m"
         memory: 128Mi
   prod:
     resources:
@@ -36,13 +36,15 @@ mongodb:
   dev:
     resources:
       limits:
-        cpu: "300m"
+        cpu: "100m"
         memory: 512Mi
       requests:
-        cpu: "20m"
+        cpu: "15m"
         memory: 128Mi
+    # Replica-set mode adds an oplog (~380Mi on disk at its 990MB default cap) on
+    # top of ~500Mi of fixed journal + diagnostics per node; 700Mi would fill.
     storage:
-      size: 700Mi
+      size: 1.5Gi
   test:
     resources:
       limits:
@@ -93,10 +95,10 @@ redis:
   dev:
     resources:
       limits:
-        cpu: "300m"
+        cpu: "100m"
         memory: 512Mi
       requests:
-        cpu: "50m"
+        cpu: "15m"
         memory: 128Mi
     storage:
       size: 100Mi
@@ -110,6 +112,16 @@ redis:
         memory: 256Mi
     storage:
       size: 200Mi
+
+# Init containers in dev only (see sm.devInitResources). Without these the
+# namespace LimitRange defaults each one to 50m CPU / 256Mi.
+devInitContainer:
+  resources:
+    requests:
+      cpu: "15m"
+      memory: 64Mi
+    limits:
+      memory: 128Mi
 
 nextjsservice:
   port: 80

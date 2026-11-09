@@ -8,7 +8,7 @@ metadata:
     app.openshift.io/runtime: redis
 spec:
   serviceName: redis
-  {{- if or (hasSuffix "-prod" .Release.Namespace) (hasSuffix "-test" .Release.Namespace) }}
+  {{- if include "sm.replicated" . }}
   replicas: {{ .Values.redis.replicas }}
   {{- else }}
   replicas: 1
