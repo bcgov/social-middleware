@@ -1,4 +1,4 @@
-{{- if or (hasSuffix "-prod" .Release.Namespace) (hasSuffix "-test" .Release.Namespace) }}
+{{- if include "sm.replicated" . }}
 apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:

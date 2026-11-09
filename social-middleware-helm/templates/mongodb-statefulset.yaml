@@ -8,7 +8,7 @@ metadata:
     app.kubernetes.io/name: mongodb
     app.kubernetes.io/version: "7.0"
 spec:
-  {{- if or (hasSuffix "-prod" .Release.Namespace) (hasSuffix "-test" .Release.Namespace) }}
+  {{- if include "sm.replicated" . }}
   replicas: {{ .Values.mongodb.replicaSet.replicas }}
   {{- else }}
   replicas: 1
@@ -28,6 +28,9 @@ spec:
         # and copy the CA certificate for the chain of trust
         - name: prepare-tls
           image: {{ .Values.mongodb.image }}
+          {{- with include "sm.devInitResources" . | trim }}
+          {{- . | nindent 10 }}
+          {{- end }}
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
@@ -45,7 +48,7 @@ spec:
                 cp /etc/mongodb-ca/service-ca.crt /etc/mongodb-ssl/ca.crt
               fi
               chmod 400 /etc/mongodb-ssl/ca.crt
-              {{- if or (hasSuffix "-prod" .Release.Namespace) (hasSuffix "-test" .Release.Namespace) }}
+              {{- if include "sm.replicated" . }}
               # Copy and set permissions on keyfile for replica set
               cp /etc/mongodb-keyfile-mount/mongodb-keyfile /etc/mongodb-ssl/mongodb-keyfile
               chmod 400 /etc/mongodb-ssl/mongodb-keyfile
@@ -59,7 +62,7 @@ spec:
               readOnly: true
             - name: mongodb-ssl
               mountPath: /etc/mongodb-ssl
-            {{- if or (hasSuffix "-prod" .Release.Namespace) (hasSuffix "-test" .Release.Namespace) }}
+            {{- if include "sm.replicated" . }}
             - name: mongodb-keyfile
               mountPath: /etc/mongodb-keyfile-mount
               readOnly: true
@@ -80,7 +83,7 @@ spec:
             - containerPort: {{ .Values.mongodb.port }}
               protocol: TCP
           env:
-            {{- if or (hasSuffix "-prod" .Release.Namespace) (hasSuffix "-test" .Release.Namespace) }}
+            {{- if include "sm.replicated" . }}
             - name: REPLICA_SET_NAME
               value: "rs0"
             {{- end }}
@@ -158,7 +161,7 @@ spec:
           configMap:
             name: mongodb-init-script
             defaultMode: 0555
-        {{- if or (hasSuffix "-prod" .Release.Namespace) (hasSuffix "-test" .Release.Namespace) }}
+        {{- if include "sm.replicated" . }}
         - name: mongodb-keyfile
           secret:
             secretName: mongodb-keyfile

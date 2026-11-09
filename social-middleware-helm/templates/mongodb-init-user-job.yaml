@@ -40,7 +40,7 @@ spec:
               while [ $COUNTER -lt $MAX_TRIES ]; do
                 echo "Attempt $((COUNTER + 1))/$MAX_TRIES: Checking MongoDB connection..."
 
-                {{- if or (hasSuffix "-prod" .Release.Namespace) (hasSuffix "-test" .Release.Namespace) }}
+                {{- if include "sm.replicated" . }}
                 # Production/Test: Use replica set connection string
                 CONNECTION_STRING="mongodb://$MONGODB_USER:$MONGODB_PASSWORD@mongodb-0.mongodb:27017,mongodb-1.mongodb:27017,mongodb-2.mongodb:27017/$MONGO_INITDB_DATABASE?replicaSet=rs0&tls=true&tlsAllowInvalidCertificates=true"
                 {{- else }}
@@ -68,7 +68,7 @@ spec:
               echo "=== Verifying MongoDB Users ==="
 
               # Verify application user exists and has correct roles
-              {{- if or (hasSuffix "-prod" .Release.Namespace) (hasSuffix "-test" .Release.Namespace) }}
+              {{- if include "sm.replicated" . }}
               # Production/Test: Use replica set connection string
               VERIFY_CONNECTION="mongodb://$MONGODB_USER:$MONGODB_PASSWORD@mongodb-0.mongodb:27017,mongodb-1.mongodb:27017,mongodb-2.mongodb:27017/$MONGO_INITDB_DATABASE?replicaSet=rs0&tls=true&tlsAllowInvalidCertificates=true"
               {{- else }}

@@ -13,7 +13,7 @@ spec:
       protocol: TCP
       port: {{ .Values.mongodb.port }}
       targetPort: {{ .Values.mongodb.targetport }}
-  {{- if or (hasSuffix "-prod" .Release.Namespace) (hasSuffix "-test" .Release.Namespace) }}
+  {{- if include "sm.replicated" . }}
   clusterIP: None
   {{- else }}
   type: ClusterIP
