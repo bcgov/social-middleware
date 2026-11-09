@@ -2,6 +2,7 @@ import {
   BadRequestException,
   InternalServerErrorException,
   NotFoundException,
+  ConflictException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { getModelToken } from '@nestjs/mongoose';
@@ -1985,6 +1986,154 @@ describe('ApplicationPackageService - cancelApplicationPackage', () => {
       new InternalServerErrorException('Failed to cancel application package'),
     );
     expect(doc.save).not.toHaveBeenCalled();
+  });
+});
+
+describe('ApplicationPackageService - cancelApplicationPackage — screening packages', () => {
+  let service: ApplicationPackageService;
+
+  const PACKAGE_ID = 'pkg-screen-001';
+  const USER_ID = 'user-screen-001';
+
+  const mockModel = { findOne: jest.fn(), deleteMany: jest.fn() };
+  const mockForms = {
+    findAllByApplicationPackageId: jest.fn(),
+    deleteByApplicationPackageId: jest.fn(),
+  };
+  const mockAccessCodes = { deleteByApplicationPackageId: jest.fn() };
+  const mockHousehold = {
+    findAllHouseholdMembers: jest.fn(),
+    deleteAllMembersByApplicationPackageId: jest.fn(),
+  };
+  const mockSiebel = { getIcmServiceRequestById: jest.fn() };
+
+  const dto: CancelApplicationPackageDto = {
+    applicationPackageId: PACKAGE_ID,
+    userId: USER_ID,
+  };
+  const screeningPackage = (overrides: Record<string, unknown> = {}) => ({
+    applicationPackageId: PACKAGE_ID,
+    userId: USER_ID,
+    subtype: ApplicationPackageSubType.ADDITIONAL_ADULT,
+    status: ApplicationPackageStatus.CONSENT,
+    ...overrides,
+  });
+  const givenPackage = (overrides: Record<string, unknown> = {}) =>
+    mockModel.findOne.mockReturnValue(queryFor(screeningPackage(overrides)));
+
+  const completeForms = [
+    {
+      type: ApplicationFormType.DISCLOSURECONSENT,
+      status: ApplicationFormStatus.COMPLETE,
+    },
+    {
+      type: ApplicationFormType.PCCCONSENT,
+      status: ApplicationFormStatus.COMPLETE,
+    },
+  ];
+  const incompleteForms = [
+    {
+      type: ApplicationFormType.DISCLOSURECONSENT,
+      status: ApplicationFormStatus.COMPLETE,
+    },
+    {
+      type: ApplicationFormType.PCCCONSENT,
+      status: ApplicationFormStatus.DRAFT,
+    },
+  ];
+  const members = (confirmed: boolean) => [
+    // the primary's Self member never confirms in a screening package, and must not count
+    {
+      relationshipToPrimary: RelationshipToPrimary.Self,
+      screeningInfoProvided: false,
+    },
+    {
+      relationshipToPrimary: RelationshipToPrimary.Sibling,
+      screeningInfoProvided: confirmed,
+    },
+  ];
+  const expectNothingDeleted = () => {
+    expect(mockForms.deleteByApplicationPackageId).not.toHaveBeenCalled();
+    expect(mockAccessCodes.deleteByApplicationPackageId).not.toHaveBeenCalled();
+    expect(
+      mockHousehold.deleteAllMembersByApplicationPackageId,
+    ).not.toHaveBeenCalled();
+    expect(mockModel.deleteMany).not.toHaveBeenCalled();
+  };
+  beforeEach(async () => {
+    jest.resetAllMocks();
+    mockForms.findAllByApplicationPackageId.mockResolvedValue(incompleteForms);
+    mockHousehold.findAllHouseholdMembers.mockResolvedValue(members(false));
+    mockModel.deleteMany.mockResolvedValue({});
+    service = await compileService({
+      model: mockModel,
+      forms: mockForms,
+      accessCodes: mockAccessCodes,
+      household: mockHousehold,
+      siebel: mockSiebel,
+    });
+  });
+  it('deletes the forms, access codes, members and package while the person is still working on it', async () => {
+    givenPackage();
+
+    await service.cancelApplicationPackage(dto);
+
+    expect(mockForms.deleteByApplicationPackageId).toHaveBeenCalledWith(
+      PACKAGE_ID,
+    );
+    expect(mockAccessCodes.deleteByApplicationPackageId).toHaveBeenCalledWith(
+      PACKAGE_ID,
+    );
+    expect(
+      mockHousehold.deleteAllMembersByApplicationPackageId,
+    ).toHaveBeenCalledWith(PACKAGE_ID);
+    expect(mockModel.deleteMany).toHaveBeenCalledWith({
+      applicationPackageId: { $in: [PACKAGE_ID] },
+    });
+  });
+  it('never contacts ICM, because a screening has no service request until it is submitted', async () => {
+    givenPackage();
+
+    await service.cancelApplicationPackage(dto);
+
+    expect(mockSiebel.getIcmServiceRequestById).not.toHaveBeenCalled();
+  });
+  it('can still be cancelled when the forms are complete but the person has not confirmed', async () => {
+    givenPackage();
+    mockForms.findAllByApplicationPackageId.mockResolvedValue(completeForms);
+
+    await service.cancelApplicationPackage(dto);
+
+    expect(mockModel.deleteMany).toHaveBeenCalled();
+  });
+  it('cannot be cancelled once the forms are complete and the person has confirmed', async () => {
+    givenPackage();
+    mockForms.findAllByApplicationPackageId.mockResolvedValue(completeForms);
+    mockHousehold.findAllHouseholdMembers.mockResolvedValue(members(true));
+
+    await expect(service.cancelApplicationPackage(dto)).rejects.toThrow(
+      new ConflictException(
+        'This screening has been completed and can no longer be cancelled.',
+      ),
+    );
+    expectNothingDeleted();
+  });
+  it('cannot be cancelled once it has moved past Consent', async () => {
+    givenPackage({ status: ApplicationPackageStatus.READY });
+
+    await expect(service.cancelApplicationPackage(dto)).rejects.toThrow(
+      ConflictException,
+    );
+    expectNothingDeleted();
+  });
+
+  it('cannot be cancelled once it has a service request', async () => {
+    givenPackage({ srId: 'sr-001' });
+
+    await expect(service.cancelApplicationPackage(dto)).rejects.toThrow(
+      ConflictException,
+    );
+    expectNothingDeleted();
   });
 });
 
