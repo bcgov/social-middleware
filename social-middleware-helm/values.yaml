@@ -51,8 +51,10 @@ mongodb:
       requests:
         cpu: "100m"
         memory: 512Mi
+    # 1Gi ran at ~90%: per node the oplog (~380Mi on disk at its 990MB cap),
+    # journal (~300Mi) and diagnostic.data (~200Mi) are fixed overheads.
     storage:
-      size: 1Gi
+      size: 1.5Gi
   prod:
     resources:
       limits:
