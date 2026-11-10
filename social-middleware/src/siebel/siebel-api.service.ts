@@ -275,10 +275,19 @@ export class SiebelApiService {
     }
   }
 
-  async createServiceRequest(serviceRequestData: unknown) {
+  // trustedUsername acts as that ICM user for the call, so ICM records them (not the service account) as the creator/assignee
+  async createServiceRequest(
+    serviceRequestData: unknown,
+    trustedUsername?: string,
+  ) {
     const endpoint = '/ServiceRequest/ServiceRequest';
     try {
-      return await this.put(endpoint, serviceRequestData);
+      return await this.put(
+        endpoint,
+        serviceRequestData,
+        undefined,
+        trustedUsername,
+      );
     } catch (error: unknown) {
       this.logger.error(
         {

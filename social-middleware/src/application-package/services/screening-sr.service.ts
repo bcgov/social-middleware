@@ -138,6 +138,7 @@ export class ScreeningSrService {
       srId = await this.createScreeningSr(
         subject.user?.bc_services_card_id,
         icmCase.officeName,
+        icmCase.assignee,
       );
       // save immediately so a retry never creates a second SR
       await this.applicationPackageModel.updateOne(
@@ -273,20 +274,24 @@ export class ScreeningSrService {
   private async createScreeningSr(
     bcscDid: string | undefined,
     serviceOffice: string,
+    assignee: string,
   ): Promise<string> {
     const nodeEnv = this.configService.get<string>('NODE_ENV', 'development');
     const envSuffix = nodeEnv.toLowerCase().includes('prod') ? '' : nodeEnv;
 
-    const response = (await this.siebelApiService.createServiceRequest({
-      Id: 'NULL',
-      Status: 'Open',
-      Priority: '3-Standard',
-      Type: 'Caregiver Screening',
-      ...(bcscDid ? { 'ICM BCSC DID': bcscDid } : {}), // DID is only known if the person signed in
-      'Service Office': serviceOffice,
-      'Comm Method': 'Client Portal',
-      Memo: `Created By ${envSuffix} Portal`,
-    })) as { items?: { Id?: string } } | undefined;
+    const response = (await this.siebelApiService.createServiceRequest(
+      {
+        Id: 'NULL',
+        Status: 'Open',
+        Priority: '3-Standard',
+        Type: 'Caregiver Screening',
+        ...(bcscDid ? { 'ICM BCSC DID': bcscDid } : {}), // DID is only known if the person signed in
+        'Service Office': serviceOffice,
+        'Comm Method': 'Client Portal',
+        Memo: `Created By ${envSuffix} Portal`,
+      },
+      assignee,
+    )) as { items?: { Id?: string } } | undefined;
     const srId = response?.items?.Id;
     if (!srId) {
       this.logger.error({ response }, 'No service request ID in response');

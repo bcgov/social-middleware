@@ -94,6 +94,7 @@ describe('ScreeningSrService', () => {
     mockResourceCase.getOpenCaseForUser.mockResolvedValue({
       caseId: CASE_ID,
       officeName: 'Victoria Office',
+      assignee: 'jsmith',
     });
     mockSiebel.createServiceRequest.mockResolvedValue({
       items: { Id: SR_ID },
@@ -202,6 +203,7 @@ describe('ScreeningSrService', () => {
           'ICM BCSC DID': 'DID-123',
           'Service Office': 'Victoria Office',
         }),
+        'jsmith',
       );
       expect(mockModel.updateOne).toHaveBeenCalledWith(
         { applicationPackageId: PACKAGE_ID },
@@ -222,6 +224,7 @@ describe('ScreeningSrService', () => {
 
       expect(mockSiebel.createServiceRequest).toHaveBeenCalledWith(
         expect.objectContaining({ Memo: 'Created By development Portal' }),
+        'jsmith',
       );
     });
 
@@ -232,6 +235,7 @@ describe('ScreeningSrService', () => {
 
       expect(mockSiebel.createServiceRequest).toHaveBeenCalledWith(
         expect.objectContaining({ Memo: 'Created By  Portal' }),
+        'jsmith',
       );
     });
     it('saves the srId before linking, so a failed link never loses the SR', async () => {
