@@ -7,6 +7,7 @@ import {
   Get,
   Req,
   UseGuards,
+  ForbiddenException,
 } from '@nestjs/common';
 import {
   ApiCookieAuth,
@@ -61,6 +62,8 @@ export class ResourceCaseController {
     @Param('caseContactId') caseContactId: string,
     @Body() dto: RequestHouseholdRemovalDto,
   ): Promise<void> {
+    if (this.configService.get<string>('TEST_RESOURCE_CASE') !== 'true')
+      throw new ForbiddenException('No open resource case');
     const userId = this.sessionUtil.extractUserIdFromRequest(request);
     await this.resourceCaseService.requestHouseholdMemberRemoval(
       userId,

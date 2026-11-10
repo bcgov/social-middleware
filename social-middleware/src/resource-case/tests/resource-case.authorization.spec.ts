@@ -168,6 +168,17 @@ describe('Resource case cross-applicant authorization', () => {
       expect(b?.removal_claim_id).toBeNull();
     });
 
+    it('403s and notifies nobody when TEST_RESOURCE_CASE is off', async () => {
+      process.env.TEST_RESOURCE_CASE = 'false';
+      const res = await post('cc-a1');
+      process.env.TEST_RESOURCE_CASE = 'true';
+
+      expect(res.status).toBe(403);
+      expect(
+        harness.siebel.createHouseholdRemovalNotification,
+      ).not.toHaveBeenCalled();
+    });
+
     it('403s when asked to remove a caregiver, and notifies nobody', async () => {
       const res = await post('cc-kp');
       expect(res.status).toBe(403);
