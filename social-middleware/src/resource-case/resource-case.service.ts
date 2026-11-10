@@ -11,7 +11,10 @@ import { PinoLogger } from 'nestjs-pino';
 import { UserService } from '../auth/user.service';
 import { User } from '../auth/schemas/user.schema';
 import { SiebelApiService } from '../siebel/siebel-api.service';
-import { assertWithinCaseWindow } from '../common/utils/case-window.util';
+import {
+  assertWithinCaseWindow,
+  todayInPacific,
+} from '../common/utils/case-window.util';
 import { NOT_MANAGEABLE_RELATIONSHIPS } from '../siebel/enums/icm-case-contact-relationship.enum';
 import { randomUUID } from 'crypto';
 import { HouseholdContactService } from './household-contact.service';
@@ -83,7 +86,7 @@ export class ResourceCaseService {
   async listHouseholdContacts(userId: string) {
     const user = await this.userService.findOne(userId);
     if (!user.resource_case_id || user.resource_case_closed) return [];
-    const today = new Date().toLocaleDateString('en-CA');
+    const today = todayInPacific();
     return this.householdContactService.listActiveForCase(
       user.resource_case_id,
       today,

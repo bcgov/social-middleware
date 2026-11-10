@@ -28,7 +28,7 @@ export function assertWithinCaseWindow(
 
   const max = new Date();
   max.setFullYear(max.getFullYear() + 2);
-  if (value > toIsoLocal(max)) {
+  if (value > todayInPacific(max)) {
     throw new BadRequestException(`${label} is more than 2 years from today`);
   }
 
@@ -38,3 +38,7 @@ export function assertWithinCaseWindow(
     );
   }
 }
+
+// today's calendar date in BC, whatever timezone the server runs in (YYYY-MM-DD)
+export const todayInPacific = (now: Date = new Date()): string =>
+  now.toLocaleDateString('en-CA', { timeZone: 'America/Vancouver' });

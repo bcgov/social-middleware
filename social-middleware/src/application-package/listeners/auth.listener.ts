@@ -34,6 +34,7 @@ import {
   NON_KEY_PLAYER_RELATIONSHIPS,
 } from '../../siebel/enums/icm-case-contact-relationship.enum';
 import { calculateAge } from '../../common/utils/age.util';
+import { todayInPacific } from 'src/common/utils/case-window.util';
 
 @Injectable()
 export class AuthListener implements OnModuleInit {
@@ -335,7 +336,7 @@ export class AuthListener implements OnModuleInit {
         user.resource_case_id,
       );
       const syncedAt = new Date();
-      const today = syncedAt.toLocaleDateString('en-CA'); // YYYY-MM-DD, local time
+      const today = todayInPacific();
 
       const skippedRelationships = new Set<string>();
       const base: Omit<IcmContactFields, 'linked_user_id'>[] = contacts
