@@ -327,12 +327,21 @@ export class SiebelApiService {
   }
 
   // links a service request to a case: the case becomes the SR's primary case
-  async linkServiceRequestToCase(serviceRequestId: string, caseId: string) {
+  async linkServiceRequestToCase(
+    serviceRequestId: string,
+    caseId: string,
+    trustedUsername?: string,
+  ) {
     const endpoint = `/ServiceRequest/ServiceRequest/${serviceRequestId}/Case`;
-    return await this.put(endpoint, {
-      Id: caseId,
-      'SSA Primary Field': 'Y',
-    });
+    return await this.put(
+      endpoint,
+      {
+        Id: caseId,
+        'SSA Primary Field': 'Y',
+      },
+      undefined,
+      trustedUsername,
+    );
   }
 
   async updateServiceRequestStage(

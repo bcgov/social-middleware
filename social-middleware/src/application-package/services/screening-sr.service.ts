@@ -156,6 +156,7 @@ export class ScreeningSrService {
       await this.siebelApiService.linkServiceRequestToCase(
         srId,
         icmCase.caseId,
+        icmCase.assignee,
       );
       this.logger.info(
         { applicationPackageId, srId, caseId: icmCase.caseId },
