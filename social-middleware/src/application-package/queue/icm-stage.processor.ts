@@ -16,6 +16,7 @@ import {
 } from '../schema/application-package.schema';
 import { ApplicationPackageService } from '../services/application-package.service';
 import { ServiceRequestStage } from '../enums/application-package-status.enum';
+import { SCREENING_SUBTYPES } from '../enums/application-package-subtypes.enum';
 
 interface ServiceRequestItem {
   Id: string;
@@ -51,6 +52,7 @@ export class IcmStageProcessor {
       const packages = await this.applicationPackageModel
         .find({
           srId: { $exists: true, $ne: null },
+          subtype: { $nin: SCREENING_SUBTYPES }, // screening SRs have no application stage to track
         })
         .lean()
         .exec();
