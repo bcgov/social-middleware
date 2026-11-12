@@ -3195,7 +3195,7 @@ describe('ApplicationPackageService - submitTrainingCertificates', () => {
     ]);
     mockAttachments.findById.mockResolvedValue({
       attachmentId: 'att-1',
-      fileName: 'pride.pdf',
+      fileName: 'training.pdf',
       fileData: Buffer.from('file'),
       fileType: 'pdf',
     });
@@ -3264,7 +3264,7 @@ describe('ApplicationPackageService - submitTrainingCertificates', () => {
       expect(mockSiebel.createAttachment).toHaveBeenCalledWith(
         SR_ID,
         expect.objectContaining({
-          fileName: 'pride.pdf',
+          fileName: 'training.pdf',
           category: 'Resource Case',
           subCategory: 'Training Certificate',
           description: 'PRESERVICE CERTIFICATE',
@@ -3294,7 +3294,7 @@ describe('ApplicationPackageService - submitTrainingCertificates', () => {
   it('skips certificates without file content', async () => {
     mockAttachments.findById.mockResolvedValue({
       attachmentId: 'att-1',
-      fileName: 'pride.pdf',
+      fileName: 'training.pdf',
       fileData: null,
     });
 
@@ -3329,7 +3329,7 @@ describe('ApplicationPackageService - submitTrainingCertificates', () => {
       serviceRequestNumber: 'SR-123',
       owner: 'assignee-1',
       description:
-        'Caregiver Applicant has submitted PRIDE training certificate(s) (SR-123)',
+        'Caregiver Applicant has submitted training certificate(s) (SR-123)',
       assignedTo: 'John',
     });
     expect(result.notificationSent).toBe(true);
