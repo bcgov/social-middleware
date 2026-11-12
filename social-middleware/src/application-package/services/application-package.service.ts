@@ -1993,7 +1993,7 @@ export class ApplicationPackageService {
           {
             serviceRequestNumber: srDetails['Service Request Number']!,
             owner: srDetails['Assigned To Id'],
-            description: `Caregiver Applicant has submitted PRIDE training certificate(s) (${srDetails['Service Request Number']})`,
+            description: `Caregiver Applicant has submitted training certificate(s) (${srDetails['Service Request Number']})`,
             assignedTo: srDetails['Assigned To'],
           },
         );

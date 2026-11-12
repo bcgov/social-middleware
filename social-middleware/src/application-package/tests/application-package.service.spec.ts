@@ -3403,7 +3403,7 @@ describe('ApplicationPackageService - submitTrainingCertificates', () => {
       serviceRequestNumber: 'SR-123',
       owner: 'assignee-1',
       description:
-        'Caregiver Applicant has submitted PRIDE training certificate(s) (SR-123)',
+        'Caregiver Applicant has submitted training certificate(s) (SR-123)',
       assignedTo: 'John',
     });
     expect(result.notificationSent).toBe(true);
