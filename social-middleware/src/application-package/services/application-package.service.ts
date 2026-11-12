@@ -2,6 +2,7 @@
 
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   InternalServerErrorException,
   NotFoundException,
@@ -25,19 +26,24 @@ import {
   ApplicationPackageStatus,
   ServiceRequestStage,
 } from '../enums/application-package-status.enum';
+import { SubmissionStatus } from '../enums/submission-status.enum';
 import { ApplicationPackageQueueService } from '../queue/application-package-queue.service';
 import { ApplicationPackage } from '../schema/application-package.schema';
-
+import { SrAttachmentService } from './sr-attachment.service';
 import { ConfigService } from '@nestjs/config';
 import { Model } from 'mongoose';
 import { UserService } from '../../auth/user.service';
+import { ResourceCaseService } from '../../resource-case/resource-case.service';
+import { CreateAdditionalAdultDto } from '../dto/create-additional-adult.dto';
+import { ADULT_AGE } from '../../siebel/enums/icm-case-contact-relationship.enum';
+import {
+  assertWithinCaseWindow,
+  isRealIsoDate,
+} from '../../common/utils/case-window.util';
 import { calculateAge } from '../../common/utils/age.util';
 import { formatDateForSiebel } from '../../common/utils/date.util';
 import { UserUtil } from '../../common/utils/user.util';
-import {
-  getApplicantFlag,
-  RelationshipToPrimary,
-} from '../../household/enums/relationship-to-primary.enum';
+import { RelationshipToPrimary } from '../../household/enums/relationship-to-primary.enum';
 import { AccessCodeService } from '../../household/services/access-code.service';
 import { HouseholdService } from '../../household/services/household.service';
 import {
@@ -59,17 +65,13 @@ import {
   AttachmentType,
 } from '../../attachments/enums/attachment-types.enum';
 import { GenderTypes } from '../../household/enums/gender-types.enum';
-import { ApplicationPackageSubType } from '../enums/application-package-subtypes.enum';
+import {
+  ApplicationPackageSubType,
+  ApplicationPackageSubSubType,
+  isScreeningSubtype,
+} from '../enums/application-package-subtypes.enum';
 import { ProspectService } from './prospect.service';
 
-/*
-interface SiebelServiceRequestResponse {
-  items?: {
-    Id?: string;
-    [key: string]: unknown;
-  };
-}
-*/
 @Injectable()
 export class ApplicationPackageService {
   private readonly TEST_KINSHIP: boolean;
@@ -87,6 +89,8 @@ export class ApplicationPackageService {
     private readonly notificationService: NotificationService,
     private readonly attachmentsService: AttachmentsService,
     private readonly prospectService: ProspectService,
+    private readonly srAttachmentService: SrAttachmentService,
+    private readonly resourceCaseService: ResourceCaseService,
     @InjectPinoLogger(ApplicationFormService.name)
     private readonly logger: PinoLogger,
   ) {
@@ -164,6 +168,166 @@ export class ApplicationPackageService {
     }
 
     return appPackage;
+  }
+
+  // An adult moving into the home of a caregiver with an open resource case.
+  // Creates an Additional Adult package holding the caregiver and the new member,
+  // the member's screening forms, and the access code email. Returns the ids the
+  // portal needs to open the Consents summary.
+  async createAdditionalAdultPackage(
+    userId: string,
+    dto: CreateAdditionalAdultDto,
+  ): Promise<{ applicationPackageId: string; householdMemberId: string }> {
+    if (this.configService.get<string>('TEST_RESOURCE_CASE') !== 'true') {
+      throw new NotFoundException();
+    }
+
+    // 403 unless the caller has an open resource case (confirmed against ICM)
+    const { user } = await this.resourceCaseService.getOpenCaseForUser(userId);
+
+    if (
+      !isRealIsoDate(dto.dateOfBirth) ||
+      calculateAge(dto.dateOfBirth) < ADULT_AGE
+    ) {
+      throw new BadRequestException('The household member must be an adult');
+    }
+    assertWithinCaseWindow(
+      dto.moveInDate,
+      user.resource_case_active_date,
+      'Move-in date',
+    );
+
+    // the same person cannot be added twice
+    const existing = await this.getApplicationPackages(userId);
+    for (const p of existing) {
+      if (
+        p.subtype !== ApplicationPackageSubType.ADDITIONAL_ADULT ||
+        p.status === ApplicationPackageStatus.WITHDRAWN
+      ) {
+        continue;
+      }
+      const { isDuplicate } = await this.householdService.checkForDuplicate(
+        p.applicationPackageId,
+        dto.firstName,
+        dto.lastName,
+        dto.dateOfBirth,
+      );
+      if (isDuplicate) {
+        throw new ConflictException(
+          'This household member has already been added. Finish or cancel their New Household Member Screening on your dashboard.',
+        );
+      }
+    }
+
+    const pkg = await this.createApplicationPackage(
+      {
+        subtype: ApplicationPackageSubType.ADDITIONAL_ADULT,
+        subsubtype: ApplicationPackageSubSubType._BLANK,
+      },
+      userId,
+    );
+
+    try {
+      const member = await this.householdService.createMember({
+        applicationPackageId: pkg.applicationPackageId,
+        firstName: dto.firstName,
+        lastName: dto.lastName,
+        dateOfBirth: dto.dateOfBirth,
+        email: dto.email,
+        relationshipToPrimary: dto.relationshipToPrimary,
+        genderType: dto.genderType,
+        moveInDate: dto.moveInDate,
+      });
+
+      await this.applicationPackageModel.updateOne(
+        { applicationPackageId: pkg.applicationPackageId },
+        {
+          $set: {
+            status: ApplicationPackageStatus.CONSENT,
+            updatedAt: new Date(),
+          },
+        },
+      );
+
+      await this.applicationFormService.createScreeningFormsAndAccessCode(
+        pkg.applicationPackageId,
+        member.householdMemberId,
+      );
+
+      this.logger.info(
+        {
+          userId,
+          applicationPackageId: pkg.applicationPackageId,
+          householdMemberId: member.householdMemberId,
+        },
+        'Additional adult package created',
+      );
+      return {
+        applicationPackageId: pkg.applicationPackageId,
+        householdMemberId: member.householdMemberId,
+      };
+    } catch (error) {
+      // leave nothing half-built: a withdrawn package is deleted at the next login
+      await this.markPackageWithdrawn(pkg.applicationPackageId).catch(
+        (e: unknown) =>
+          this.logger.error(
+            { error: e, applicationPackageId: pkg.applicationPackageId },
+            'Failed to withdraw incomplete additional adult package',
+          ),
+      );
+      throw error;
+    }
+  }
+
+  //Members added through Additional Adult packages, with submitted set once the package has gone to ICM.
+  // Manage Household shows the pending ones and the dashboard shows the submitted ones.
+  async listAdditionalAdultMembers(userId: string): Promise<
+    {
+      applicationPackageId: string;
+      householdMemberId: string;
+      firstName: string;
+      lastName: string;
+      relationshipToPrimary: string;
+      moveInDate: string | null;
+      submitted: boolean;
+    }[]
+  > {
+    if (this.configService.get<string>('TEST_RESOURCE_CASE') !== 'true') {
+      return [];
+    }
+
+    const packages = await this.getApplicationPackages(userId);
+
+    const active = packages.filter(
+      (p) =>
+        p.subtype === ApplicationPackageSubType.ADDITIONAL_ADULT &&
+        p.status !== ApplicationPackageStatus.WITHDRAWN,
+    );
+
+    const result = [];
+    for (const p of active) {
+      const submitted =
+        p.submissionStatus === (SubmissionStatus.SUCCESS as string) ||
+        String(p.srStage ?? '')
+          .trim()
+          .toLowerCase() === 'completed';
+      const members = await this.householdService.findAllHouseholdMembers(
+        p.applicationPackageId,
+      );
+      for (const m of members) {
+        if (m.relationshipToPrimary === RelationshipToPrimary.Self) continue;
+        result.push({
+          applicationPackageId: p.applicationPackageId,
+          householdMemberId: m.householdMemberId,
+          firstName: m.firstName,
+          lastName: m.lastName,
+          relationshipToPrimary: m.relationshipToPrimary,
+          moveInDate: m.moveInDate ?? null,
+          submitted,
+        });
+      }
+    }
+    return result;
   }
 
   // when a NEW_APPLICATION access code is redeemed,
@@ -247,6 +411,31 @@ export class ApplicationPackageService {
       throw new NotFoundException(
         'Application package not found or access denied',
       );
+    }
+    // A screening package (Additional Adult, Relief Provider) has no ICM service request until it
+    // is submitted, so there is nobody to notify. Cancelling deletes it outright, which also stops the
+    // access code already emailed from working.
+    // Once the person has finished their forms the package is on its way to ICM and can no longer be cancelled:
+    // that is true when it has a service request, has moved past Consent, or every form is complete
+    // (the completeness poller may not have moved it to Ready yet).
+    if (isScreeningSubtype(appPackage.subtype)) {
+      const finished =
+        !!appPackage.srId ||
+        appPackage.status !== ApplicationPackageStatus.CONSENT ||
+        (await this.isScreeningPackageFinished(appPackage));
+
+      if (finished) {
+        throw new ConflictException(
+          'This screening has been completed and can no longer be cancelled.',
+        );
+      }
+
+      await this.deletePackageData([dto.applicationPackageId]);
+      this.logger.info(
+        { applicationPackageId: dto.applicationPackageId, userId: dto.userId },
+        'Screening package cancelled and deleted',
+      );
+      return;
     }
 
     // if there is a service request ID on the application package, we can notify staff about it;
@@ -364,8 +553,11 @@ export class ApplicationPackageService {
       .lean();
 
     if (withdrawn.length === 0) return;
-    const packageIds = withdrawn.map((p) => p.applicationPackageId);
+    await this.deletePackageData(withdrawn.map((p) => p.applicationPackageId));
+  }
 
+  // forms, access codes, household members, then the packages themselves
+  private async deletePackageData(packageIds: string[]): Promise<void> {
     for (const applicationPackageId of packageIds) {
       await this.applicationFormService.deleteByApplicationPackageId(
         applicationPackageId,
@@ -1058,67 +1250,18 @@ export class ApplicationPackageService {
             );
             continue;
           }
-          let prospectPayload;
 
-          // if they have a userId, it means they have logged in via BC Services card and we have their info in the user record
-          if (householdMember.userId) {
-            // adult household member with their own user account
-            const memberUser = await this.userService.findOne(
-              householdMember.userId,
+          const memberUser = householdMember.userId
+            ? await this.userService.findOne(householdMember.userId)
+            : null;
+
+          const prospectPayload =
+            this.prospectService.buildHouseholdMemberPayload(
+              householdMember,
+              memberUser,
+              primaryApplicant,
+              serviceRequestId,
             );
-
-            const { firstName, middleName } = this.userUtil.firstAndMiddleName(
-              memberUser.first_name,
-            );
-
-            prospectPayload = {
-              ServiceRequestId: serviceRequestId,
-              IcmBcscDid: memberUser.bc_services_card_id,
-              FirstName: firstName,
-              MiddleName: middleName,
-              LastName: this.userUtil.toTitleCase(memberUser.last_name),
-              DateofBirth: formatDateForSiebel(memberUser.dateOfBirth),
-              StreetAddress: memberUser.street_address,
-              City: memberUser.city,
-              Prov: memberUser.region,
-              PostalCode: memberUser.postal_code,
-              EmailAddress: memberUser.email,
-              HomePhone: memberUser.home_phone || '',
-              AlternatePhone: memberUser.alternate_phone || '',
-              Gender: householdMember.genderType || GenderTypes.Unspecified,
-              Relationship: householdMember.relationshipToPrimary,
-              ApplicantFlag: getApplicantFlag(
-                householdMember.relationshipToPrimary,
-              ),
-            };
-          } else {
-            // household member without user account (typically minors)
-
-            const { firstName, middleName } = this.userUtil.firstAndMiddleName(
-              householdMember.firstName,
-            );
-
-            prospectPayload = {
-              ServiceRequestId: serviceRequestId,
-              IcmBcscDid: '',
-              FirstName: firstName,
-              MiddleName: middleName,
-              LastName: this.userUtil.toTitleCase(householdMember.lastName),
-              DateofBirth: formatDateForSiebel(householdMember.dateOfBirth),
-              StreetAddress: primaryApplicant.street_address,
-              City: primaryApplicant.city,
-              Prov: primaryApplicant.region,
-              PostalCode: primaryApplicant.postal_code,
-              EmailAddress: '', //householdMember.email,
-              HomePhone: '', //memberUser.homePhone || '',
-              AlternatePhone: '', // memberUser.alternatePhone || '',
-              Gender: householdMember.genderType || GenderTypes.Unspecified,
-              Relationship: householdMember.relationshipToPrimary,
-              ApplicantFlag: getApplicantFlag(
-                householdMember.relationshipToPrimary,
-              ),
-            };
-          }
 
           const memberProspectResponse =
             await this.siebelApiService.createProspect(prospectPayload);
@@ -1176,269 +1319,11 @@ export class ApplicationPackageService {
         'Subsequent submission: attaching non-REFERRAL forms',
       );
 
-      // track householdMemberIds that should use attachments instead of forms
-      const householdMembersUsingAttachments = new Set<string>();
-
-      const attachmentResults = [];
-      for (const form of formsToAttach) {
-        try {
-          // if this form uses attached files, skip it and track the householdMemberId
-          if (form.userAttachedForm) {
-            householdMembersUsingAttachments.add(form.householdMemberId);
-            this.logger.info(
-              {
-                applicationFormId: form.applicationFormId,
-                householdMemberId: form.householdMemberId,
-                formType: form.type,
-              },
-              'Form marked with userAttachedForm - will use attachments instead',
-            );
-            continue; // skip this form
-          }
-
-          if (form.siebelAttachmentId) {
-            this.logger.info(
-              {
-                applicationFormId: form.applicationFormId,
-                siebelAttachmentId: form.siebelAttachmentId,
-              },
-              'Form already attached to Siebel, skipping',
-            );
-            attachmentResults.push({
-              applicationFormId: form.applicationFormId,
-              attachmentId: form.siebelAttachmentId,
-            });
-            continue;
-          }
-          // form has not already been uploaded, and has some form data which indicates it is a valid form.
-          if (form.formData) {
-            // Atomically claim this form for attachment — only one concurrent caller wins.
-            const claimedForm =
-              await this.applicationFormService.claimFormForAttachment(
-                form.applicationFormId,
-              );
-
-            if (!claimedForm) {
-              this.logger.info(
-                { applicationFormId: form.applicationFormId },
-                'Form attachment already claimed by a concurrent submission — skipping',
-              );
-              continue;
-            }
-
-            let fileName = form.type as string;
-
-            try {
-              // files need to have unique names, so for screening forms, add the household member's name
-              if (
-                (form.type === ApplicationFormType.DISCLOSURECONSENT ||
-                  form.type === ApplicationFormType.PCCCONSENT) &&
-                form.userId
-              ) {
-                const memberUser = await this.userService.findOne(form.userId);
-
-                if (memberUser) {
-                  const { firstName } = this.userUtil.firstAndMiddleName(
-                    memberUser.first_name,
-                  );
-                  fileName = `${firstName}_${this.userUtil.toTitleCase(memberUser.last_name)}-${form.type}`;
-                } else {
-                  this.logger.warn(
-                    {
-                      applicationFormId: form.applicationFormId,
-                      userId: form.userId,
-                    },
-                    'Could not find household member for screening form - using default filename',
-                  );
-                }
-              }
-
-              const fileContent = form.formData; // Buffer.from(formDataString).toString('base64');
-              const formId = getFormIdForFormType(form.type);
-              const xmlHierarchy =
-                await this.applicationFormService.convertFormDataToXml(
-                  form.applicationFormId,
-                );
-
-              const attachmentResult =
-                (await this.siebelApiService.createFormAttachment(
-                  serviceRequestId,
-                  {
-                    fileName: fileName,
-                    template: formId,
-                    xmlHierarchy: xmlHierarchy,
-                    fileContent: fileContent,
-                  },
-                )) as { items: { Id: string } };
-              await this.applicationFormService.saveSiebelAttachmentId(
-                form.applicationFormId,
-                attachmentResult.items?.Id,
-              );
-
-              attachmentResults.push({
-                applicationFormId: form.applicationFormId,
-                attachmentId: attachmentResult.items?.Id,
-              });
-
-              this.logger.info(
-                {
-                  serviceRequestId: serviceRequestId,
-                  applicationFormId: form.applicationFormId,
-                  fileName: fileName,
-                },
-                'Attachment created successfully for form',
-              );
-            } catch (error) {
-              await this.applicationFormService.releaseAttachmentClaim(
-                form.applicationFormId,
-              );
-              throw error; // re-throw so the existing outer catch still logs it the same way
-            }
-          } else {
-            this.logger.warn(
-              { applicationFormId: form.applicationFormId },
-              'Skipping form with no data for attachment',
-            );
-          }
-        } catch (error) {
-          this.logger.error(
-            {
-              error,
-              applicationFormId: form.applicationFormId,
-              serviceRequestId: serviceRequestId,
-            },
-            'Failed to create attachment for form',
-          );
-        }
-      }
-
-      // Attach all attachments for householdMembers using attachments
-      for (const householdMemberId of householdMembersUsingAttachments) {
-        try {
-          this.logger.info(
-            { householdMemberId },
-            'Fetching attachments for household member',
-          );
-
-          // Get all attachments for this household member (without file data)
-          const attachmentList =
-            await this.attachmentsService.findByHouseholdMemberId(
-              householdMemberId,
-            );
-
-          this.logger.info(
-            { householdMemberId, attachmentCount: attachmentList.length },
-            'Found attachments to upload',
-          );
-
-          // Upload each attachment to Siebel
-          for (const attachmentMeta of attachmentList) {
-            try {
-              if (attachmentMeta.icmAttachmentId) {
-                this.logger.info(
-                  {
-                    attachmentId: attachmentMeta.attachmentId,
-                    icmAttachmentId: attachmentMeta.icmAttachmentId,
-                  },
-                  'Attachment already uploaded to ICM, skipping',
-                );
-                attachmentResults.push({
-                  attachmentId: attachmentMeta.attachmentId,
-                  siebelAttachmentId: attachmentMeta.icmAttachmentId,
-                });
-                continue;
-              }
-
-              // Get the full attachment with file data
-              const fullAttachment = await this.attachmentsService.findById(
-                attachmentMeta.attachmentId,
-              );
-
-              if (!fullAttachment || !fullAttachment.fileData) {
-                this.logger.warn(
-                  { attachmentId: attachmentMeta.attachmentId },
-                  'Attachment not found or has no file data',
-                );
-                continue;
-              }
-
-              const attachmentResult =
-                (await this.siebelApiService.createAttachment(
-                  serviceRequestId,
-                  {
-                    fileName: fullAttachment.fileName,
-                    fileContent: fullAttachment.fileData,
-                    fileType: fullAttachment.fileType,
-                    category: 'Consent',
-                    description:
-                      fullAttachment.description ||
-                      `Attachment for household member`,
-                  },
-                )) as { items: { Id: string } };
-
-              await this.attachmentsService.saveIcmAttachmentId(
-                fullAttachment.attachmentId,
-                attachmentResult.items.Id,
-              );
-
-              attachmentResults.push({
-                attachmentId: fullAttachment.attachmentId,
-                siebelAttachmentId: attachmentResult.items.Id,
-              });
-
-              this.logger.info(
-                {
-                  serviceRequestId: serviceRequestId,
-                  attachmentId: fullAttachment.attachmentId,
-                  fileName: fullAttachment.fileName,
-                  householdMemberId,
-                },
-                'Attachment uploaded successfully for household member',
-              );
-            } catch (error) {
-              this.logger.error(
-                {
-                  error,
-                  attachmentId: attachmentMeta.attachmentId,
-                  householdMemberId,
-                },
-                'Failed to upload attachment for household member',
-              );
-            }
-          }
-        } catch (error) {
-          this.logger.error(
-            {
-              error,
-              householdMemberId,
-            },
-            'Failed to fetch attachments for household member',
-          );
-        }
-      }
-
-      this.logger.info(
-        {
-          serviceRequestId: serviceRequestId,
-          totalForms: formsToAttach.length,
-          successfulAttachments: attachmentResults.length,
-        },
-        `Completed attachment creation for ${attachmentResults.length}/${formsToAttach.length} forms`,
+      await this.srAttachmentService.attachFormsToSr(
+        serviceRequestId,
+        formsToAttach,
+        { applicationPackageId },
       );
-
-      // After the attachment loop, add this check:
-      if (attachmentResults.length !== formsToAttach.length) {
-        const failedCount = formsToAttach.length - attachmentResults.length;
-        this.logger.warn(
-          {
-            applicationPackageId,
-            expectedAttachments: formsToAttach.length,
-            successfulAttachments: attachmentResults.length,
-            failedAttachments: failedCount,
-          },
-          'Some forms failed to attach to Siebel - submission continuing with partial attachments',
-        );
-      }
 
       // now we need to update the service request to indicate the application has been submitted
       try {
@@ -1708,7 +1593,7 @@ export class ApplicationPackageService {
     }
   }
 
-  private async isApplicationPackageComplete(
+  async isApplicationPackageComplete(
     applicationPackage: ApplicationPackage,
   ): Promise<boolean> {
     // check that all required forms are complete
@@ -1772,6 +1657,22 @@ export class ApplicationPackageService {
     }
 
     return true;
+  }
+
+  // A screening package is finished when its forms are complete and the person being screened
+  // has reviewed and confirmed their package (confirm-screening-package sets screeningInfoProvided).
+  async isScreeningPackageFinished(
+    applicationPackage: ApplicationPackage,
+  ): Promise<boolean> {
+    if (!(await this.isApplicationPackageComplete(applicationPackage))) {
+      return false;
+    }
+    const members = await this.householdService.findAllHouseholdMembers(
+      applicationPackage.applicationPackageId,
+    );
+    return members
+      .filter((m) => m.relationshipToPrimary !== RelationshipToPrimary.Self)
+      .every((m) => m.screeningInfoProvided === true);
   }
 
   // upload medical assessment attachments to ICM and mark as complete
@@ -2092,7 +1993,7 @@ export class ApplicationPackageService {
           {
             serviceRequestNumber: srDetails['Service Request Number']!,
             owner: srDetails['Assigned To Id'],
-            description: `Caregiver Applicant has submitted PRIDE training certificate(s) (${srDetails['Service Request Number']})`,
+            description: `Caregiver Applicant has submitted training certificate(s) (${srDetails['Service Request Number']})`,
             assignedTo: srDetails['Assigned To'],
           },
         );

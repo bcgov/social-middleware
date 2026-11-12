@@ -54,8 +54,8 @@ export class User {
   @Prop({ required: false })
   sex?: string;
 
-  @Prop({ required: false })
-  contact_id!: string; // row ID from ICM
+  @Prop({ required: false, type: String, index: true })
+  contact_id?: string; // row ID from ICM
 
   @Prop({ required: false, type: String, default: null })
   resource_case_id?: string;

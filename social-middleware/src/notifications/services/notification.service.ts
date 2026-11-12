@@ -86,11 +86,11 @@ export class NotificationService {
       from:
         this.configService.get<string>('CHES_FROM_EMAIL') ||
         'noreply@gov.bc.ca',
-      subject: 'Foster Caregiver Screening Request',
+      subject: 'Caregiver Screening Request',
       body: `
           <h2>You’ve been identified as a household member for a caregiver application</h2>
           <p>Hello ${householdMemberName},</p>
-          <p>You have been identified as a household member on an application to become a foster caregiver. As part of the assessment process, the Ministry of Children and Family Development requires all adult household members to provide background information and consent to screening activities.</p>
+          <p>You have been identified as a household member in a home that provides care to a child or youth in need. As part of the assessment process, the Ministry of Children and Family Development requires all adult household members to provide background information and consent to screening activities.</p>
           <p>Please sign in to the <a href="${this.frontendUrl}">Foster & Care Provider Portal</a> using your BC Services Card and enter the access code <b>${accessCode}</b> to begin.</p>
           <p>Thank you for providing the information we need to continue your assessment.</p>
           <p>Thank you,</p>

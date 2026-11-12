@@ -13,8 +13,8 @@ import {
   ApplicationPackageDocument,
 } from '../schema/application-package.schema';
 import {
-  //ApplicationPackageSubType,
-  //ApplicationPackageSubSubType,
+  ApplicationPackageSubType,
+  isScreeningSubtype,
   getDefaultSrStage,
 } from '../enums/application-package-subtypes.enum';
 import { ApplicationPackageService } from '../services/application-package.service';
@@ -31,7 +31,10 @@ import {
   NotFoundException,
   InternalServerErrorException,
 } from '@nestjs/common';
-//import { ApplicationFormType } from '../../application-form/enums/application-form-types.enum';
+import {
+  ScreeningSrService,
+  NonRetryableSubmissionError,
+} from '../services/screening-sr.service';
 import { ApplicationFormStatus } from '../../application-form/enums/application-form-status.enum';
 import {
   RelationshipToPrimary,
@@ -64,6 +67,7 @@ export class ApplicationPackageProcessor {
     private readonly notificationService: NotificationService,
     private readonly prospectService: ProspectService,
     private readonly userUtil: UserUtil,
+    private readonly screeningSrService: ScreeningSrService,
     @InjectPinoLogger(ApplicationPackageProcessor.name)
     private readonly logger: PinoLogger,
   ) {}
@@ -225,13 +229,29 @@ export class ApplicationPackageProcessor {
         return { isComplete: false, status: ApplicationPackageStatus.DRAFT };
       }
 
-      // Only check packages in CONSENT status
       if (applicationPackage.status !== ApplicationPackageStatus.CONSENT) {
         this.logger.info(
           { applicationPackageId, status: applicationPackage.status },
           'Package not in CONSENT status, skipping completeness check',
         );
         return { isComplete: false, status: applicationPackage.status };
+      }
+
+      // A screening package is complete when everything in it is complete. The application checks
+      // below (primary applicant forms, household, partner, members requiring screening) don't apply to it.
+      if (isScreeningSubtype(applicationPackage.subtype)) {
+        const complete =
+          await this.applicationPackageService.isScreeningPackageFinished(
+            applicationPackage,
+          );
+        if (!complete) {
+          return {
+            isComplete: false,
+            status: ApplicationPackageStatus.CONSENT,
+          };
+        }
+        await this.markReadyAndEnqueue(job, applicationPackageId);
+        return { isComplete: true, status: ApplicationPackageStatus.READY };
       }
 
       //get all household members
@@ -352,27 +372,7 @@ export class ApplicationPackageProcessor {
         'All primary applicant forms complete and all required screening info provided',
       );
 
-      // Package is complete! Update to READY and enqueue submission
-      await this.applicationPackageModel.findOneAndUpdate(
-        { applicationPackageId },
-        {
-          status: ApplicationPackageStatus.READY,
-          submissionStatus: SubmissionStatus.PENDING,
-          updatedAt: new Date(),
-        },
-      );
-
-      this.logger.info(
-        { applicationPackageId },
-        'Package is complete, updated to READY status and enqueueing submission',
-      );
-
-      // Enqueue submission
-      await job.queue.add(
-        'submission',
-        { applicationPackageId },
-        { jobId: `submission-${applicationPackageId}` },
-      );
+      await this.markReadyAndEnqueue(job, applicationPackageId);
 
       return { isComplete: true, status: ApplicationPackageStatus.READY };
     } catch (error) {
@@ -881,11 +881,12 @@ export class ApplicationPackageProcessor {
 
       // Call the existing submission logic
 
-      const result =
-        await this.applicationPackageService.submitApplicationPackage(
-          applicationPackageId,
-          applicationPackage.userId,
-        );
+      const result = isScreeningSubtype(applicationPackage.subtype)
+        ? await this.submitScreeningPackage(applicationPackage)
+        : await this.applicationPackageService.submitApplicationPackage(
+            applicationPackageId,
+            applicationPackage.userId,
+          );
 
       if (!result.isComplete) {
         // Package not ready yet (waiting on screening forms etc.) — leave as pending for retry
@@ -922,6 +923,23 @@ export class ApplicationPackageProcessor {
 
       return { success: true, serviceRequestId: result.serviceRequestId };
     } catch (error) {
+      if (error instanceof NonRetryableSubmissionError) {
+        // a retry cannot fix this: mark it FAILED now, which the pollers skip, and do not rethrow
+        await this.applicationPackageModel.findOneAndUpdate(
+          { applicationPackageId },
+          {
+            lastSubmissionError: error.message.substring(0, 500),
+            submissionStatus: SubmissionStatus.FAILED,
+            updatedAt: new Date(),
+          },
+        );
+        this.logger.error(
+          { error, applicationPackageId },
+          'Screening submission failed permanently - not retrying',
+        );
+        return { success: false };
+      }
+
       const errorMessage =
         error instanceof Error ? error.message : 'Unknown error';
 
@@ -1018,5 +1036,43 @@ export class ApplicationPackageProcessor {
         'Marked package submission as FAILED after exhausting retries',
       );
     }
+  }
+  private async markReadyAndEnqueue(
+    job: Job,
+    applicationPackageId: string,
+  ): Promise<void> {
+    await this.applicationPackageModel.findOneAndUpdate(
+      { applicationPackageId },
+      {
+        status: ApplicationPackageStatus.READY,
+        submissionStatus: SubmissionStatus.PENDING,
+        updatedAt: new Date(),
+      },
+    );
+
+    this.logger.info(
+      { applicationPackageId },
+      'Package is complete, updated to READY status and enqueueing submission',
+    );
+    await job.queue.add(
+      'submission',
+      { applicationPackageId },
+      { jobId: `submission-${applicationPackageId}` },
+    );
+  }
+
+  // same result shape as submitApplicationPackage, so the success and "not complete yet" handling below is shared
+  private async submitScreeningPackage(
+    pkg: ApplicationPackage,
+  ): Promise<{ serviceRequestId: string; isComplete: boolean }> {
+    const complete =
+      await this.applicationPackageService.isScreeningPackageFinished(pkg);
+    if (!complete) {
+      return { serviceRequestId: pkg.srId ?? '', isComplete: false };
+    }
+    const { serviceRequestId } = await this.screeningSrService.submitScreening(
+      pkg.applicationPackageId,
+    );
+    return { serviceRequestId, isComplete: true };
   }
 }

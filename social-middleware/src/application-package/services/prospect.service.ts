@@ -6,6 +6,8 @@ import { UserUtil } from '../../common/utils/user.util';
 import { User } from '../../auth/schemas/user.schema';
 import { GenderTypes } from 'src/household/enums/gender-types.enum';
 import { formatDateForSiebel } from 'src/common/utils/date.util';
+import { HouseholdMembersDocument } from 'src/household/schemas/household-members.schema';
+import { getApplicantFlag } from 'src/household/enums/relationship-to-primary.enum';
 
 export interface ProspectContactOverrides {
   email?: string;
@@ -57,6 +59,67 @@ export class ProspectService {
         this.userUtil.sexToGenderType(user.sex) || GenderTypes.Unspecified,
       Relationship: options.relationship ?? 'Key player',
       ApplicantFlag: options.applicantFlag ?? 'Y',
+    };
+  }
+
+  /**
+   * Pure payload builder for a non-primary household member.
+   * memberUser is set when the member has logged in with BC Services Card; otherwise
+   * (typically minors) the address comes from the primary applicant.
+   */
+  buildHouseholdMemberPayload(
+    member: HouseholdMembersDocument,
+    memberUser: User | null,
+    primaryApplicant: User,
+    serviceRequestId: string,
+  ) {
+    const applicantFlag = getApplicantFlag(member.relationshipToPrimary);
+    const gender = member.genderType || GenderTypes.Unspecified;
+
+    if (memberUser) {
+      const { firstName, middleName } = this.userUtil.firstAndMiddleName(
+        memberUser.first_name,
+      );
+      return {
+        ServiceRequestId: serviceRequestId,
+        IcmBcscDid: memberUser.bc_services_card_id,
+        FirstName: firstName,
+        MiddleName: middleName,
+        LastName: this.userUtil.toTitleCase(memberUser.last_name),
+        DateofBirth: formatDateForSiebel(memberUser.dateOfBirth),
+        StreetAddress: memberUser.street_address,
+        City: memberUser.city,
+        Prov: memberUser.region,
+        PostalCode: memberUser.postal_code,
+        EmailAddress: memberUser.email,
+        HomePhone: memberUser.home_phone || '',
+        AlternatePhone: memberUser.alternate_phone || '',
+        Gender: gender,
+        Relationship: member.relationshipToPrimary,
+        ApplicantFlag: applicantFlag,
+      };
+    }
+
+    const { firstName, middleName } = this.userUtil.firstAndMiddleName(
+      member.firstName,
+    );
+    return {
+      ServiceRequestId: serviceRequestId,
+      IcmBcscDid: '',
+      FirstName: firstName,
+      MiddleName: middleName,
+      LastName: this.userUtil.toTitleCase(member.lastName),
+      DateofBirth: formatDateForSiebel(member.dateOfBirth),
+      StreetAddress: primaryApplicant.street_address,
+      City: primaryApplicant.city,
+      Prov: primaryApplicant.region,
+      PostalCode: primaryApplicant.postal_code,
+      EmailAddress: '',
+      HomePhone: '',
+      AlternatePhone: '',
+      Gender: gender,
+      Relationship: member.relationshipToPrimary,
+      ApplicantFlag: applicantFlag,
     };
   }
 

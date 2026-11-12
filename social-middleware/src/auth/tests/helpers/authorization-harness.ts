@@ -52,6 +52,12 @@ import { FormsService } from 'src/forms/forms.service';
 import { HouseholdAccessCodeController } from 'src/household/household-access.controller';
 import { HouseholdController } from 'src/household/household.controller';
 import {
+  HouseholdContact,
+  HouseholdContactSchema,
+  HouseholdContactDocument,
+} from 'src/resource-case/schema/household-contact.schema';
+
+import {
   HouseholdMembers,
   HouseholdMembersDocument,
   HouseholdMembersSchema,
@@ -66,6 +72,11 @@ import { HouseholdService } from 'src/household/services/household.service';
 import { NotificationQueueService } from 'src/notifications/queue/notification-queue.service';
 import { NotificationService } from 'src/notifications/services/notification.service';
 import { SiebelApiService } from 'src/siebel/siebel-api.service';
+import { ResourceCaseController } from 'src/resource-case/resource-case.controller';
+import { ResourceCaseService } from 'src/resource-case/resource-case.service';
+import { HouseholdContactService } from 'src/resource-case/household-contact.service';
+import { SrAttachmentService } from 'src/application-package/services/sr-attachment.service';
+import { ScreeningSrService } from 'src/application-package/services/screening-sr.service';
 
 export interface SiebelMock {
   getCaseContacts: jest.Mock;
@@ -87,6 +98,7 @@ export interface SiebelMock {
   getOpenResourceCasesByContactId: jest.Mock;
   getActiveCaregiverType: jest.Mock;
   getNewKinshipSRsForProspectiveCaregivers: jest.Mock;
+  createHouseholdRemovalNotification: jest.Mock;
 }
 
 export interface AuthorizationModels {
@@ -97,6 +109,7 @@ export interface AuthorizationModels {
   householdMember: Model<HouseholdMembersDocument>;
   screeningAccessCode: Model<ScreeningAccessCodeDocument>;
   attachment: Model<AttachmentDocument>;
+  householdContact: Model<HouseholdContactDocument>;
 }
 
 export interface AuthorizationHarness {
@@ -175,6 +188,7 @@ function buildSiebelMock(): SiebelMock {
     getOpenResourceCasesByContactId: jest.fn(),
     getActiveCaregiverType: jest.fn(),
     getNewKinshipSRsForProspectiveCaregivers: jest.fn(),
+    createHouseholdRemovalNotification: jest.fn(),
   };
 }
 
@@ -218,6 +232,7 @@ export async function startAuthorizationApp(): Promise<AuthorizationHarness> {
         { name: FormParameters.name, schema: FormParametersSchema },
         { name: HouseholdMembers.name, schema: HouseholdMembersSchema },
         { name: ScreeningAccessCode.name, schema: ScreeningAccessCodeSchema },
+        { name: HouseholdContact.name, schema: HouseholdContactSchema },
         { name: Attachment.name, schema: AttachmentSchema },
       ]),
       EventEmitterModule.forRoot(),
@@ -231,6 +246,7 @@ export async function startAuthorizationApp(): Promise<AuthorizationHarness> {
       HouseholdController,
       HouseholdAccessCodeController,
       AuthController,
+      ResourceCaseController,
     ],
     providers: [
       ApplicationPackageService,
@@ -243,6 +259,11 @@ export async function startAuthorizationApp(): Promise<AuthorizationHarness> {
       AttachmentsService,
       FormsService,
       HouseholdService,
+      ResourceCaseService,
+      HouseholdContactService,
+      ProspectService,
+      SrAttachmentService,
+      ScreeningSrService,
       AccessCodeService,
       UserService,
       SessionUtil,
@@ -295,6 +316,9 @@ export async function startAuthorizationApp(): Promise<AuthorizationHarness> {
     ),
     attachment: moduleRef.get<Model<AttachmentDocument>>(
       getModelToken(Attachment.name),
+    ),
+    householdContact: moduleRef.get<Model<HouseholdContactDocument>>(
+      getModelToken(HouseholdContact.name),
     ),
   };
 

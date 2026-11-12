@@ -289,7 +289,8 @@ describe('SiebelApiService - getCaseContacts()', () => {
       expect.objectContaining({
         params: {
           ViewMode: 'Organization',
-          fields: 'Relationship,Last Name,First Name,End Date',
+          fields:
+            'Id,Relationship,Last Name,First Name,End Date,Date of Birth,Age,Person ID ICM',
         },
       }),
     );
@@ -303,6 +304,9 @@ describe('SiebelApiService - getCaseContacts()', () => {
         'First Name': 'Molly',
         'Last Name': 'Moore',
         'End Date': '',
+        'Date of Birth': '08/29/1985',
+        Age: '41',
+        'Person ID ICM': '1-11066245830',
       },
     ];
     const httpGet = jest
@@ -899,5 +903,54 @@ describe('SiebelApiService - get() 404 logging', () => {
     await expect(service.get('/endpoint')).rejects.toMatchObject({
       status: 404,
     });
+  });
+});
+
+describe('SiebelApiService - createHouseholdRemovalNotification()', () => {
+  let service: SiebelApiService;
+
+  beforeEach(async () => {
+    jest.clearAllMocks();
+    mockSiebelAuthService.getAccessToken.mockResolvedValue('mock-token');
+    service = await makeModule({ put: jest.fn() });
+  });
+
+  const data = {
+    owner: 'sw-1',
+    assignedTo: 'SWORKER',
+    caseNumber: 'RC-1',
+    memberName: 'Sam Lee',
+    departureDate: '2026-11-01',
+  };
+
+  it('creates a case notification naming the member and the departure date', async () => {
+    const spy = jest
+      .spyOn(service, 'createCaseNotification')
+      .mockResolvedValue({});
+    await service.createHouseholdRemovalNotification('case-1', data);
+
+    expect(spy).toHaveBeenCalledWith('case-1', {
+      owner: 'sw-1',
+      assignedTo: 'SWORKER',
+      caseNumber: 'RC-1',
+      description: expect.stringMatching(/Sam Lee.*2026-11-01.*RC-1/) as string,
+    });
+  });
+
+  it('falls back to the case id in the text when there is no case number', async () => {
+    const spy = jest
+      .spyOn(service, 'createCaseNotification')
+      .mockResolvedValue({});
+    await service.createHouseholdRemovalNotification('case-1', {
+      ...data,
+      caseNumber: undefined,
+    });
+
+    expect(spy).toHaveBeenCalledWith(
+      'case-1',
+      expect.objectContaining({
+        description: expect.stringContaining('(case-1)') as string,
+      }),
+    );
   });
 });

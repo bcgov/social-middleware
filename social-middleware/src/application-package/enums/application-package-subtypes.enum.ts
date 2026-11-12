@@ -4,6 +4,19 @@ export enum ApplicationPackageSubType {
   FCH = 'FCH',
   OOC = 'Kinship',
   PROSPECTIVE = 'Prospective Caregiver',
+  ADDITIONAL_ADULT = 'Additional Adult',
+}
+
+// Packages for one person who is screened on their own Caregiver Screening service request,
+// not an application made by the primary applicant. Add RELIEF_PROVIDER here when it exists.
+export const SCREENING_SUBTYPES: readonly ApplicationPackageSubType[] = [
+  ApplicationPackageSubType.ADDITIONAL_ADULT,
+];
+
+export function isScreeningSubtype(subtype?: string | null): boolean {
+  return (
+    !!subtype && (SCREENING_SUBTYPES as readonly string[]).includes(subtype)
+  );
 }
 
 export enum ApplicationPackageSubSubType {

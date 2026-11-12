@@ -55,6 +55,10 @@ export class HouseholdMembers {
   @Prop({ required: false, type: String })
   alternatePhone?: string;
 
+  // set for members added to an existing household (Additional Adult)
+  @Prop({ required: false, type: String, default: null })
+  moveInDate?: string | null; // YYYY-MM-DD
+
   @Prop({ type: Boolean, default: false })
   requireScreening!: boolean;
 

@@ -21,6 +21,11 @@ import { RelationshipToPrimary } from '../../household/enums/relationship-to-pri
 import { ApplicationFormType } from '../../application-form/enums/application-form-types.enum';
 import { ApplicationFormStatus } from '../../application-form/enums/application-form-status.enum';
 import { Job } from 'bull';
+import {
+  NonRetryableSubmissionError,
+  ScreeningSrService,
+} from '../services/screening-sr.service';
+import { ApplicationPackageSubType } from '../enums/application-package-subtypes.enum';
 
 const createMockJob = <T extends Record<string, unknown>>(
   name: string,
@@ -63,6 +68,7 @@ describe('ApplicationPackageProcessor', () => {
   };
   const mockApplicationPackageService = {
     submitApplicationPackage: jest.fn(),
+    isScreeningPackageFinished: jest.fn(),
   };
   const mockHouseholdService = {
     findAllHouseholdMembers: jest.fn(),
@@ -83,6 +89,7 @@ describe('ApplicationPackageProcessor', () => {
     updateServiceRequestStage: jest.fn(),
   };
   const mockProspectService = { createKeyPlayerProspect: jest.fn() };
+  const mockScreeningSrService = { submitScreening: jest.fn() };
   const mockNotificationService = {
     sendReferralRequested: jest.fn(),
   };
@@ -125,6 +132,7 @@ describe('ApplicationPackageProcessor', () => {
         { provide: UserService, useValue: mockUserService },
         { provide: SiebelApiService, useValue: mockSiebelApiService },
         { provide: ProspectService, useValue: mockProspectService },
+        { provide: ScreeningSrService, useValue: mockScreeningSrService },
         {
           provide: ConfigService,
           useValue: { get: jest.fn().mockReturnValue('development') },
@@ -563,6 +571,208 @@ describe('ApplicationPackageProcessor', () => {
         { applicationPackageId: 'pkg-001' },
         expect.objectContaining({ submissionStatus: SubmissionStatus.ERROR }),
       );
+    });
+  });
+
+  // ─── screening packages (Additional Adult, later Relief Provider) ───────────
+
+  describe('screening packages', () => {
+    const screeningConsentPackage = {
+      ...consentPackage,
+      userId: 'user-001',
+      subtype: ApplicationPackageSubType.ADDITIONAL_ADULT,
+    };
+    const screeningReadyPackage = {
+      applicationPackageId: 'pkg-001',
+      userId: 'user-001',
+      subtype: ApplicationPackageSubType.ADDITIONAL_ADULT,
+      status: ApplicationPackageStatus.READY,
+    };
+    const submissionJob = () =>
+      createMockJob('submission', { applicationPackageId: 'pkg-001' });
+    describe('handleCompletenessCheck', () => {
+      const completenessJob = () =>
+        createMockJob('completeness-check', {
+          applicationPackageId: 'pkg-001',
+        });
+      const givenConsentPackage = () =>
+        mockFindOne.mockReturnValue({
+          lean: () => ({
+            exec: () => Promise.resolve(screeningConsentPackage),
+          }),
+        });
+      it('stays in CONSENT, and does not enqueue a submission, until the person has finished and confirmed', async () => {
+        givenConsentPackage();
+        mockApplicationPackageService.isScreeningPackageFinished.mockResolvedValue(
+          false,
+        );
+        const job = completenessJob();
+
+        const result = await processor.handleCompletenessCheck(job);
+
+        expect(result).toEqual({
+          isComplete: false,
+          status: ApplicationPackageStatus.CONSENT,
+        });
+        expect(mockFindOneAndUpdate).not.toHaveBeenCalled();
+        expect(job.queue.add).not.toHaveBeenCalled();
+      });
+      it('skips the application checks, which do not apply to a screening', async () => {
+        givenConsentPackage();
+        mockApplicationPackageService.isScreeningPackageFinished.mockResolvedValue(
+          false,
+        );
+
+        await processor.handleCompletenessCheck(completenessJob());
+
+        expect(
+          mockHouseholdService.findAllHouseholdMembers,
+        ).not.toHaveBeenCalled();
+        expect(
+          mockApplicationFormService.findIncompletePrimaryApplicantForms,
+        ).not.toHaveBeenCalled();
+      });
+      it('moves a finished screening to READY and enqueues its submission', async () => {
+        givenConsentPackage();
+        mockApplicationPackageService.isScreeningPackageFinished.mockResolvedValue(
+          true,
+        );
+        const job = completenessJob();
+
+        const result = await processor.handleCompletenessCheck(job);
+
+        expect(result).toEqual({
+          isComplete: true,
+          status: ApplicationPackageStatus.READY,
+        });
+        expect(mockFindOneAndUpdate).toHaveBeenCalledWith(
+          { applicationPackageId: 'pkg-001' },
+          expect.objectContaining({
+            status: ApplicationPackageStatus.READY,
+            submissionStatus: SubmissionStatus.PENDING,
+          }),
+        );
+        expect(job.queue.add).toHaveBeenCalledWith(
+          'submission',
+          { applicationPackageId: 'pkg-001' },
+          { jobId: 'submission-pkg-001' },
+        );
+      });
+    });
+
+    describe('handleSubmission', () => {
+      beforeEach(() => {
+        mockFindOne.mockReturnValue({
+          exec: () => Promise.resolve(screeningReadyPackage),
+        });
+        mockApplicationPackageService.isScreeningPackageFinished.mockResolvedValue(
+          true,
+        );
+      });
+      it('submits through ScreeningSrService, not the application flow, and records success', async () => {
+        mockScreeningSrService.submitScreening.mockResolvedValue({
+          serviceRequestId: 'sr-001',
+        });
+
+        const result = await processor.handleSubmission(submissionJob());
+
+        expect(mockScreeningSrService.submitScreening).toHaveBeenCalledWith(
+          'pkg-001',
+        );
+        expect(
+          mockApplicationPackageService.submitApplicationPackage,
+        ).not.toHaveBeenCalled();
+        expect(result).toEqual({ success: true, serviceRequestId: 'sr-001' });
+        expect(mockFindOneAndUpdate).toHaveBeenCalledWith(
+          { applicationPackageId: 'pkg-001' },
+          expect.objectContaining({
+            submissionStatus: SubmissionStatus.SUCCESS,
+          }),
+        );
+      });
+      it('defers, without calling ICM, if the person has not finished yet', async () => {
+        mockApplicationPackageService.isScreeningPackageFinished.mockResolvedValue(
+          false,
+        );
+
+        const result = await processor.handleSubmission(submissionJob());
+
+        expect(mockScreeningSrService.submitScreening).not.toHaveBeenCalled();
+        expect(result.success).toBe(false);
+        expect(mockFindOneAndUpdate).toHaveBeenCalledWith(
+          { applicationPackageId: 'pkg-001' },
+          expect.objectContaining({
+            submissionStatus: SubmissionStatus.PENDING,
+          }),
+        );
+        expect(mockFindOneAndUpdate).not.toHaveBeenCalledWith(
+          { applicationPackageId: 'pkg-001' },
+          expect.objectContaining({
+            submissionStatus: SubmissionStatus.SUCCESS,
+          }),
+        );
+      });
+      it('marks the package FAILED and does not rethrow for a non-retryable error', async () => {
+        mockScreeningSrService.submitScreening.mockRejectedValue(
+          new NonRetryableSubmissionError(
+            'The resource case has no local office',
+          ),
+        );
+
+        const result = await processor.handleSubmission(submissionJob());
+
+        expect(result).toEqual({ success: false });
+        expect(mockFindOneAndUpdate).toHaveBeenCalledWith(
+          { applicationPackageId: 'pkg-001' },
+          expect.objectContaining({
+            submissionStatus: SubmissionStatus.FAILED,
+            lastSubmissionError: 'The resource case has no local office',
+          }),
+        );
+        expect(mockFindOneAndUpdate).not.toHaveBeenCalledWith(
+          { applicationPackageId: 'pkg-001' },
+          expect.objectContaining({ submissionStatus: SubmissionStatus.ERROR }),
+        );
+      });
+      it('records ERROR and rethrows an ordinary failure so the queue retries', async () => {
+        mockScreeningSrService.submitScreening.mockRejectedValue(
+          new Error('Siebel timeout'),
+        );
+
+        await expect(
+          processor.handleSubmission(submissionJob()),
+        ).rejects.toThrow('Siebel timeout');
+
+        expect(mockFindOneAndUpdate).toHaveBeenCalledWith(
+          { applicationPackageId: 'pkg-001' },
+          expect.objectContaining({
+            submissionStatus: SubmissionStatus.ERROR,
+            lastSubmissionError: 'Siebel timeout',
+          }),
+        );
+      });
+      it('leaves other subtypes on the application submission flow', async () => {
+        mockFindOne.mockReturnValue({
+          exec: () =>
+            Promise.resolve({
+              ...screeningReadyPackage,
+              subtype: ApplicationPackageSubType.OOC,
+            }),
+        });
+        mockApplicationPackageService.submitApplicationPackage.mockResolvedValue(
+          {
+            serviceRequestId: 'sr-002',
+            isComplete: true,
+          },
+        );
+
+        await processor.handleSubmission(submissionJob());
+
+        expect(
+          mockApplicationPackageService.submitApplicationPackage,
+        ).toHaveBeenCalledWith('pkg-001', 'user-001');
+        expect(mockScreeningSrService.submitScreening).not.toHaveBeenCalled();
+      });
     });
   });
 

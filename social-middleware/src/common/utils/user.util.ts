@@ -51,4 +51,13 @@ export class UserUtil {
     const [year, month, day] = bcscDate.split('-');
     return `${month}/${day}/${year}`;
   }
+
+  // convert an ICM date ('MM/DD/YYYY' or 'MM/DD/YYYY HH:mm:ss') to 'YYYY-MM-DD'
+  icmDateToIso(icmDate?: string): string | null {
+    if (!icmDate) return null;
+    const match = /^(\d{2})\/(\d{2})\/(\d{4})/.exec(icmDate);
+    if (!match) return null;
+    const [, month, day, year] = match;
+    return `${year}-${month}-${day}`;
+  }
 }

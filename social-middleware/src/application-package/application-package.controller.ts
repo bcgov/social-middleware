@@ -22,6 +22,7 @@ import { ApplicationPackageService } from './services/application-package.servic
 import { ApplicationPackageStatus } from './enums/application-package-status.enum';
 import { SubmitReferralRequestDto } from './dto/submit-referral-request.dto';
 import { CreateApplicationPackageDto } from './dto/create-application-package.dto';
+import { CreateAdditionalAdultDto } from './dto/create-additional-adult.dto';
 import { UpdateApplicationPackageDto } from './dto/update-application-package.dto';
 import { ValidateHouseholdCompletionDto } from './dto/validate-application-package.dto';
 import { SessionAuthGuard } from 'src/auth/session-auth.guard';
@@ -119,6 +120,39 @@ export class ApplicationPackageController {
       throw error;
     }
   }
+
+  @Post('additional-adult')
+  @ApiOperation({
+    summary:
+      'Add an adult to the household of a caregiver with a resource case',
+    description:
+      'Creates an Additional Adult application package and household member, creates the screening forms and emails an access code to the member.',
+  })
+  @ApiResponse({ status: 201, description: 'Package and member created' })
+  @ApiResponse({ status: 400, description: 'Invalid member details or dates' })
+  @ApiResponse({ status: 403, description: 'No open resource case' })
+  @ApiResponse({ status: 409, description: 'Member already added' })
+  async createAdditionalAdult(
+    @Body(new ValidationPipe({ whitelist: true, transform: true }))
+    dto: CreateAdditionalAdultDto,
+    @Req() request: Request,
+  ): Promise<{ applicationPackageId: string; householdMemberId: string }> {
+    const userId = this.sessionUtil.extractUserIdFromRequest(request);
+    return this.applicationPackageService.createAdditionalAdultPackage(
+      userId,
+      dto,
+    );
+  }
+
+  @Get('additional-adult')
+  @ApiOperation({
+    summary: 'List household members added through Additional Adult packages',
+  })
+  async listAdditionalAdultMembers(@Req() request: Request) {
+    const userId = this.sessionUtil.extractUserIdFromRequest(request);
+    return this.applicationPackageService.listAdditionalAdultMembers(userId);
+  }
+
   @Patch(':applicationPackageId')
   @ApiOperation({
     summary: 'Update the status elements of an application package',

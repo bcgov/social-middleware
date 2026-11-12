@@ -16,12 +16,15 @@ import { CommonModule } from '../common/common.module';
 import { AuthListener } from './listeners/auth.listener';
 import { AttachmentsModule } from '../attachments/attachments.module';
 import { NotificationModule } from '../notifications/notification.module';
+import { ResourceCaseModule } from 'src/resource-case/resource-case.module';
 import { IcmStageProcessor } from './queue/icm-stage.processor';
 import { IcmStageQueueModule } from './queue/icm-stage-queue.module';
 import { IcmStageSchedulerService } from './services/icm-stage-scheduler.service';
 import { CaregiverInvitationService } from './services/caregiver-invitation.service';
 import { BcscSyncService } from './services/bcsc-sync.service';
 import { ProspectService } from './services/prospect.service';
+import { SrAttachmentService } from './services/sr-attachment.service';
+import { ScreeningSrService } from './services/screening-sr.service';
 
 @Module({
   imports: [
@@ -36,12 +39,15 @@ import { ProspectService } from './services/prospect.service';
     AttachmentsModule,
     NotificationModule,
     IcmStageQueueModule,
+    ResourceCaseModule,
     forwardRef(() => ApplicationPackageQueueModule),
   ],
   controllers: [ApplicationPackageController],
   providers: [
     ApplicationPackageService,
     ProspectService,
+    SrAttachmentService,
+    ScreeningSrService,
     AuthListener,
     ApplicationPackageSchedulerService,
     BcscSyncService,
@@ -54,6 +60,7 @@ import { ProspectService } from './services/prospect.service';
     ApplicationFormModule,
     HouseholdModule,
     ProspectService,
+    ScreeningSrService,
   ],
 })
 export class ApplicationPackageModule {}
