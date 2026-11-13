@@ -153,6 +153,27 @@ export class ApplicationPackageController {
     const userId = this.sessionUtil.extractUserIdFromRequest(request);
     return this.applicationPackageService.listAdditionalAdultMembers(userId);
   }
+  @Post('relief-provider')
+  @ApiOperation({
+    summary: 'Invite a respite/relief provider',
+    description:
+      'Creates a Relief Provider application package and household member, creates the screening forms and emails an access code to the provider.',
+  })
+  @ApiResponse({ status: 201, description: 'Package and member created' })
+  @ApiResponse({ status: 400, description: 'Invalid provider details' })
+  @ApiResponse({ status: 403, description: 'No open resource case' })
+  @ApiResponse({ status: 409, description: 'Provider already invited' })
+  async createReliefProvider(
+    @Body(new ValidationPipe({ whitelist: true, transform: true }))
+    dto: CreateReliefProviderDto,
+    @Req() request: Request,
+  ): Promise<{ applicationPackageId: string; householdMemberId: string }> {
+    const userId = this.sessionUtil.extractUserIdFromRequest(request);
+    return this.applicationPackageService.createReliefProviderPackage(
+      userId,
+      dto,
+    );
+  }
 
   @Patch(':applicationPackageId')
   @ApiOperation({
