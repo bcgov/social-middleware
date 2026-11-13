@@ -9,12 +9,13 @@ import {
   AuthorizationWorld,
   seedTwoApplicants,
 } from '../../auth/tests/helpers/authorization-seed';
+import { todayInPacific } from '../../common/utils/case-window.util';
 
 describe('Resource case cross-applicant authorization', () => {
   let harness: AuthorizationHarness;
   let world: AuthorizationWorld;
   let cookieA: string;
-  const today = new Date().toLocaleDateString('en-CA');
+  const today = todayInPacific();
 
   const cookieFor = (u: AuthorizationWorld['userA']) =>
     mintSessionCookie({
