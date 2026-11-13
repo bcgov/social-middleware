@@ -219,17 +219,10 @@ export class ApplicationPackageService {
       }
     }
 
-    const pkg = await this.createApplicationPackage(
-      {
-        subtype: ApplicationPackageSubType.ADDITIONAL_ADULT,
-        subsubtype: ApplicationPackageSubSubType._BLANK,
-      },
+    return this.createScreeningPackage(
       userId,
-    );
-
-    try {
-      const member = await this.householdService.createMember({
-        applicationPackageId: pkg.applicationPackageId,
+      ApplicationPackageSubType.ADDITIONAL_ADULT,
+      {
         firstName: dto.firstName,
         lastName: dto.lastName,
         dateOfBirth: dto.dateOfBirth,
@@ -237,8 +230,35 @@ export class ApplicationPackageService {
         relationshipToPrimary: dto.relationshipToPrimary,
         genderType: dto.genderType,
         moveInDate: dto.moveInDate,
-      });
+      },
+    );
+  }
 
+  // Shared by the screening package types: a package holding the caregiver and the one person to be
+  // screened, taken straight to Consent, with that person's forms and access code email.
+  private async createScreeningPackage(
+    userId: string,
+    subtype: ApplicationPackageSubType,
+    person: {
+      firstName: string;
+      lastName: string;
+      dateOfBirth: string;
+      email: string;
+      relationshipToPrimary: RelationshipToPrimary;
+      genderType: CreateAdditionalAdultDto['genderType'];
+      moveInDate?: string;
+    },
+  ): Promise<{ applicationPackageId: string; householdMemberId: string }> {
+    const pkg = await this.createApplicationPackage(
+      { subtype, subsubtype: ApplicationPackageSubSubType._BLANK },
+      userId,
+    );
+
+    try {
+      const member = await this.householdService.createMember({
+        applicationPackageId: pkg.applicationPackageId,
+        ...person,
+      });
       await this.applicationPackageModel.updateOne(
         { applicationPackageId: pkg.applicationPackageId },
         {
@@ -253,14 +273,14 @@ export class ApplicationPackageService {
         pkg.applicationPackageId,
         member.householdMemberId,
       );
-
       this.logger.info(
         {
           userId,
+          subtype,
           applicationPackageId: pkg.applicationPackageId,
           householdMemberId: member.householdMemberId,
         },
-        'Additional adult package created',
+        'Screening package created',
       );
       return {
         applicationPackageId: pkg.applicationPackageId,
@@ -272,7 +292,7 @@ export class ApplicationPackageService {
         (e: unknown) =>
           this.logger.error(
             { error: e, applicationPackageId: pkg.applicationPackageId },
-            'Failed to withdraw incomplete additional adult package',
+            'Failed to withdraw incomplete screening package',
           ),
       );
       throw error;
