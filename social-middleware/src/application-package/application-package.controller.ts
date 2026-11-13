@@ -23,6 +23,7 @@ import { ApplicationPackageStatus } from './enums/application-package-status.enu
 import { SubmitReferralRequestDto } from './dto/submit-referral-request.dto';
 import { CreateApplicationPackageDto } from './dto/create-application-package.dto';
 import { CreateAdditionalAdultDto } from './dto/create-additional-adult.dto';
+import { CreateReliefProviderDto } from './dto/create-relief-provider.dto';
 import { UpdateApplicationPackageDto } from './dto/update-application-package.dto';
 import { ValidateHouseholdCompletionDto } from './dto/validate-application-package.dto';
 import { SessionAuthGuard } from 'src/auth/session-auth.guard';

@@ -71,6 +71,7 @@ import {
   isScreeningSubtype,
 } from '../enums/application-package-subtypes.enum';
 import { ProspectService } from './prospect.service';
+import { CreateReliefProviderDto } from '../dto/create-relief-provider.dto';
 
 @Injectable()
 export class ApplicationPackageService {
@@ -297,6 +298,68 @@ export class ApplicationPackageService {
       );
       throw error;
     }
+  }
+
+  // A respite/relief provider named by a caregiver with an open resource case.
+  // The provider is screened on their own service request once they sign in and confirm.
+  async createReliefProviderPackage(
+    userId: string,
+    dto: CreateReliefProviderDto,
+  ): Promise<{ applicationPackageId: string; householdMemberId: string }> {
+    if (this.configService.get<string>('TEST_RESOURCE_CASE') !== 'true') {
+      throw new NotFoundException();
+    }
+    // 403 unless the caller has an open resource case (confirmed against ICM)
+    const { user } = await this.resourceCaseService.getOpenCaseForUser(userId);
+
+    if (
+      !isRealIsoDate(dto.dateOfBirth) ||
+      calculateAge(dto.dateOfBirth) < ADULT_AGE
+    ) {
+      throw new BadRequestException('The relief provider must be an adult');
+    }
+    // a caregiver cannot name themselves; the user's date of birth is stored as MM/DD/YYYY
+    const [year, month, day] = dto.dateOfBirth.split('-');
+    if (
+      user.last_name.trim().toLowerCase() ===
+        dto.lastName.trim().toLowerCase() &&
+      user.first_name.charAt(0).toUpperCase() ===
+        dto.firstName.charAt(0).toUpperCase() &&
+      user.dateOfBirth === `${month}/${day}/${year}`
+    ) {
+      throw new ConflictException(
+        'You cannot name yourself as a relief provider.',
+      );
+    }
+    // the same person cannot be invited twice
+    const existing = await this.getApplicationPackages(userId);
+    for (const p of existing) {
+      if (
+        p.subtype !== ApplicationPackageSubType.RELIEF_PROVIDER ||
+        p.status === ApplicationPackageStatus.WITHDRAWN
+      ) {
+        continue;
+      }
+      const { isDuplicate } = await this.householdService.checkForDuplicate(
+        p.applicationPackageId,
+        dto.firstName,
+        dto.lastName,
+        dto.dateOfBirth,
+      );
+      if (isDuplicate) {
+        throw new ConflictException(
+          'This person has already been invited as a relief provider. Finish or cancel their invitation first.',
+        );
+      }
+    }
+    return this.createScreeningPackage(
+      userId,
+      ApplicationPackageSubType.RELIEF_PROVIDER,
+      {
+        ...dto,
+        relationshipToPrimary: RelationshipToPrimary.ReliefProvider,
+      },
+    );
   }
 
   //Members added through Additional Adult packages, with submitted set once the package has gone to ICM.
