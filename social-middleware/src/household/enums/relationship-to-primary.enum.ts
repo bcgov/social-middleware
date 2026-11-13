@@ -10,6 +10,7 @@ export enum RelationshipToPrimary {
   Boarder = 'Boarder',
   Partner = 'Partner',
   Other = 'Other',
+  ReliefProvider = 'Co Conspirator',
 }
 
 // helper

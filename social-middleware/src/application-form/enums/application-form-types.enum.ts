@@ -111,6 +111,12 @@ export function getScreeningFormRecipe(
         ApplicationFormType.DISCLOSURECONSENT,
         ApplicationFormType.PCCCONSENT,
       ];
+    case RelationshipToPrimary.ReliefProvider:
+      return [
+        ApplicationFormType.ABOUTME,
+        ApplicationFormType.DISCLOSURECONSENT,
+        ApplicationFormType.PCCCONSENT,
+      ];
     default:
       return [
         //ApplicationFormType.ABOUTHOUSEHOLD,
