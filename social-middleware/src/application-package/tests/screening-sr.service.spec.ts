@@ -212,6 +212,7 @@ describe('ScreeningSrService', () => {
       expect(mockSiebel.linkServiceRequestToCase).toHaveBeenCalledWith(
         SR_ID,
         CASE_ID,
+        'jsmith',
       );
       expect(result.srId).toBe(SR_ID);
       expect(result.ownerUserId).toBe(OWNER_ID);
@@ -303,6 +304,7 @@ describe('ScreeningSrService', () => {
       expect(mockSiebel.linkServiceRequestToCase).toHaveBeenCalledWith(
         SR_ID,
         CASE_ID,
+        'jsmith',
       );
     });
     it('does not link the case again when it is already linked', async () => {
