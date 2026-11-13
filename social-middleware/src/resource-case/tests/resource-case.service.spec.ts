@@ -13,6 +13,7 @@ import { UserService } from '../../auth/user.service';
 import { SiebelApiService } from '../../siebel/siebel-api.service';
 import { HouseholdContactService } from '../household-contact.service';
 import { ResourceCaseService } from '../resource-case.service';
+import { todayInPacific } from '../../common/utils/case-window.util';
 
 describe('ResourceCaseService', () => {
   let service: ResourceCaseService;
@@ -35,7 +36,7 @@ describe('ResourceCaseService', () => {
     error: jest.fn(),
   };
 
-  const today = new Date().toLocaleDateString('en-CA');
+  const today = todayInPacific();
   const userBase = {
     id: 'u1',
     contact_id: 'icm-1',
