@@ -8,6 +8,9 @@ import {
   AuthorizationWorld,
   seedTwoApplicants,
 } from '../../auth/tests/helpers/authorization-seed';
+import { ApplicationFormStatus } from 'src/application-form/enums/application-form-status.enum';
+import { RelationshipToPrimary } from 'src/household/enums/relationship-to-primary.enum';
+import { ApplicationPackageSubType } from '../enums/application-package-subtypes.enum';
 
 describe('POST /application-package/relief-provider', () => {
   let harness: AuthorizationHarness;
@@ -96,7 +99,7 @@ describe('POST /application-package/relief-provider', () => {
       .findOne({ applicationPackageId: body.applicationPackageId })
       .lean();
     expect(pkg).toMatchObject({
-      subtype: 'Relief Provider',
+      subtype: ApplicationPackageSubType.RELIEF_PROVIDER,
       status: 'Consent',
       userId: world.userA.userId,
     });
@@ -105,8 +108,8 @@ describe('POST /application-package/relief-provider', () => {
       .find({ applicationPackageId: body.applicationPackageId })
       .lean();
     expect(members.map((m) => m.relationshipToPrimary).sort()).toEqual([
-      'Relief Caregiver',
-      'Self',
+      RelationshipToPrimary.ReliefProvider,
+      RelationshipToPrimary.Self,
     ]);
     const provider = members.find(
       (m) => m.householdMemberId === body.householdMemberId,
@@ -263,5 +266,35 @@ describe('POST /application-package/relief-provider', () => {
       .post('/application-package/relief-provider')
       .send(valid);
     expect([401, 403]).toContain(res.status);
+  });
+
+  describe('POST …/household-members/:householdMemberId/mark-screening-documents-attached', () => {
+    it('does not let the caregiver complete the screening on the provider’s behalf', async () => {
+      const created = (await post()).body as {
+        applicationPackageId: string;
+        householdMemberId: string;
+      };
+
+      const res = await request(harness.httpServer)
+        .post(
+          `/application-package/${created.applicationPackageId}/household-members/${created.householdMemberId}/mark-screening-documents-attached`,
+        )
+        .set('Cookie', cookieA);
+
+      expect([401, 403]).toContain(res.status);
+
+      const member = await harness.models.householdMember
+        .findOne({ householdMemberId: created.householdMemberId })
+        .lean();
+      expect(member?.screeningInfoProvided).toBe(false);
+
+      const forms = await harness.models.applicationForm
+        .find({ householdMemberId: created.householdMemberId })
+        .lean();
+      expect(forms.length).toBeGreaterThan(0);
+      expect(
+        forms.every((f) => f.status !== ApplicationFormStatus.COMPLETE),
+      ).toBe(true);
+    });
   });
 });
