@@ -1,7 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import { NOT_MANAGEABLE_RELATIONSHIPS } from '../siebel/enums/icm-case-contact-relationship.enum';
+import {
+  IcmCaseContactRelationship,
+  NOT_MANAGEABLE_RELATIONSHIPS,
+} from '../siebel/enums/icm-case-contact-relationship.enum';
 import {
   HouseholdContact,
   HouseholdContactDocument,
@@ -40,6 +43,19 @@ export class HouseholdContactService {
       })
       .select(PUBLIC_FIELDS)
       .sort({ createdAt: 1 })
+      .lean()
+      .exec();
+  }
+
+  // everyone currently on the case except relief providers, who are not part of the household
+  listHouseholdForCase(caseId: string, today: string) {
+    return this.model
+      .find({
+        case_id: caseId,
+        relationship: { $ne: IcmCaseContactRelationship.Relief },
+        $or: [{ contact_end_date: null }, { contact_end_date: { $gt: today } }],
+      })
+      .select('first_name last_name relationship')
       .lean()
       .exec();
   }

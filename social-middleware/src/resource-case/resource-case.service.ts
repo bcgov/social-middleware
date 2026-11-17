@@ -93,6 +93,26 @@ export class ResourceCaseService {
     );
   }
 
+  // ICM contacts have no date of birth, so someone on the case's household is matched by name
+  async isOnHousehold(
+    user: User,
+    firstName: string,
+    lastName: string,
+  ): Promise<boolean> {
+    if (!user.resource_case_id) return false;
+    const contacts = await this.householdContactService.listHouseholdForCase(
+      user.resource_case_id,
+      todayInPacific(),
+    );
+    const norm = (s: string) => s.trim().toLowerCase();
+    const first = (s: string) => norm(s).split(/\s+/)[0]; // ICM may hold a middle name
+    return contacts.some(
+      (c) =>
+        first(c.first_name) === first(firstName) &&
+        norm(c.last_name) === norm(lastName),
+    );
+  }
+
   async requestHouseholdMemberRemoval(
     userId: string,
     caseContactId: string,

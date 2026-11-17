@@ -297,4 +297,73 @@ describe('POST /application-package/relief-provider', () => {
       ).toBe(true);
     });
   });
+
+  describe('who can be invited', () => {
+    const seedContact = (over: Record<string, unknown> = {}) =>
+      harness.models.householdContact.create({
+        case_id: 'case-a',
+        case_contact_id: `cc-${Math.random()}`,
+        person_id: 'p-1',
+        first_name: 'Robin',
+        last_name: 'Relief',
+        relationship: 'Parent',
+        contact_end_date: null,
+        linked_user_id: null,
+        synced_at: new Date(),
+        ...over,
+      });
+    beforeEach(async () => {
+      await harness.models.householdContact.deleteMany({});
+    });
+
+    it('409s for someone on the case’s household, and creates nothing', async () => {
+      await seedContact();
+      expect((await post()).status).toBe(409);
+      expect(await countReliefPackages()).toBe(0);
+    });
+
+    it('matches the household by full name, so a shared surname is fine', async () => {
+      await seedContact({ first_name: 'Rhonda' });
+      expect((await post()).status).toBe(201);
+    });
+
+    it('ignores household members who have left the case', async () => {
+      await seedContact({ contact_end_date: '2000-01-01' });
+      expect((await post()).status).toBe(201);
+    });
+    it('does not treat an existing relief provider on the case as household', async () => {
+      await seedContact({ relationship: 'Relief Caregiver' });
+      expect((await post()).status).toBe(201);
+    });
+    it('409s for a member of the caregiver’s own packages', async () => {
+      const pkg = await harness.models.applicationPackage.findOne({
+        userId: world.userA.userId,
+      });
+      expect(pkg).toBeTruthy();
+      await harness.models.householdMember.create({
+        applicationPackageId: pkg!.applicationPackageId,
+        householdMemberId: 'hm-existing',
+        firstName: 'Robin',
+        lastName: 'Relief',
+        dateOfBirth: '1990-05-01',
+        relationshipToPrimary: 'Other',
+      });
+      try {
+        expect((await post()).status).toBe(409);
+      } finally {
+        await harness.models.householdMember.deleteOne({
+          householdMemberId: 'hm-existing',
+        });
+      }
+    });
+    it('allows inviting a provider again once their screening has been submitted', async () => {
+      const first = (await post()).body as { applicationPackageId: string };
+      await harness.models.applicationPackage.updateOne(
+        { applicationPackageId: first.applicationPackageId },
+        { $set: { status: 'Submitted', submissionStatus: 'success' } },
+      );
+      expect((await post()).status).toBe(201);
+      expect(await countReliefPackages()).toBe(2);
+    });
+  });
 });
