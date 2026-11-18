@@ -139,6 +139,13 @@ describe('POST /application-package/relief-provider', () => {
     expect(codes).toHaveLength(1);
     expect(harness.queues.notification.add).toHaveBeenCalled();
   });
+
+  it('sends the relief-specific email, not the household-member one', async () => {
+    await post();
+    const sent = JSON.stringify(harness.queues.notification.add.mock.calls);
+    expect(sent).toContain('Respite/Relief Provider Screening Request');
+    expect(sent).not.toContain('household member');
+  });
   it('404s when TEST_RESOURCE_CASE is off', async () => {
     process.env.TEST_RESOURCE_CASE = 'false';
     const res = await post();

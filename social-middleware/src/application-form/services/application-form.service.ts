@@ -288,12 +288,27 @@ export class ApplicationFormService {
           // there WILL be a primary applicant
           const primaryApplicantName =
             primaryApplicant.firstName + ' ' + primaryApplicant.lastName;
-          await this.notificationService.sendFCHAccessCode(
-            householdMember.email,
-            primaryApplicantName,
-            householdMemberName,
-            accessCode,
-          );
+
+          // relief providers get a different notification than household members
+          if (
+            householdMember.relationshipToPrimary ===
+            RelationshipToPrimary.ReliefProvider
+          ) {
+            await this.notificationService.sendReliefProviderAccessCode(
+              householdMember.email,
+              primaryApplicantName,
+              householdMemberName,
+              accessCode,
+            );
+          } else {
+            // household member notification
+            await this.notificationService.sendFCHAccessCode(
+              householdMember.email,
+              primaryApplicantName,
+              householdMemberName,
+              accessCode,
+            );
+          }
           await this.householdService.incrementResendTracking(
             householdMemberId,
           );
