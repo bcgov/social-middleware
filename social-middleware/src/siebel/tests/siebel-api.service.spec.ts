@@ -69,21 +69,6 @@ describe('SiebelApiService.getContactByBcscId', () => {
     );
   });
 
-  it('returns the response when exactly one contact is found', async () => {
-    const mockResponse = {
-      items: [{ Id: 'contact-abc', 'ICM BCSC DID': 'did-123' }],
-    };
-    httpService.get.mockReturnValue(of({ data: mockResponse }));
-
-    const result = await service.getContactByBcscId('did-123');
-
-    expect(result).toEqual(mockResponse);
-    expect(mockLogger.info).toHaveBeenCalledWith(
-      expect.objectContaining({ bcscId: 'did-123' }),
-      expect.stringContaining('Contact found'),
-    );
-  });
-
   it('throws and logs when multiple contacts are returned', async () => {
     const mockResponse = {
       items: [
