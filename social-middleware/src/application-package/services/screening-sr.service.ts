@@ -22,7 +22,10 @@ import { AttachmentsService } from '../../attachments/attachments.service';
 import { ApplicationPackageStatus } from '../enums/application-package-status.enum';
 import { ProspectService } from './prospect.service';
 import { SrAttachmentService } from './sr-attachment.service';
-import { ApplicationPackageSubType } from '../enums/application-package-subtypes.enum';
+import {
+  ApplicationPackageSubType,
+  ScreeningSRSubTypes,
+} from '../enums/application-package-subtypes.enum';
 
 export interface ScreeningSubject {
   member: HouseholdMembersDocument;
@@ -136,7 +139,10 @@ export class ScreeningSrService {
     let srId = pkg.srId;
     if (!srId) {
       srId = await this.createScreeningSr(
-        subject.user?.bc_services_card_id,
+        {
+          bcscDid: subject.user?.bc_services_card_id,
+          subType: ScreeningSRSubTypes[pkg.subtype],
+        },
         icmCase.officeName,
         icmCase.assignee,
       );
@@ -273,7 +279,7 @@ export class ScreeningSrService {
   }
 
   private async createScreeningSr(
-    bcscDid: string | undefined,
+    person: { bcscDid?: string; subType?: string },
     serviceOffice: string,
     assignee: string,
   ): Promise<string> {
@@ -286,7 +292,8 @@ export class ScreeningSrService {
         Status: 'Open',
         Priority: '3-Standard',
         Type: 'Caregiver Screening',
-        ...(bcscDid ? { 'ICM BCSC DID': bcscDid } : {}), // DID is only known if the person signed in
+        ...(person.subType ? { 'SR Sub Type': person.subType } : {}),
+        ...(person.bcscDid ? { 'ICM BCSC DID': person.bcscDid } : {}), // DID is only known if the person signed in
         'Service Office': serviceOffice,
         'Comm Method': 'Client Portal',
         Memo: `Created By ${envSuffix} Portal`,
