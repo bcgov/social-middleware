@@ -153,6 +153,14 @@ export class ApplicationPackageController {
     const userId = this.sessionUtil.extractUserIdFromRequest(request);
     return this.applicationPackageService.listAdditionalAdultMembers(userId);
   }
+  @Get('relief-provider')
+  @ApiOperation({
+    summary: 'List the relief providers the caregiver has invited',
+  })
+  async listReliefProviders(@Req() request: Request) {
+    const userId = this.sessionUtil.extractUserIdFromRequest(request);
+    return this.applicationPackageService.listReliefProviders(userId);
+  }
   @Post('relief-provider')
   @ApiOperation({
     summary: 'Invite a respite/relief provider',
