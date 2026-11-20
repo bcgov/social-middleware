@@ -21,6 +21,14 @@ export function isScreeningSubtype(subtype?: string | null): boolean {
   );
 }
 
+// The SR Sub Type ICM expects on the Caregiver Screening SR, by package subtype.
+// Additional Adult sends none.
+export const ScreeningSRSubTypes: Partial<
+  Record<ApplicationPackageSubType, string>
+> = {
+  [ApplicationPackageSubType.RELIEF_PROVIDER]: 'Relief(Appendix F)',
+};
+
 export enum ApplicationPackageSubSubType {
   _BLANK = '',
   FCH = 'FCH',
