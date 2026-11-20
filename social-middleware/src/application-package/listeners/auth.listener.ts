@@ -159,6 +159,14 @@ export class AuthListener implements OnModuleInit {
         }
       }
 
+      if (!contactId) {
+        this.logger.info(
+          { userId: userData.userId },
+          'No ICM contact found - contact_id not set',
+        );
+        return;
+      }
+
       await this.userService.updateUser(userData.userId, {
         contact_id: contactId,
       });
