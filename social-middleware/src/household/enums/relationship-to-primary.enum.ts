@@ -13,6 +13,7 @@ export enum RelationshipToPrimary {
   ReliefProvider = 'Co Conspirator',
 }
 
+import { IcmCaseContactRelationship } from '../../siebel/enums/icm-case-contact-relationship.enum';
 // helper
 export function getApplicantFlag(Relationship: RelationshipToPrimary): string {
   switch (Relationship) {
@@ -24,4 +25,12 @@ export function getApplicantFlag(Relationship: RelationshipToPrimary): string {
     default:
       return 'N';
   }
+}
+
+export function getIcmRelationship(
+  relationship: RelationshipToPrimary,
+): string {
+  return relationship === RelationshipToPrimary.ReliefProvider
+    ? IcmCaseContactRelationship.KeyPlayer
+    : relationship;
 }
