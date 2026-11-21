@@ -12,4 +12,7 @@ export class HouseholdMemberScreeningStatusDto {
 
   @ApiProperty()
   screeningInfoProvided!: boolean;
+
+  @ApiProperty()
+  isReliefProvider!: boolean;
 }

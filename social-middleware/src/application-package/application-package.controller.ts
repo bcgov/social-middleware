@@ -23,6 +23,7 @@ import { ApplicationPackageStatus } from './enums/application-package-status.enu
 import { SubmitReferralRequestDto } from './dto/submit-referral-request.dto';
 import { CreateApplicationPackageDto } from './dto/create-application-package.dto';
 import { CreateAdditionalAdultDto } from './dto/create-additional-adult.dto';
+import { CreateReliefProviderDto } from './dto/create-relief-provider.dto';
 import { UpdateApplicationPackageDto } from './dto/update-application-package.dto';
 import { ValidateHouseholdCompletionDto } from './dto/validate-application-package.dto';
 import { SessionAuthGuard } from 'src/auth/session-auth.guard';
@@ -151,6 +152,35 @@ export class ApplicationPackageController {
   async listAdditionalAdultMembers(@Req() request: Request) {
     const userId = this.sessionUtil.extractUserIdFromRequest(request);
     return this.applicationPackageService.listAdditionalAdultMembers(userId);
+  }
+  @Get('relief-provider')
+  @ApiOperation({
+    summary: 'List the relief providers the caregiver has invited',
+  })
+  async listReliefProviders(@Req() request: Request) {
+    const userId = this.sessionUtil.extractUserIdFromRequest(request);
+    return this.applicationPackageService.listReliefProviders(userId);
+  }
+  @Post('relief-provider')
+  @ApiOperation({
+    summary: 'Invite a respite/relief provider',
+    description:
+      'Creates a Relief Provider application package and household member, creates the screening forms and emails an access code to the provider.',
+  })
+  @ApiResponse({ status: 201, description: 'Package and member created' })
+  @ApiResponse({ status: 400, description: 'Invalid provider details' })
+  @ApiResponse({ status: 403, description: 'No open resource case' })
+  @ApiResponse({ status: 409, description: 'Provider already invited' })
+  async createReliefProvider(
+    @Body(new ValidationPipe({ whitelist: true, transform: true }))
+    dto: CreateReliefProviderDto,
+    @Req() request: Request,
+  ): Promise<{ applicationPackageId: string; householdMemberId: string }> {
+    const userId = this.sessionUtil.extractUserIdFromRequest(request);
+    return this.applicationPackageService.createReliefProviderPackage(
+      userId,
+      dto,
+    );
   }
 
   @Patch(':applicationPackageId')

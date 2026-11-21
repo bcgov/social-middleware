@@ -5,12 +5,14 @@ export enum ApplicationPackageSubType {
   OOC = 'Kinship',
   PROSPECTIVE = 'Prospective Caregiver',
   ADDITIONAL_ADULT = 'Additional Adult',
+  RELIEF_PROVIDER = 'Relief Provider',
 }
 
 // Packages for one person who is screened on their own Caregiver Screening service request,
 // not an application made by the primary applicant. Add RELIEF_PROVIDER here when it exists.
 export const SCREENING_SUBTYPES: readonly ApplicationPackageSubType[] = [
   ApplicationPackageSubType.ADDITIONAL_ADULT,
+  ApplicationPackageSubType.RELIEF_PROVIDER,
 ];
 
 export function isScreeningSubtype(subtype?: string | null): boolean {
@@ -18,6 +20,14 @@ export function isScreeningSubtype(subtype?: string | null): boolean {
     !!subtype && (SCREENING_SUBTYPES as readonly string[]).includes(subtype)
   );
 }
+
+// The SR Sub Type ICM expects on the Caregiver Screening SR, by package subtype.
+// Additional Adult sends none.
+export const ScreeningSRSubTypes: Partial<
+  Record<ApplicationPackageSubType, string>
+> = {
+  [ApplicationPackageSubType.RELIEF_PROVIDER]: 'Relief(Appendix F)',
+};
 
 export enum ApplicationPackageSubSubType {
   _BLANK = '',

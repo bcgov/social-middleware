@@ -8,6 +8,7 @@ import {
   UserLoggedInEvent,
 } from '../../common/events/auth-events.service';
 import {
+  DuplicateBcscContactError,
   SiebelApiService,
   SiebelResourceCase,
   SiebelSRsResponse,
@@ -137,11 +138,28 @@ export class AuthListener implements OnModuleInit {
         'contact_id not set — attempting ICM contact lookup',
       );
 
-      const result = await this.siebelApiService.getContactByBcscId(
-        userData.bc_services_card_id,
-      );
+      let contactId: string | undefined;
+      try {
+        const result = await this.siebelApiService.getContactByBcscId(
+          userData.bc_services_card_id,
+        );
+        contactId = result?.Id;
+      } catch (error) {
+        if (
+          error instanceof DuplicateBcscContactError &&
+          this.configService.get<string>('ICM_DUPLICATE_DID_TIEBREAK') ===
+            'true'
+        ) {
+          contactId = await this.pickDuplicateContact(
+            userData.userId,
+            error.contactIds,
+          );
+        } else {
+          throw error;
+        }
+      }
 
-      if (!result?.Id) {
+      if (!contactId) {
         this.logger.info(
           { userId: userData.userId },
           'No ICM contact found - contact_id not set',
@@ -150,10 +168,11 @@ export class AuthListener implements OnModuleInit {
       }
 
       await this.userService.updateUser(userData.userId, {
-        contact_id: result.Id,
+        contact_id: contactId,
       });
+
       this.logger.info(
-        { userId: userData.userId, contactId: result.Id },
+        { userId: userData.userId, contactId: contactId },
         'ICM contact_id persisted to user record',
       );
     } catch (error) {
@@ -162,6 +181,29 @@ export class AuthListener implements OnModuleInit {
         'Failed to sync ICM contact_id - login not blocked',
       );
     }
+  }
+
+  private async pickDuplicateContact(
+    userId: string,
+    contactIds: string[],
+  ): Promise<string | undefined> {
+    const sorted = [...contactIds].sort();
+    for (const id of sorted) {
+      const cases =
+        await this.siebelApiService.getOpenResourceCasesByContactId(id);
+      if (cases.length > 0) {
+        this.logger.warn(
+          { userId, contactIds, chosen: id, reason: 'open-resource-case' },
+          'Duplicate BCSC DID — tie-break selected contact',
+        );
+        return id;
+      }
+    }
+    this.logger.warn(
+      { userId, contactIds, chosen: sorted[0], reason: 'fallback-first' },
+      'Duplicate BCSC DID — tie-break selected contact',
+    );
+    return sorted[0];
   }
 
   private async syncResourceCase(userData: UserLoggedInEvent): Promise<void> {

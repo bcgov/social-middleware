@@ -88,6 +88,15 @@ export class SiebelApiError extends Error {
   }
 }
 
+export class DuplicateBcscContactError extends Error {
+  constructor(
+    public readonly bcscId: string,
+    public readonly contactIds: string[],
+  ) {
+    super(`Duplicate ICM contacts for BCSC ID: ${bcscId}`);
+  }
+}
+
 @Injectable()
 export class SiebelApiService {
   private readonly baseUrl: string;
@@ -180,11 +189,14 @@ export class SiebelApiService {
           : [result.items];
 
         if (items.length > 1) {
+          const ids = items
+            .map((i) => (i as { Id?: string }).Id)
+            .filter((id): id is string => !!id);
           this.logger.error(
-            { bcscId, count: items.length },
+            { bcscId, count: items.length, contactIds: ids },
             'Multiple contacts found for BCSC ID - ICM BCSC DID should be unique',
           );
-          throw new Error(`Duplicate ICM contacts for BCSC ID: ${bcscId}`);
+          throw new DuplicateBcscContactError(bcscId, ids);
         }
 
         if (items.length === 0) {
@@ -193,7 +205,7 @@ export class SiebelApiService {
         }
 
         this.logger.info({ bcscId }, 'Contact found for BCSC ID');
-        return result;
+        return items[0] as SiebelContactResponse;
       }
 
       if (!result.Id) {

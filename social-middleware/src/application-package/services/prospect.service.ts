@@ -7,7 +7,10 @@ import { User } from '../../auth/schemas/user.schema';
 import { GenderTypes } from 'src/household/enums/gender-types.enum';
 import { formatDateForSiebel } from 'src/common/utils/date.util';
 import { HouseholdMembersDocument } from 'src/household/schemas/household-members.schema';
-import { getApplicantFlag } from 'src/household/enums/relationship-to-primary.enum';
+import {
+  getApplicantFlag,
+  getIcmRelationship,
+} from 'src/household/enums/relationship-to-primary.enum';
 
 export interface ProspectContactOverrides {
   email?: string;
@@ -95,7 +98,7 @@ export class ProspectService {
         HomePhone: memberUser.home_phone || '',
         AlternatePhone: memberUser.alternate_phone || '',
         Gender: gender,
-        Relationship: member.relationshipToPrimary,
+        Relationship: getIcmRelationship(member.relationshipToPrimary),
         ApplicantFlag: applicantFlag,
       };
     }
@@ -118,7 +121,7 @@ export class ProspectService {
       HomePhone: '',
       AlternatePhone: '',
       Gender: gender,
-      Relationship: member.relationshipToPrimary,
+      Relationship: getIcmRelationship(member.relationshipToPrimary),
       ApplicantFlag: applicantFlag,
     };
   }

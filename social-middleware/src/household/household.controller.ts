@@ -268,8 +268,8 @@ export class HouseholdController {
     summary: 'Mark all screening documents as attached for a household member',
     description:
       'Called when the primary applicant uploads screening documents on behalf of a household member. ' +
-      'Not permitted for their spouse - spouses (partner, common law) submit their own screening documents ' +
-      'via their own portal login.',
+      'Not permitted for their spouse - spouses (partner, common law) or relief provider who submit' +
+      'their own screening documents via their own portal login.',
   })
   @ApiResponse({
     status: 200,
@@ -313,6 +313,7 @@ export class HouseholdController {
         RelationshipToPrimary.Spouse,
         RelationshipToPrimary.CommonLaw,
         RelationshipToPrimary.Partner,
+        RelationshipToPrimary.ReliefProvider,
       ].includes(member.relationshipToPrimary)
     ) {
       throw new UnauthorizedException(

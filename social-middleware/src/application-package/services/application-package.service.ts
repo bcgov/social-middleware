@@ -71,6 +71,7 @@ import {
   isScreeningSubtype,
 } from '../enums/application-package-subtypes.enum';
 import { ProspectService } from './prospect.service';
+import { CreateReliefProviderDto } from '../dto/create-relief-provider.dto';
 
 @Injectable()
 export class ApplicationPackageService {
@@ -219,17 +220,10 @@ export class ApplicationPackageService {
       }
     }
 
-    const pkg = await this.createApplicationPackage(
-      {
-        subtype: ApplicationPackageSubType.ADDITIONAL_ADULT,
-        subsubtype: ApplicationPackageSubSubType._BLANK,
-      },
+    return this.createScreeningPackage(
       userId,
-    );
-
-    try {
-      const member = await this.householdService.createMember({
-        applicationPackageId: pkg.applicationPackageId,
+      ApplicationPackageSubType.ADDITIONAL_ADULT,
+      {
         firstName: dto.firstName,
         lastName: dto.lastName,
         dateOfBirth: dto.dateOfBirth,
@@ -237,8 +231,35 @@ export class ApplicationPackageService {
         relationshipToPrimary: dto.relationshipToPrimary,
         genderType: dto.genderType,
         moveInDate: dto.moveInDate,
-      });
+      },
+    );
+  }
 
+  // Shared by the screening package types: a package holding the caregiver and the one person to be
+  // screened, taken straight to Consent, with that person's forms and access code email.
+  private async createScreeningPackage(
+    userId: string,
+    subtype: ApplicationPackageSubType,
+    person: {
+      firstName: string;
+      lastName: string;
+      dateOfBirth: string;
+      email: string;
+      relationshipToPrimary: RelationshipToPrimary;
+      genderType: CreateAdditionalAdultDto['genderType'];
+      moveInDate?: string;
+    },
+  ): Promise<{ applicationPackageId: string; householdMemberId: string }> {
+    const pkg = await this.createApplicationPackage(
+      { subtype, subsubtype: ApplicationPackageSubSubType._BLANK },
+      userId,
+    );
+
+    try {
+      const member = await this.householdService.createMember({
+        applicationPackageId: pkg.applicationPackageId,
+        ...person,
+      });
       await this.applicationPackageModel.updateOne(
         { applicationPackageId: pkg.applicationPackageId },
         {
@@ -253,14 +274,14 @@ export class ApplicationPackageService {
         pkg.applicationPackageId,
         member.householdMemberId,
       );
-
       this.logger.info(
         {
           userId,
+          subtype,
           applicationPackageId: pkg.applicationPackageId,
           householdMemberId: member.householdMemberId,
         },
-        'Additional adult package created',
+        'Screening package created',
       );
       return {
         applicationPackageId: pkg.applicationPackageId,
@@ -272,11 +293,133 @@ export class ApplicationPackageService {
         (e: unknown) =>
           this.logger.error(
             { error: e, applicationPackageId: pkg.applicationPackageId },
-            'Failed to withdraw incomplete additional adult package',
+            'Failed to withdraw incomplete screening package',
           ),
       );
       throw error;
     }
+  }
+
+  // A respite/relief provider named by a caregiver with an open resource case.
+  // The provider is screened on their own service request once they sign in and confirm.
+  async createReliefProviderPackage(
+    userId: string,
+    dto: CreateReliefProviderDto,
+  ): Promise<{ applicationPackageId: string; householdMemberId: string }> {
+    if (this.configService.get<string>('TEST_RESOURCE_CASE') !== 'true') {
+      throw new NotFoundException();
+    }
+    // 403 unless the caller has an open resource case (confirmed against ICM)
+    const { user } = await this.resourceCaseService.getOpenCaseForUser(userId);
+
+    if (
+      !isRealIsoDate(dto.dateOfBirth) ||
+      calculateAge(dto.dateOfBirth) < ADULT_AGE
+    ) {
+      throw new BadRequestException('The relief provider must be an adult');
+    }
+    // a caregiver cannot name themselves; the user's date of birth is stored as MM/DD/YYYY
+    const [year, month, day] = dto.dateOfBirth.split('-');
+    if (
+      user.last_name.trim().toLowerCase() ===
+        dto.lastName.trim().toLowerCase() &&
+      user.first_name.charAt(0).toUpperCase() ===
+        dto.firstName.charAt(0).toUpperCase() &&
+      user.dateOfBirth === `${month}/${day}/${year}`
+    ) {
+      throw new ConflictException(
+        'You cannot name yourself as a relief provider.',
+      );
+    }
+    // someone already on the case's household cannot be a relief provider
+    if (
+      await this.resourceCaseService.isOnHousehold(
+        user,
+        dto.firstName,
+        dto.lastName,
+      )
+    ) {
+      throw new ConflictException(
+        'This person is already part of your household, so they cannot be a relief provider.',
+      );
+    }
+    const existing = await this.getApplicationPackages(userId);
+    for (const p of existing) {
+      if (p.status === ApplicationPackageStatus.WITHDRAWN) continue;
+      const { isDuplicate } = await this.householdService.checkForDuplicate(
+        p.applicationPackageId,
+        dto.firstName,
+        dto.lastName,
+        dto.dateOfBirth,
+      );
+      if (!isDuplicate) continue;
+      if (p.subtype === ApplicationPackageSubType.RELIEF_PROVIDER) {
+        // a provider whose screening has gone to ICM can be invited again
+        const submitted =
+          p.status === ApplicationPackageStatus.SUBMITTED ||
+          p.submissionStatus === (SubmissionStatus.SUCCESS as string);
+        if (submitted) continue;
+        throw new ConflictException(
+          'This person has already been invited as a relief provider. Finish or cancel their invitation first.',
+        );
+      }
+      // a member of the caregiver's own packages (their application, or an additional adult)
+      throw new ConflictException(
+        'This person is already part of your household, so they cannot be a relief provider.',
+      );
+    }
+
+    return this.createScreeningPackage(
+      userId,
+      ApplicationPackageSubType.RELIEF_PROVIDER,
+      {
+        ...dto,
+        relationshipToPrimary: RelationshipToPrimary.ReliefProvider,
+      },
+    );
+  }
+
+  // The one person each screening package of this subtype is about, with whether the package
+  // has gone to ICM. Shared by the Additional Adult and Relief Provider lists.
+  private async listScreeningPeople(
+    userId: string,
+    subtype: ApplicationPackageSubType,
+  ): Promise<
+    {
+      pkg: ApplicationPackage;
+      member: Awaited<
+        ReturnType<HouseholdService['findAllHouseholdMembers']>
+      >[number];
+      submitted: boolean;
+    }[]
+  > {
+    if (this.configService.get<string>('TEST_RESOURCE_CASE') !== 'true') {
+      return [];
+    }
+    const packages = await this.getApplicationPackages(userId);
+    const active = packages.filter(
+      (p) =>
+        p.subtype === subtype &&
+        p.status !== ApplicationPackageStatus.WITHDRAWN,
+    );
+    const result = [];
+    for (const pkg of active) {
+      const submitted =
+        pkg.submissionStatus === (SubmissionStatus.SUCCESS as string) ||
+        String(pkg.srStage ?? '')
+          .trim()
+          .toLowerCase() === 'completed';
+      const members = await this.householdService.findAllHouseholdMembers(
+        pkg.applicationPackageId,
+      );
+      for (const member of members) {
+        if (member.relationshipToPrimary === RelationshipToPrimary.Self) {
+          continue;
+        }
+        result.push({ pkg, member, submitted });
+      }
+    }
+    return result;
   }
 
   //Members added through Additional Adult packages, with submitted set once the package has gone to ICM.
@@ -292,40 +435,69 @@ export class ApplicationPackageService {
       submitted: boolean;
     }[]
   > {
-    if (this.configService.get<string>('TEST_RESOURCE_CASE') !== 'true') {
-      return [];
-    }
+    const people = await this.listScreeningPeople(
+      userId,
+      ApplicationPackageSubType.ADDITIONAL_ADULT,
+    );
+    return people.map(({ pkg, member, submitted }) => ({
+      applicationPackageId: pkg.applicationPackageId,
+      householdMemberId: member.householdMemberId,
+      firstName: member.firstName,
+      lastName: member.lastName,
+      relationshipToPrimary: member.relationshipToPrimary,
+      moveInDate: member.moveInDate ?? null,
+      submitted,
+    }));
+  }
 
-    const packages = await this.getApplicationPackages(userId);
-
-    const active = packages.filter(
-      (p) =>
-        p.subtype === ApplicationPackageSubType.ADDITIONAL_ADULT &&
-        p.status !== ApplicationPackageStatus.WITHDRAWN,
+  // The caregiver's respite/relief providers, for Manage Relief Providers and the dashboard.
+  // status: invited (code not redeemed) → redeemed (signed in, nothing started) → in_progress → submitted
+  // (the provider confirmed their part). submitted is true once the package has gone to ICM.
+  async listReliefProviders(userId: string): Promise<
+    {
+      applicationPackageId: string;
+      householdMemberId: string;
+      firstName: string;
+      lastName: string;
+      email: string;
+      dateOfBirth: string;
+      status: 'invited' | 'redeemed' | 'in_progress' | 'submitted';
+      canEdit: boolean;
+      submitted: boolean;
+    }[]
+  > {
+    const people = await this.listScreeningPeople(
+      userId,
+      ApplicationPackageSubType.RELIEF_PROVIDER,
     );
 
     const result = [];
-    for (const p of active) {
-      const submitted =
-        p.submissionStatus === (SubmissionStatus.SUCCESS as string) ||
-        String(p.srStage ?? '')
-          .trim()
-          .toLowerCase() === 'completed';
-      const members = await this.householdService.findAllHouseholdMembers(
-        p.applicationPackageId,
-      );
-      for (const m of members) {
-        if (m.relationshipToPrimary === RelationshipToPrimary.Self) continue;
-        result.push({
-          applicationPackageId: p.applicationPackageId,
-          householdMemberId: m.householdMemberId,
-          firstName: m.firstName,
-          lastName: m.lastName,
-          relationshipToPrimary: m.relationshipToPrimary,
-          moveInDate: m.moveInDate ?? null,
-          submitted,
-        });
+    for (const { pkg, member, submitted } of people) {
+      let status: 'invited' | 'redeemed' | 'in_progress' | 'submitted';
+      if (submitted || member.screeningInfoProvided) {
+        status = 'submitted';
+      } else if (!member.userId) {
+        status = 'invited';
+      } else {
+        const forms =
+          await this.applicationFormService.getApplicationFormByHouseholdId(
+            member.householdMemberId,
+          );
+        status = forms.some((f) => f.status !== ApplicationFormStatus.NEW)
+          ? 'in_progress'
+          : 'redeemed';
       }
+      result.push({
+        applicationPackageId: pkg.applicationPackageId,
+        householdMemberId: member.householdMemberId,
+        firstName: member.firstName,
+        lastName: member.lastName,
+        email: member.email ?? '',
+        dateOfBirth: member.dateOfBirth,
+        status,
+        canEdit: !member.userId && !member.screeningInfoProvided,
+        submitted,
+      });
     }
     return result;
   }

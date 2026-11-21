@@ -19,6 +19,7 @@ import { PinoLogger } from 'nestjs-pino';
 import { HouseholdService } from './services/household.service';
 import { MemberTypes } from './enums/member-types.enum';
 import { AccessCodeType } from './enums/access-code-type.enum';
+import { RelationshipToPrimary } from './enums/relationship-to-primary.enum';
 
 @ApiTags('Household Access Codes')
 @Controller('household')
@@ -119,6 +120,8 @@ export class HouseholdAccessCodeController {
         applicationPackageId: m.applicationPackageId,
         memberType: m.memberType,
         screeningInfoProvided: m.screeningInfoProvided,
+        isReliefProvider:
+          m.relationshipToPrimary === RelationshipToPrimary.ReliefProvider,
       }));
   }
 }

@@ -184,6 +184,35 @@ export class NotificationService {
   }
 
   /**
+   * Send access code notification to a respite/relief provider
+   */
+  async sendReliefProviderAccessCode(
+    email: string,
+    applicantName: string,
+    providerName: string,
+    accessCode: string,
+  ): Promise<void> {
+    const emailData: SendEmailDto = {
+      to: [this.getToEmail(email)],
+      from:
+        this.configService.get<string>('CHES_FROM_EMAIL') ||
+        'noreply@gov.bc.ca',
+      subject: 'MCFD Relief Provider Screening Request',
+      body: `
+            <h2>You have been identified as a prospective relief provider</h2>
+            <p>Hello ${providerName},</p>
+            <p>${applicantName} has identified you as a prospective respite or relief provider for a home that provides care to a child or youth in need. The Ministry of Children and Family Development requires relief providers to complete screening before providing care.</p>
+          <p>Please sign in to the <a href="${this.frontendUrl}">Foster & Care Provider Portal</a> using your BC Services Card and enter the access code <b>${accessCode}</b> to begin.</p>
+          <p>Thank you for providing the information we need.</p>
+          <p>Thank you,</p>
+        `,
+      bodyType: 'html',
+      priority: 'normal',
+    };
+    await this.notificationQueueService.sendEmail(emailData);
+  }
+
+  /**
    * Send custom notification
    */
   async sendCustomEmail(

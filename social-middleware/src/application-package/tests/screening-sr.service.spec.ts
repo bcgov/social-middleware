@@ -194,6 +194,28 @@ describe('ScreeningSrService', () => {
         NotFoundException,
       );
     });
+
+    it('sends the Relief(Appendix F) sub type for a relief provider', async () => {
+      givenPackage({ subtype: ApplicationPackageSubType.RELIEF_PROVIDER });
+
+      await service.ensureScreeningSr(PACKAGE_ID);
+
+      expect(mockSiebel.createServiceRequest).toHaveBeenCalledWith(
+        expect.objectContaining({
+          Type: 'Caregiver Screening',
+          'SR Sub Type': 'Relief(Appendix F)',
+        }),
+        'jsmith',
+      );
+    });
+    it('sends no sub type for an Additional Adult', async () => {
+      await service.ensureScreeningSr(PACKAGE_ID);
+
+      const payload = mockSiebel.createServiceRequest.mock
+        .calls[0][0] as Record<string, unknown>;
+      expect(payload).not.toHaveProperty('SR Sub Type');
+    });
+
     it('creates a Caregiver Screening SR for the person, saves it, and links the case', async () => {
       const result = await service.ensureScreeningSr(PACKAGE_ID);
 
