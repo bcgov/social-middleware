@@ -212,7 +212,10 @@ export class AuthController {
       home_phone: user.home_phone,
       alternate_phone: user.alternate_phone,
       ...(user.resource_case_active_date && sendResourceDetails // if they have an active resource case, send the date, otherwise send nothing
-        ? { resource_case_active_date: user.resource_case_active_date }
+        ? {
+            resource_case_active_date: user.resource_case_active_date,
+            resource_case_sub_type: user.resource_case_sub_type ?? null,
+          }
         : {}),
       ...(sendResourceDetails
         ? {

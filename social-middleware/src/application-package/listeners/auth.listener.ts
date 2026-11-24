@@ -36,6 +36,7 @@ import {
 } from '../../siebel/enums/icm-case-contact-relationship.enum';
 import { calculateAge } from '../../common/utils/age.util';
 import { todayInPacific } from 'src/common/utils/case-window.util';
+import { parseCaseSubType } from '../../siebel/enums/icm-case-sub-type.enum';
 
 @Injectable()
 export class AuthListener implements OnModuleInit {
@@ -191,7 +192,7 @@ export class AuthListener implements OnModuleInit {
     for (const id of sorted) {
       const cases =
         await this.siebelApiService.getOpenResourceCasesByContactId(id);
-      if (cases.length > 0) {
+      if (cases.some((c) => parseCaseSubType(c['Case Sub Type']))) {
         this.logger.warn(
           { userId, contactIds, chosen: id, reason: 'open-resource-case' },
           'Duplicate BCSC DID — tie-break selected contact',
@@ -227,10 +228,22 @@ export class AuthListener implements OnModuleInit {
         return;
       }
 
-      const openCases =
+      const allOpenCases =
         await this.siebelApiService.getOpenResourceCasesByContactId(
           user.contact_id,
         );
+      const openCases = allOpenCases.filter((c) =>
+        parseCaseSubType(c['Case Sub Type']),
+      );
+      if (allOpenCases.length !== openCases.length) {
+        this.logger.info(
+          {
+            userId: userData.userId,
+            ignored: allOpenCases.length - openCases.length,
+          },
+          'Ignoring resource cases with an unsupported Case Sub Type',
+        );
+      }
 
       const updateFields: Partial<User> = {
         resource_case_last_checked: new Date(),
@@ -258,12 +271,17 @@ export class AuthListener implements OnModuleInit {
         updateFields.resource_case_active_date = resolveActiveCaseDate(latest);
         updateFields.resource_case_closed = false;
 
+        updateFields.resource_case_sub_type = parseCaseSubType(
+          latest['Case Sub Type'],
+        );
+
         this.logger.info(
           { userId: userData.userId, caseId: latest.Id },
           'Resource case synced',
         );
       } else if (user.resource_case_id) {
         updateFields.resource_case_closed = true;
+        updateFields.resource_case_sub_type = null;
         this.logger.info(
           { userId: userData.userId, caseId: user.resource_case_id },
           'Resource case closed - no open cases found in ICM',

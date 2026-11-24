@@ -63,6 +63,7 @@ export interface SiebelResourceCase {
   'Created Date': string;
   'Reopened Date': string;
   'Office Name'?: string;
+  'Case Sub Type'?: string;
   [key: string]: unknown;
 }
 
@@ -676,7 +677,7 @@ export class SiebelApiService {
       SearchSpec: `([Key Player Id] = '${contactId}' AND [Type] = 'Resource' AND [Status] = 'Open')`,
       ViewMode: 'Catalog',
       fields:
-        'Id,Status,Created Date,Reopened Date,Assigned To Id,Assigned To,Case Num,Office Name',
+        'Id,Status,Created Date,Reopened Date,Assigned To Id,Assigned To,Case Num,Office Name,Case Sub Type',
       ChildLinks: 'None',
     };
 
