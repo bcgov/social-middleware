@@ -143,4 +143,79 @@ describe('AuthController', () => {
       expect(() => controller.getStatus(req)).toThrow(HttpException);
     });
   });
+
+  describe('getUserProfile', () => {
+    const req = {} as Request;
+    const user = (overrides: Record<string, unknown> = {}) => ({
+      first_name: 'Jane',
+      last_name: 'Doe',
+      street_address: '123 Main St',
+      city: 'Victoria',
+      region: 'BC',
+      postal_code: 'V8V 1A1',
+      dateOfBirth: '1990-01-01',
+      sex: 'Female',
+      email: 'jane@example.com',
+      resource_case_id: 'case-001',
+      resource_case_active_date: new Date('2025-01-15'),
+      resource_case_sub_type: 'FCH',
+      resource_case_closed: false,
+      non_key_player_caregiver: null,
+      ...overrides,
+    });
+    const flag = (value: string | undefined) =>
+      mockConfigService.get.mockImplementation((key: string) =>
+        key === 'TEST_RESOURCE_CASE' ? value : 'test-secret',
+      );
+
+    beforeEach(() => {
+      mockSessionUtil.extractUserIdFromRequest.mockReturnValue('user-001');
+      flag('true');
+    });
+    afterEach(() => mockConfigService.get.mockReturnValue('test-secret'));
+    it('sends the case date and sub type for an open case', async () => {
+      mockUserService.findOne.mockResolvedValue(user());
+
+      const result = await controller.getUserProfile(req);
+
+      expect(result).toMatchObject({
+        resource_case_active_date: new Date('2025-01-15'),
+        resource_case_sub_type: 'FCH',
+      });
+    });
+    it('omits case details once the case is closed', async () => {
+      mockUserService.findOne.mockResolvedValue(
+        user({ resource_case_closed: true, resource_case_sub_type: null }),
+      );
+
+      const result = await controller.getUserProfile(req);
+
+      expect(result).not.toHaveProperty('resource_case_active_date');
+      expect(result).not.toHaveProperty('resource_case_sub_type');
+    });
+    it('omits case details when the user has never had a case', async () => {
+      mockUserService.findOne.mockResolvedValue(
+        user({
+          resource_case_id: null,
+          resource_case_active_date: null,
+          resource_case_sub_type: null,
+        }),
+      );
+
+      const result = await controller.getUserProfile(req);
+
+      expect(result).not.toHaveProperty('resource_case_active_date');
+      expect(result).not.toHaveProperty('resource_case_sub_type');
+    });
+    it('omits case details when TEST_RESOURCE_CASE is off', async () => {
+      flag(undefined);
+      mockUserService.findOne.mockResolvedValue(user());
+
+      const result = await controller.getUserProfile(req);
+
+      expect(result).not.toHaveProperty('resource_case_active_date');
+      expect(result).not.toHaveProperty('resource_case_sub_type');
+      expect(result).not.toHaveProperty('non_key_player_caregiver');
+    });
+  });
 });
