@@ -142,20 +142,7 @@ export class ApplicationFormService {
       throw new NotFoundException(`Application form ${sourceFormId} not found`);
     }
 
-    const sourceParams = await this.formParametersModel
-      .findOne({ applicationFormId: { $eq: sourceFormId } })
-      .sort({ createdAt: -1 })
-      .lean()
-      .exec();
-
-    if (!sourceParams) {
-      throw new NotFoundException(
-        `Form parameters for ${sourceFormId} not found`,
-      );
-    }
-
     const applicationFormId = uuidv4();
-    const formAccessToken = uuidv4();
 
     const clonedForm = new this.applicationFormModel({
       applicationFormId,
@@ -173,15 +160,9 @@ export class ApplicationFormService {
 
     await clonedForm.save();
 
-    const clonedParams = new this.formParametersModel({
-      applicationFormId,
-      type: sourceParams.type,
-      formId: sourceParams.formId,
-      formAccessToken,
-      formParameters: sourceParams.formParameters,
-    });
-
-    await clonedParams.save();
+    // FormParameters are not copied: they're purged after 24h by data retention,
+    // and the resubmission page mints a fresh token via GET /application-forms/token
+    // (newFormAccessToken), which derives formId from the form type.
 
     this.logger.info(
       { sourceFormId, applicationFormId },
