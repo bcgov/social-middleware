@@ -445,30 +445,21 @@ describe('ApplicationFormService', () => {
   // ─── cloneApplicationForm ─────────────────────────────────────────────────
 
   describe('cloneApplicationForm', () => {
-    it('clones form and parameters, returns a new applicationFormId', async () => {
+    it('clones the form without copying form parameters, returns a new applicationFormId', async () => {
       applicationFormModel.findOne.mockReturnValue(q(baseForm));
-      formParametersModel.findOne.mockReturnValue(q(baseParams));
 
       const result = await service.cloneApplicationForm('form-001');
 
       expect(result.applicationFormId).toBeDefined();
       expect(result.applicationFormId).not.toBe('form-001');
-      expect(mockSave).toHaveBeenCalledTimes(2);
+      expect(mockSave).toHaveBeenCalledTimes(1); // form only; params are minted later via /token
+      expect(formParametersModel.findOne).not.toHaveBeenCalled();
     });
 
     it('throws NotFoundException when source form is not found', async () => {
       applicationFormModel.findOne.mockReturnValue(q(null));
 
       await expect(service.cloneApplicationForm('form-xxx')).rejects.toThrow(
-        NotFoundException,
-      );
-    });
-
-    it('throws NotFoundException when source parameters are not found', async () => {
-      applicationFormModel.findOne.mockReturnValue(q(baseForm));
-      formParametersModel.findOne.mockReturnValue(q(null));
-
-      await expect(service.cloneApplicationForm('form-001')).rejects.toThrow(
         NotFoundException,
       );
     });
