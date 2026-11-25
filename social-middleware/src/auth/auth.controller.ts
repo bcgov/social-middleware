@@ -199,6 +199,12 @@ export class AuthController {
     const sendResourceDetails =
       this.configService.get<string>('TEST_RESOURCE_CASE') === 'true';
 
+    // only an open case is sent; a closed case keeps its date on the user record
+    const hasOpenResourceCase =
+      sendResourceDetails &&
+      !!user.resource_case_active_date &&
+      !user.resource_case_closed;
+
     return {
       first_name: user.first_name,
       last_name: user.last_name,
@@ -211,8 +217,11 @@ export class AuthController {
       email: user.email,
       home_phone: user.home_phone,
       alternate_phone: user.alternate_phone,
-      ...(user.resource_case_active_date && sendResourceDetails // if they have an active resource case, send the date, otherwise send nothing
-        ? { resource_case_active_date: user.resource_case_active_date }
+      ...(hasOpenResourceCase
+        ? {
+            resource_case_active_date: user.resource_case_active_date,
+            resource_case_sub_type: user.resource_case_sub_type ?? null,
+          }
         : {}),
       ...(sendResourceDetails
         ? {

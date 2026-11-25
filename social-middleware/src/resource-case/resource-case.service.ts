@@ -18,6 +18,10 @@ import {
 import { NOT_MANAGEABLE_RELATIONSHIPS } from '../siebel/enums/icm-case-contact-relationship.enum';
 import { randomUUID } from 'crypto';
 import { HouseholdContactService } from './household-contact.service';
+import {
+  IcmCaseSubType,
+  parseCaseSubType,
+} from 'src/siebel/enums/icm-case-sub-type.enum';
 
 export interface OpenResourceCase {
   user: User;
@@ -26,6 +30,7 @@ export interface OpenResourceCase {
   officeName?: string; // ICM 'Office Name': the case's local office
   assigneeId: string; // ICM 'Assigned To Id'
   assignee: string; // ICM 'Assigned To' (trusted username for the activity)
+  caseSubType?: IcmCaseSubType;
 }
 
 // must exceed the Siebel request timeout, so a live claim is never treated as stale
@@ -75,6 +80,7 @@ export class ResourceCaseService {
       officeName: icmCase['Office Name'],
       assigneeId,
       assignee: icmCase['Assigned To'],
+      caseSubType: parseCaseSubType(icmCase['Case Sub Type']),
     };
   }
 

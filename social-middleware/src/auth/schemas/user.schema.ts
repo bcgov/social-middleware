@@ -2,6 +2,7 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document } from 'mongoose';
 import { UserStatus } from '../enums/user-status.enum';
+import { IcmCaseSubType } from 'src/siebel/enums/icm-case-sub-type.enum';
 
 export type UserDocument = User & Document;
 
@@ -62,6 +63,14 @@ export class User {
 
   @Prop({ required: false, type: Date, default: null })
   resource_case_active_date?: Date;
+
+  @Prop({
+    required: false,
+    type: String,
+    enum: [...Object.values(IcmCaseSubType), null],
+    default: null,
+  })
+  resource_case_sub_type?: IcmCaseSubType | null;
 
   @Prop({ type: Boolean, default: false })
   resource_case_closed!: boolean;
